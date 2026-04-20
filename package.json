@@ -1,6 +1,6 @@
 {
   "name": "@nktnet1/esm",
-  "version": "3.3.2",
+  "version": "3.3.3-beta.0",
   "description": "Tomorrow's ECMAScript modules today!",
   "keywords": [
     "commonjs",
@@ -11,11 +11,17 @@
     "node",
     "require"
   ],
-  "repository": "nktnet1/esm",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nktnet1/esm"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "license": "MIT",
   "author": "Khiet Tam Nguyen <tamkhietnguyen1@gmail.com>",
   "main": "esm.js",
-  "private": true,
+  "private": false,
   "runkitExample": "require = require(\"@nktnet1/esm\")(module)\nrequire(\"lodash-es\")",
   "esm": true,
   "engines": {
