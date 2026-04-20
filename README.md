@@ -1,10 +1,8 @@
 # @nktnet1/esm
 
-> _Part of [HTTP Toolkit](https://nktnet1.com): powerful tools for building, testing & debugging HTTP(S)_
-
 **This is a forked version of the [esm package](https://www.npmjs.com/package/esm)**: the brilliantly simple, babel-less, bundle-less ECMAScript module loader (which is now unmaintained). This fork includes:
 
-* Assorted updates from the [esm-wallaby fork](https://www.npmjs.com/package/esm-wallaby) adding support for ES modules containing new ES syntax, supporting modern Node versions (at least up to v21), and supporting `node:*` imports.
+* Assorted updates from [@httptoolkit/esm](https://github.com/httptoolkit/esm) and [esm-wallaby fork](https://www.npmjs.com/package/esm-wallaby), adding support for ES modules containing new ES syntax, supporting modern Node versions (at least up to v22), and supporting `node:*` imports.
 * Support for modules that use the `const require = createRequire(...)` pattern (or declare any other global `require` variable) which are otherwise unusable with `esm`.
 * Support for modules that use only an `exports` map in their package.json, without a `main` field, which are otherwise unresolveable (reporting "Cannot find module", even though `import()` works correctly).
 
