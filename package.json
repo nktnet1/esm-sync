@@ -1,5 +1,5 @@
 {
-  "name": "@httptoolkit/esm",
+  "name": "@nktnet1/esm",
   "version": "3.3.2",
   "description": "Tomorrow's ECMAScript modules today!",
   "keywords": [
@@ -11,12 +11,12 @@
     "node",
     "require"
   ],
-  "repository": "httptoolkit/esm",
+  "repository": "nktnet1/esm",
   "license": "MIT",
-  "author": "Tim Perry <tim@httptoolkit.com>",
+  "author": "Khiet Tam Nguyen <tamkhietnguyen1@gmail.com>",
   "main": "esm.js",
   "private": true,
-  "runkitExample": "require = require(\"@httptoolkit/esm\")(module)\nrequire(\"lodash-es\")",
+  "runkitExample": "require = require(\"@nktnet1/esm\")(module)\nrequire(\"lodash-es\")",
   "esm": true,
   "engines": {
     "node": ">=6"

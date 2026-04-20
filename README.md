@@ -1,6 +1,6 @@
-# @httptoolkit/esm
+# @nktnet1/esm
 
-> _Part of [HTTP Toolkit](https://httptoolkit.com): powerful tools for building, testing & debugging HTTP(S)_
+> _Part of [HTTP Toolkit](https://nktnet1.com): powerful tools for building, testing & debugging HTTP(S)_
 
 **This is a forked version of the [esm package](https://www.npmjs.com/package/esm)**: the brilliantly simple, babel-less, bundle-less ECMAScript module loader (which is now unmaintained). This fork includes:
 
@@ -11,21 +11,21 @@
 Install
 ---
 
-Run `npm i @httptoolkit/esm` or `yarn add @httptoolkit/esm`.
+Run `npm i @nktnet1/esm` or `yarn add @nktnet1/esm`.
 
 Getting started
 ---
 
-There are two ways to enable `@httptoolkit/esm`.
+There are two ways to enable `@nktnet1/esm`.
 
-1. Enable `@httptoolkit/esm` for packages:
+1. Enable `@nktnet1/esm` for packages:
 
-   Use `@httptoolkit/esm` to load the main ES module and export it as CommonJS.
+   Use `@nktnet1/esm` to load the main ES module and export it as CommonJS.
 
     __index.js__
     ```js
     // Set options as a parameter, environment variable, or rc file.
-    require = require("@httptoolkit/esm")(module/*, options*/)
+    require = require("@nktnet1/esm")(module/*, options*/)
     module.exports = require("./main.js")
     ```
     __main.js__
@@ -34,20 +34,20 @@ There are two ways to enable `@httptoolkit/esm`.
     export {}
     ```
 
-2. Enable `@httptoolkit/esm` for local runs:
+2. Enable `@nktnet1/esm` for local runs:
 
     ```shell
-    node -r @httptoolkit/esm main.js
+    node -r @nktnet1/esm main.js
     ```
-    :bulb: Omit the filename to enable `@httptoolkit/esm` in the REPL.
+    :bulb: Omit the filename to enable `@nktnet1/esm` in the REPL.
 
 Features
 ---
 
 :clap: By default, :100: percent CJS interoperability is enabled so you can get stuff done.<br>
-:lock: `.mjs` files are limited to basic functionality without support for `@httptoolkit/esm` options.
+:lock: `.mjs` files are limited to basic functionality without support for `@nktnet1/esm` options.
 
-Out of the box `@httptoolkit/esm` just works, no configuration necessary, and supports:
+Out of the box `@nktnet1/esm` just works, no configuration necessary, and supports:
 
 * Passing all applicable [test262](https://github.com/tc39/test262) compliance tests
 * [`import`](https://ponyfoo.com/articles/es6-modules-in-depth#import)/[`export`](https://ponyfoo.com/articles/es6-modules-in-depth#export)
@@ -225,30 +225,30 @@ Tips
 
 ### Extensions
 
-* Enable `@httptoolkit/esm` for [`wallaby.js`](https://wallabyjs.com/) following their
+* Enable `@nktnet1/esm` for [`wallaby.js`](https://wallabyjs.com/) following their
   [integration example](https://wallabyjs.com/docs/integration/node.html#es-modules).
 
 ### Loading
 
-* Load `@httptoolkit/esm` before loaders/monitors like
+* Load `@nktnet1/esm` before loaders/monitors like
   [`@babel/register`](https://babeljs.io/docs/en/next/babel-register.html),
   [`newrelic`](https://github.com/newrelic/node-newrelic),
   [`sqreen`](https://docs.sqreen.io/sqreen-for-nodejs/getting-started-2/), and
   [`ts-node`](https://github.com/TypeStrong/ts-node#programmatic).
 
-* Load `@httptoolkit/esm` for [`jasmine`](https://jasmine.github.io/) using the
+* Load `@nktnet1/esm` for [`jasmine`](https://jasmine.github.io/) using the
   [`"helpers"`](https://jasmine.github.io/setup/nodejs.html#configuration)
   field in `jasmine.json`:
   ```json
   "helpers": [
-    "node_modules/@httptoolkit/esm"
+    "node_modules/@nktnet1/esm"
   ]
   ```
 
-* Load `@httptoolkit/esm` with “node-args" options of:<br>
-  - [`pm2`](https://pm2.io/doc/en/runtime/reference/pm2-cli/#pm2-flags): `--node-args="-r @httptoolkit/esm"`
+* Load `@nktnet1/esm` with “node-args" options of:<br>
+  - [`pm2`](https://pm2.io/doc/en/runtime/reference/pm2-cli/#pm2-flags): `--node-args="-r @nktnet1/esm"`
 
-* Load `@httptoolkit/esm` with “require” options of
+* Load `@nktnet1/esm` with “require” options of
   [`ava`](https://github.com/avajs/ava/blob/master/docs/recipes/es-modules.md),
   [`mocha`](https://mochajs.org/#-require-module-r-module),
   [`nodemon`](https://nodemon.io/),
