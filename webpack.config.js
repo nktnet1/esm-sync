@@ -17,7 +17,6 @@ const {
 } = webpack.optimize
 
 const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer")
-const OptimizeJsPlugin = require("optimize-js-plugin")
 const TerserPlugin = require("terser-webpack-plugin")
 const UnusedPlugin = require("unused-webpack-plugin")
 
@@ -168,7 +167,6 @@ const config = {
 
 if (isProd) {
   config.plugins.push(
-    new OptimizeJsPlugin,
     new EnvironmentPlugin({ NODE_DEBUG: false })
   )
 }
