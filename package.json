@@ -114,5 +114,8 @@
     "index.js",
     "esm.js",
     "esm/loader.js"
-  ]
+  ],
+  "dependencies": {
+    "punycode": "^2.3.1"
+  }
 }

@@ -5,11 +5,11 @@ import shared from "../shared.js"
 import unwrapProxy from "../util/unwrap-proxy.js"
 
 function init() {
-  if (! builtinLookup.has("punycode")) {
+  if (!builtinLookup.has("punycode")) {
     return
   }
 
-  const realPunycode = safeRequire("punycode")
+  const realPunycode = safeRequire("punycode/")
 
   if (isObjectLike(realPunycode)) {
     return unwrapProxy(realPunycode)
