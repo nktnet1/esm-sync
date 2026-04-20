@@ -20,7 +20,7 @@
   "main": "esm.js",
   "types": "index.d.ts",
   "private": false,
-  "runkitExample": "require = require(\"@nktnet1/esm\")(module)\nrequire(\"lodash-es\")",
+  "runkitExample": "require = require(\"esm-sync\")(module)\nrequire(\"lodash-es\")",
   "esm": true,
   "engines": {
     "node": ">=6"

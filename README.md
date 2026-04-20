@@ -1,29 +1,30 @@
-# @nktnet1/esm
+# esm-sync
 
 **This is a forked version of the [esm package](https://www.npmjs.com/package/esm)**: the brilliantly simple, babel-less, bundle-less ECMAScript module loader (which is now unmaintained). This fork includes:
 
 * Assorted updates from [@httptoolkit/esm](https://github.com/httptoolkit/esm) and [esm-wallaby fork](https://www.npmjs.com/package/esm-wallaby), adding support for ES modules containing new ES syntax, supporting modern Node versions (at least up to v22), and supporting `node:*` imports.
 * Support for modules that use the `const require = createRequire(...)` pattern (or declare any other global `require` variable) which are otherwise unusable with `esm`.
 * Support for modules that use only an `exports` map in their package.json, without a `main` field, which are otherwise unresolveable (reporting "Cannot find module", even though `import()` works correctly).
+* Built-in types for use in TypeScript projects
 
 Install
 ---
 
-Run `npm i @nktnet1/esm` or `yarn add @nktnet1/esm`.
+Run `npm i esm-sync` or `yarn add esm-sync`.
 
 Getting started
 ---
 
-There are two ways to enable `@nktnet1/esm`.
+There are two ways to enable `esm-sync`.
 
-1. Enable `@nktnet1/esm` for packages:
+1. Enable `esm-sync` for packages:
 
-   Use `@nktnet1/esm` to load the main ES module and export it as CommonJS.
+   Use `esm-sync` to load the main ES module and export it as CommonJS.
 
     __index.js__
     ```js
     // Set options as a parameter, environment variable, or rc file.
-    require = require("@nktnet1/esm")(module/*, options*/)
+    require = require("esm-sync")(module/*, options*/)
     module.exports = require("./main.js")
     ```
     __main.js__
@@ -32,20 +33,20 @@ There are two ways to enable `@nktnet1/esm`.
     export {}
     ```
 
-2. Enable `@nktnet1/esm` for local runs:
+2. Enable `esm-sync` for local runs:
 
     ```shell
-    node -r @nktnet1/esm main.js
+    node -r esm-sync main.js
     ```
-    :bulb: Omit the filename to enable `@nktnet1/esm` in the REPL.
+    :bulb: Omit the filename to enable `esm-sync` in the REPL.
 
 Features
 ---
 
 :clap: By default, :100: percent CJS interoperability is enabled so you can get stuff done.<br>
-:lock: `.mjs` files are limited to basic functionality without support for `@nktnet1/esm` options.
+:lock: `.mjs` files are limited to basic functionality without support for `esm-sync` options.
 
-Out of the box `@nktnet1/esm` just works, no configuration necessary, and supports:
+Out of the box `esm-sync` just works, no configuration necessary, and supports:
 
 * Passing all applicable [test262](https://github.com/tc39/test262) compliance tests
 * [`import`](https://ponyfoo.com/articles/es6-modules-in-depth#import)/[`export`](https://ponyfoo.com/articles/es6-modules-in-depth#export)
@@ -223,30 +224,30 @@ Tips
 
 ### Extensions
 
-* Enable `@nktnet1/esm` for [`wallaby.js`](https://wallabyjs.com/) following their
+* Enable `esm-sync` for [`wallaby.js`](https://wallabyjs.com/) following their
   [integration example](https://wallabyjs.com/docs/integration/node.html#es-modules).
 
 ### Loading
 
-* Load `@nktnet1/esm` before loaders/monitors like
+* Load `esm-sync` before loaders/monitors like
   [`@babel/register`](https://babeljs.io/docs/en/next/babel-register.html),
   [`newrelic`](https://github.com/newrelic/node-newrelic),
   [`sqreen`](https://docs.sqreen.io/sqreen-for-nodejs/getting-started-2/), and
   [`ts-node`](https://github.com/TypeStrong/ts-node#programmatic).
 
-* Load `@nktnet1/esm` for [`jasmine`](https://jasmine.github.io/) using the
+* Load `esm-sync` for [`jasmine`](https://jasmine.github.io/) using the
   [`"helpers"`](https://jasmine.github.io/setup/nodejs.html#configuration)
   field in `jasmine.json`:
   ```json
   "helpers": [
-    "node_modules/@nktnet1/esm"
+    "node_modules/esm-sync"
   ]
   ```
 
-* Load `@nktnet1/esm` with “node-args" options of:<br>
-  - [`pm2`](https://pm2.io/doc/en/runtime/reference/pm2-cli/#pm2-flags): `--node-args="-r @nktnet1/esm"`
+* Load `esm-sync` with “node-args" options of:<br>
+  - [`pm2`](https://pm2.io/doc/en/runtime/reference/pm2-cli/#pm2-flags): `--node-args="-r esm-sync"`
 
-* Load `@nktnet1/esm` with “require” options of
+* Load `esm-sync` with “require” options of
   [`ava`](https://github.com/avajs/ava/blob/master/docs/recipes/es-modules.md),
   [`mocha`](https://mochajs.org/#-require-module-r-module),
   [`nodemon`](https://nodemon.io/),
