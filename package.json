@@ -1,6 +1,6 @@
 {
   "name": "esm-sync",
-  "version": "3.3.3-beta.1",
+  "version": "3.3.3",
   "description": "Tomorrow's ECMAScript modules today!",
   "keywords": [
     "commonjs",
