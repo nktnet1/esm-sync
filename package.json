@@ -16,7 +16,7 @@
     "url": "https://github.com/nktnet1/esm-sync"
   },
   "license": "MIT",
-  "author": "Khiet Tam Nguyen <tamkhietnguyen1@gmail.com>",
+  "author": "Khiet Tam Nguyen",
   "main": "esm.js",
   "types": "index.d.ts",
   "private": false,
