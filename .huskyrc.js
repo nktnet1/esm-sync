@@ -2,6 +2,6 @@
 
 module.exports = {
   hooks: {
-    precommit: "npm run lint"
+    precommit: "pnpm lint"
   }
 }

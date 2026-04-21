@@ -10,7 +10,9 @@
 Install
 ---
 
-Run `npm i esm-sync` or `yarn add esm-sync`.
+```sh
+npm install esm-sync
+```
 
 Getting started
 ---

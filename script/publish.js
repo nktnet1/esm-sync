@@ -87,7 +87,7 @@ function minifyJS(content) {
 }
 
 function publishPackage() {
-  return execa("npm", ["publish"], {
+  return execa("pnpm", ["publish"], {
     cwd: rootPath,
     stdio: "inherit"
   })
