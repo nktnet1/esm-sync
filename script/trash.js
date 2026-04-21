@@ -2,6 +2,7 @@
 
 const fs = require("fs-extra")
 const path = require("path")
+const trashLib = require("trash")
 
 const options = {
   glob: false
@@ -35,7 +36,7 @@ function trash(iterable) {
     return Promise
       .all(paths.map((thePath) => {
         if (_trash === void 0) {
-          _trash = require("trash")
+          _trash = trashLib.default
         }
 
         return _trash([thePath], options)
