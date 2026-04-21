@@ -30,7 +30,7 @@ function init() {
     visitVariableDeclarator(path) {
       const node = path.getValue()
 
-      if (node.id.type !== 'Identifier') {
+      if (node.id.type !== "Identifier") {
         this.visitChildren(path)
         return
       }
@@ -38,7 +38,7 @@ function init() {
       const identifier = node.id
 
       const name = node.id.name
-      if (name !== 'require'|| isShadowed(path, 'require', shadowedMap)) {
+      if (name !== "require" || isShadowed(path, "require", shadowedMap)) {
         this.visitChildren(path)
         return
       }
@@ -55,7 +55,7 @@ function init() {
       const node = path.getValue()
       const { name } = node
 
-      if (name !== 'require' || isShadowed(path, 'require', shadowedMap)) {
+      if (name !== "require" || isShadowed(path, "require", shadowedMap)) {
         this.visitChildren(path)
         return
       }

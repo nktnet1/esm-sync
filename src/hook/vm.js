@@ -237,14 +237,14 @@ function hook(vm) {
                   throw new ERR_INVALID_ARG_TYPE("options", "Object", options)
                 }
 
-                return assign(writer.options, options)
+                assign(writer.options, options)
               }
             })
 
             setProperty(this, "writer", writer)
             setProperty(realREPL, "writer", writer)
 
-            return writer
+            // return writer
           }
         })
 

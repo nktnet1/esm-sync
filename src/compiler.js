@@ -296,7 +296,7 @@ function init() {
         })
       }
 
-      if (topIdentifiers.has('require') &&
+      if (topIdentifiers.has("require") &&
           sourceType === SOURCE_TYPE_MODULE) {
         requireDeclarationVisitor.visit(rootPath, {
           magicString,

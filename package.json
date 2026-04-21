@@ -27,7 +27,7 @@
   },
   "scripts": {
     "prelint": "pnpm pretest",
-    "prepare": "pnpm build:prod",
+    "prepare": "husky",
     "prepub": "pnpm test:prod && pnpm build:prod",
     "pretest": "pnpm build --test",
     "pretest:prod": "pnpm build:prod --test",
@@ -78,7 +78,7 @@
     "golden-fleece": "^1.0.9",
     "hard-rejection": "^2.1.0",
     "html-minifier": "^4.0.0",
-    "husky": "^4.3.8",
+    "husky": "^9.1.7",
     "jasmine": "^3.99.0",
     "jest": "^26.6.3",
     "json-6": "^1.1.4",

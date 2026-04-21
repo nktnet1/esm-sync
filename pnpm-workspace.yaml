@@ -2,7 +2,7 @@ allowBuilds:
   '@newrelic/native-metrics': false
   core-js: false
   ejs: false
-  husky: false
+  husky: true
   protobufjs: false
   sleep: false
   sq-native: false
