@@ -7,3 +7,4 @@ allowBuilds:
   protobufjs: false
   sleep: false
   sq-native: false
+  unrs-resolver: false
