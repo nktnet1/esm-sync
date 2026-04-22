@@ -103,7 +103,7 @@
     "sqreen": "^2.0.2",
     "strip-ansi": "^7.2.0",
     "terser": "^5.46.1",
-    "terser-webpack-plugin": "^3.1.0",
+    "terser-webpack-plugin": "^4.2.3",
     "test262-parser": "^2.2.0",
     "trash": "^9.0.0",
     "ts-node": "^10.9.2",
@@ -111,7 +111,7 @@
     "unexpected": "^13.2.1",
     "unused-webpack-plugin": "^2.4.0",
     "webpack": "^4.47.0",
-    "webpack-bundle-analyzer": "^3.9.0",
+    "webpack-bundle-analyzer": "^5.3.0",
     "webpack-cli": "^3.3.12",
     "yargs": "^18.0.0"
   },
