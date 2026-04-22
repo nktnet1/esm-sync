@@ -1,4 +1,6 @@
 allowBuilds:
+  '@datadog/pprof': false
+  '@newrelic/fn-inspect': false
   '@newrelic/native-metrics': false
   core-js: false
   ejs: false
