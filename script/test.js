@@ -98,7 +98,10 @@ function runTests(cached) {
       ESM_OPTIONS: "{cjs:false,mode:'auto'}",
       HOME,
       NODE_ENV,
-      NODE_OPTIONS: "--trace-warnings",
+      // Disables [DEP0144] DeprecationWarning:
+      //     module.parent is deprecated due to accuracy issues.
+      //     Please use require.main to find program entry point instead.
+      NODE_OPTIONS: "--trace-warnings --disable-warning=DEP0144",
       NODE_PATH,
       NODE_PENDING_DEPRECATION: 1,
       USERPROFILE: HOME
