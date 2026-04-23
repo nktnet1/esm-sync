@@ -106,8 +106,8 @@ importers:
         specifier: ^4.22.1
         version: 4.22.1
       flow-remove-types:
-        specifier: ^2.310.0
-        version: 2.310.0
+        specifier: ^2.311.0
+        version: 2.311.0
       fs-extra:
         specifier: ^11.3.4
         version: 11.3.4
@@ -3100,8 +3100,8 @@ packages:
   flatted@3.4.2:
     resolution: {integrity: sha512-PjDse7RzhcPkIJwy5t7KPWQSZ9cAbzQXcafsetQoD7sOJRQlGikNbx7yZp2OotDnJyrDcbyRq3Ttb18iYOqkxA==}
 
-  flow-remove-types@2.310.0:
-    resolution: {integrity: sha512-Ai94E3HivrN56Q79WZH8tvRhd4K64e7KPdUhGSS/grTfW4IdayB9HMrhDFVvPa4sdSV3bFGye42dl+pzUBMO1Q==}
+  flow-remove-types@2.311.0:
+    resolution: {integrity: sha512-G1mcbdYHJhPKrfgexAVaQoGjxqjVJMYIvQnvT5k4Wn33FJqcdJYNhk868dc07FP/nEYZ1Z437HZymKUTOYFPLg==}
     engines: {node: '>=4'}
     hasBin: true
 
@@ -10314,7 +10314,7 @@ snapshots:
 
   flatted@3.4.2: {}
 
-  flow-remove-types@2.310.0:
+  flow-remove-types@2.311.0:
     dependencies:
       hermes-parser: 0.35.0
       pirates: 3.0.2
@@ -11272,7 +11272,7 @@ snapshots:
       jest-environment-jsdom: 26.6.2
       jest-environment-node: 26.6.2
       jest-get-type: 26.3.0
-      jest-jasmine2: 26.6.3
+      jest-jasmine2: 26.6.3(ts-node@10.9.2(@types/node@25.6.0)(typescript@6.0.3))
       jest-regex-util: 26.0.0
       jest-resolve: 26.6.2
       jest-util: 26.6.2
@@ -11352,7 +11352,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  jest-jasmine2@26.6.3:
+  jest-jasmine2@26.6.3(ts-node@10.9.2(@types/node@25.6.0)(typescript@6.0.3)):
     dependencies:
       '@babel/traverse': 7.29.0(supports-color@8.1.1)
       '@jest/environment': 26.6.2
@@ -11373,7 +11373,11 @@ snapshots:
       pretty-format: 26.6.2
       throat: 5.0.0
     transitivePeerDependencies:
+      - bufferutil
+      - canvas
       - supports-color
+      - ts-node
+      - utf-8-validate
 
   jest-leak-detector@26.6.2:
     dependencies:
