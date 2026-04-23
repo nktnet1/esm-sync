@@ -82,8 +82,8 @@ export default () => {
   assert.deepStrictEqual(reverted, Array(4).fill(proxyValue))
   assert.notStrictEqual(console1, console2)
   assert.strictEqual(console1, console3)
-  assert.deepStrictEqual(objects.map(getTagFromString), ["Object", "Module", "Object"])
-  assert.deepStrictEqual(objects.map(getTagFromSymbol), [void 0, "Module", void 0])
+  assert.deepStrictEqual(objects.map(getTagFromString), ["console", "Module", "console"])
+  assert.deepStrictEqual(objects.map(getTagFromSymbol), ["console", "Module", "console"])
 
   objects = [Date1, Date2, Date3]
   descriptor = Reflect.getOwnPropertyDescriptor(Date1, "now")
