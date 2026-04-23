@@ -18,7 +18,7 @@ import shared from "./shared.js"
 import stripShebang from "./util/strip-shebang.js"
 import temporalVisitor from "./visitor/temporal.js"
 import undeclaredVisitor from "./visitor/undeclared.js"
-import requireDeclarationVisitor from "./visitor/require-declaration.js"
+import requireDeclarationVisitor, { ESM_SYNC_REQUIRE_REPLACEMENT } from "./visitor/require-declaration.js"
 
 function init() {
   const {
@@ -296,13 +296,16 @@ function init() {
         })
       }
 
-      if (topIdentifiers.has("require") &&
-          sourceType === SOURCE_TYPE_MODULE) {
-        requireDeclarationVisitor.visit(rootPath, {
-          magicString,
-          possibleIndexes: possibleRequireIndexes,
-          runtimeName
-        })
+      if (topIdentifiers.has("require") && sourceType === SOURCE_TYPE_MODULE) {
+        magicString.overwrite(0, 0, `const ${ESM_SYNC_REQUIRE_REPLACEMENT} = require;\n`)
+        requireDeclarationVisitor.visit(
+          rootPath,
+          {
+            magicString,
+            possibleIndexes: possibleRequireIndexes,
+            runtimeName
+          }
+        )
       }
 
       result.transforms =
