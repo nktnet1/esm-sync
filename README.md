@@ -13,7 +13,6 @@ This package is maintained for use in the [import-sync](https://github.com/nktne
 
 You may also be interested in [jiti](https://github.com/unjs/jiti), which provides legacy (deprecated, but still reliable) support for synchronous imports.
 
-
 ## Install
 
 ```sh

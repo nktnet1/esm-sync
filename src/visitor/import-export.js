@@ -12,6 +12,24 @@ import preserveLine from "../parse/preserve-line.js"
 import shared from "../shared.js"
 import toStringLiteral from "../util/to-string-literal.js"
 
+function getExportedName(specifier) {
+  const exp = specifier.exported
+
+  if (!exp) {
+    return
+  }
+
+  if (exp.type === "Identifier") {
+    return exp.name
+  }
+
+  if (exp.type === "Literal") {
+    return String(exp.value)
+  }
+
+  return
+}
+
 function init() {
   const {
     SOURCE_TYPE_MODULE,
@@ -377,7 +395,7 @@ function init() {
         const topIdentifiers = this.top.identifiers
 
         for (const specifier of specifiers) {
-          const exportedName = specifier.exported.name
+          const exportedName = getExportedName(specifier)
           const localName = specifier.local.name
 
           if (! topIdentifiers.has(localName)) {
@@ -411,7 +429,7 @@ function init() {
         }
 
         for (const specifier of specifiers) {
-          const exportedName = specifier.exported.name
+          const exportedName = getExportedName(specifier)
           const { reExports } = map
 
           let localNames = reExports.get(exportedName)
