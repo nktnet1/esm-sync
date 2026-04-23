@@ -36,7 +36,7 @@ describe("--eval hook tests", function () {
         promise
           .then(() => node(args))
           .then(({ stdout, stderr }) => {
-            assert.equal(stderr, "")
+            assert.strictEqual(stderr, "")
             assert.ok(stdout.includes("eval-hook:true"))
           })
       , Promise.resolve())
@@ -64,7 +64,7 @@ describe("--eval hook tests", function () {
         promise
           .then(() => node(args))
           .then(({ stdout, stderr }) => {
-            assert.equal(stderr, "")
+            assert.strictEqual(stderr, "")
             assert.ok(stdout.includes("print-hook:true"))
           })
       , Promise.resolve())

@@ -152,7 +152,7 @@ describe("main hook tests", function () {
         const exported = { a: "a", b: "b", c: "c", default: "default" }
         const expected = JSON.stringify(exported)
 
-        assert.equal(stderr, "")
+        assert.strictEqual(stderr, "")
         assert.ok(stdout.includes("std-esm:" + expected))
       })
   )
