@@ -52,7 +52,7 @@ describe("--eval hook tests", function () {
         runs.push([
           requireFlag, "../index.js",
           printFlag, [
-            'import { format } from "util"',
+            'const { format } = require("util")',
             'format("print-hook:%s", true)'
           ].join("\n")
         ])
