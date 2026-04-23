@@ -471,8 +471,12 @@ describe("miscellaneous tests", () => {
           try {
             func(request)
             assert.fail()
-          } catch ({ code }) {
-            assert.strictEqual(code, "ERR_INVALID_ARG_TYPE")
+          } catch (error) {
+            if (!(error instanceof Error)) {
+              assert.fail()
+            }
+            assert.strictEqual(error.name, "TypeError")
+            assert.strictEqual(error.code, "ERR_INVALID_ARG_TYPE")
           }
         }
       }
