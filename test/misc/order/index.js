@@ -14,6 +14,6 @@ export default () => {
   ]
 
   for (const tracker of trackers) {
-    assert.deepStrictEqual(tracker, ["a", "b", "c", "d"])
+    assert.deepStrictEqual(tracker.slice(), ["a", "b", "c", "d"])
   }
 }
