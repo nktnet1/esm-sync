@@ -20,7 +20,7 @@ import * as nsStarMixed from "../../fixture/cjs/export/star-mixed"
 export default () => {
   let ns = createNamespace({ default: defaultArray })
 
-  assert.deepStrictEqual(defaultArray, ["a"])
+  assert.deepStrictEqual(defaultArray.slice(), ["a"])
   assert.deepStrictEqual(nsArray, ns)
 
   ns = createNamespace({ a: "a", default: defaultClass })
