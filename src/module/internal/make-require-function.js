@@ -31,7 +31,10 @@ function makeRequireFunction(mod, requirer, resolver) {
   const isOwn = isOwnModule(mod)
 
   let req = function require(request) {
-    if (request.startsWith("node:")) {
+    // Avoid cases where request = Symbol(esm‍@3.3.5:shared) causing startsWith
+    // to be undefined, which indirectly cause the "__global__ is not defined"
+    // error in https://github.com/nktnet1/esm-sync/issues/5
+    if (typeof request !== "symbol" && request.startsWith("node:")) {
       request = request.substr(5)
     }
     const exported = isOwn
