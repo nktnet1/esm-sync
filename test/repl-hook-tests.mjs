@@ -74,7 +74,8 @@ describe("REPL hook tests", () => {
 
     const code = 'import { default as globalAssert } from "assert"'
 
-    r.eval(code, null, "repl", () => {
+    r.eval(code, null, "repl", (err) => {
+      assert.strictEqual(err, null)
       assert.strictEqual(typeof globalAssert, "function")
     })
 
@@ -98,9 +99,9 @@ describe("REPL hook tests", () => {
     })
 
     r.eval('import { NOT_EXPORTED } from "path"', ({ message }) => {
-      r.eval('import { join } from "path"', (error2) => {
+      r.eval('import { join } from "path"', (err) => {
+        assert.strictEqual(err, null)
         assert.ok(message.includes("does not provide an export"))
-        assert.strictEqual(error2, null)
       })
     })
 
@@ -114,7 +115,8 @@ describe("REPL hook tests", () => {
     assert.strictEqual(typeof context.localAssert, "undefined")
 
     r.context = context
-    r.eval(code, context, "repl", () => {
+    r.eval(code, context, "repl", (err) => {
+      assert.strictEqual(err, null)
       assert.strictEqual(typeof context.localAssert, "function")
     })
 
@@ -126,7 +128,8 @@ describe("REPL hook tests", () => {
     const code = "var exports = module.exports"
 
     r.context = context
-    r.eval(code, context, "repl", () => {
+    r.eval(code, context, "repl", (err) => {
+      assert.strictEqual(err, null)
       assert.strictEqual(Reflect.getPrototypeOf(context.exports), Object.prototype)
     })
 
@@ -142,7 +145,7 @@ describe("REPL hook tests", () => {
     ].join("\n")
 
     r.context = context
-    r.eval(code, context, "repl", () => {
+    r.eval(code, context, "repl", (err) => {
       context.dynamic
         .then((dynamic) => {
           const pkgNs = createNamespace(Object.assign({
