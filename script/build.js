@@ -41,7 +41,7 @@ function copyBundle() {
 }
 
 function makeBundle() {
-  return execa("rspack", [], {
+  return execa("rspack", {
     cwd: rootPath,
     env: {
       ESM_ENV,
