@@ -229,7 +229,7 @@ describe("scenario tests", function () {
     const entryPath = path.resolve(dirPath, "index.js")
     const outputPath = path.resolve(dirPath, "output.js")
 
-    return exec("webpack", [
+    return exec("rspack", [
       "--config-register", pkgPath,
       "--config", configPath,
       "--entry", entryPath,

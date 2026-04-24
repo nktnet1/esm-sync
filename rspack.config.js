@@ -1,15 +1,16 @@
 /* eslint strict: off, node/no-unsupported-features: ["error", { version: 6 }] */
 "use strict"
 
+const { defineConfig } = require("@rspack/cli")
 const fs = require("fs-extra")
 const path = require("path")
-const webpack = require("webpack")
+const { rspack } = require("@rspack/core")
 
 const {
   BannerPlugin,
   EnvironmentPlugin,
   NormalModuleReplacementPlugin
-} = webpack
+} = rspack
 
 const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer")
 const TerserPlugin = require("terser-webpack-plugin")
@@ -37,7 +38,7 @@ const hosted = [
 const babelOptions = require("./.babel.config.js")
 const terserOptions = fs.readJSONSync("./.terserrc")
 
-const config = {
+const config = defineConfig({
   devtool: false,
   entry: {
     esm: "./src/index.js"
@@ -123,8 +124,9 @@ const config = {
       root: __dirname
     })
   ],
+  stats: isTest ? "summary" : "normal",
   target: "node"
-}
+})
 
 if (isProd) {
   config.plugins.push(

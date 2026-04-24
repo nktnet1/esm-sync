@@ -28,11 +28,6 @@ const trashPaths = [
   loaderPath
 ]
 
-const webpackArgs =
-  argv.prod && ! argv.test
-    ? ["--stats=normal"]
-    : ["--stats=minimal"]
-
 function cleanRepo() {
   return Promise.all(trashPaths.map(trash))
 }
@@ -46,7 +41,7 @@ function copyBundle() {
 }
 
 function makeBundle() {
-  return execa("webpack", webpackArgs, {
+  return execa("rspack", [], {
     cwd: rootPath,
     env: {
       ESM_ENV,
