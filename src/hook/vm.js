@@ -1,3 +1,5 @@
+import semver from "semver"
+
 import COMPILER from "../constant/compiler.js"
 import ENTRY from "../constant/entry.js"
 import ENV from "../constant/env.js"
@@ -223,10 +225,12 @@ function hook(vm) {
         const server = this
         const originalEval = server.eval
 
-        server.eval = function (cmd, context, filename, callback) {
-          const { code } = transpile(cmd)
+        if (semver.gte(process.versions.node, "18.0.0")) {
+          server.eval = function (cmd, context, filename, callback) {
+            const { code } = transpile(cmd)
 
-          return originalEval.call(this, code, context, filename, callback)
+            return originalEval.call(this, code, context, filename, callback)
+          }
         }
 
         Reflect.defineProperty(this, "writer", {
