@@ -134,9 +134,11 @@ function hook(vm) {
 
     const { code, cacheName, compileData } = transpile(content)
 
-    if (compileData.scriptData !== null &&
-        scriptOptions.produceCachedData &&
-        ! has(scriptOptions, "cachedData")) {
+    if (
+      compileData.scriptData !== null
+      && scriptOptions.produceCachedData
+      && !has(scriptOptions, "cachedData")
+    ) {
       scriptOptions.cachedData = compileData.scriptData
     }
 
@@ -203,7 +205,9 @@ function hook(vm) {
   }
 
   function setupEval() {
-    vm.runInThisContext = proxyWrap(vm.runInThisContext, (runInThisContext, [code, options]) => {
+    vm.runInThisContext = proxyWrap(
+      vm.runInThisContext, (runInThisContext, [code, options]
+    ) => {
       vm.runInThisContext = runInThisContext
       setupEntry(shared.unsafeGlobal.module)
       return vm.createScript(code, options).runInThisContext(options)
@@ -227,7 +231,6 @@ function hook(vm) {
         if (semver.gte(process.versions.node, "18.0.0")) {
           server.eval = function (cmd, context, filename, callback) {
             const { code } = transpile(cmd)
-
             return originalEval.call(this, code, context, filename, callback)
           }
         }
@@ -253,7 +256,7 @@ function hook(vm) {
                 return writer.options
               },
               set(options) {
-                if (! isObject(options)) {
+                if (!isObject(options)) {
                   throw new ERR_INVALID_ARG_TYPE("options", "Object", options)
                 }
 
@@ -290,8 +293,10 @@ function hook(vm) {
 
     builtinVM.createScript = vm.createScript
 
-    if (INTERNAL &&
-        FLAGS.experimentalREPLAwait) {
+    if (
+      INTERNAL
+      && FLAGS.experimentalREPLAwait
+    ) {
       acornInternalAcorn.enable()
       acornInternalWalk.enable()
     }
@@ -413,7 +418,7 @@ function tryWrapper(func, args, content) {
     error = e
   }
 
-  if (! Loader.state.package.default.options.debug &&
+  if (!Loader.state.package.default.options.debug &&
       isStackTraceMaskable(error)) {
     maskStackTrace(error, { content })
   } else {
