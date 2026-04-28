@@ -231,8 +231,12 @@ function hook(vm) {
 
         if (semver.gte(safeProcess.versions.node, "18.0.0")) {
           server.eval = function (cmd, context, filename, callback) {
-            const { code } = transpile(cmd)
-            return originalEval.call(this, code, context, filename, callback)
+            try {
+              const { code } = transpile(cmd)
+              return originalEval.call(this, code, context, filename, callback)
+            } catch (e) {
+              return originalEval.call(this, cmd, context, filename, callback)
+            }
           }
         }
 
