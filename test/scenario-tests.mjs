@@ -202,7 +202,7 @@ describe("scenario tests", function () {
     ], envAuto)
   )
 
-  it.skip("should work with ts-node", () =>
+  it("should work with ts-node", () =>
     Promise
       .all([
         "ts-node/register",
@@ -294,13 +294,13 @@ describe("scenario tests", function () {
   )
 
   describe("should work with ava", () => {
-    it.skip("should work from the `esm` bridge", () =>
+    it("should work from the `esm` bridge", () =>
       exec("ava", [
         path.resolve("fixture/scenario/ava/bridge.test.js")
       ], envAuto)
     )
 
-    it.skip("should work from the Node CLI", () => {
+    it("should work from the Node CLI", () => {
       const avaPattern = path.resolve("fixture/scenario/ava/cli.test.js")
 
       return node([
@@ -355,7 +355,7 @@ describe("scenario tests", function () {
       ], envAuto)
     })
 
-    it.skip("should work with ava, nyc, and tsc", () => {
+    it("should work with ava, nyc, and tsc", () => {
       const dirPath = path.resolve("fixture/scenario/ava-nyc-tsc")
       const cwdPath = path.resolve(dirPath, "cwd.js")
       const avaPattern = path.resolve(dirPath, "test.js")
