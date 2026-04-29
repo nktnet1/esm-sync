@@ -241,6 +241,7 @@ describe("scenario tests", function () {
     ], envAuto)
   })
 
+  // Skipping due to: https://github.com/istanbuljs/nyc/issues/1530
   it.skip("should work with babel, mocha, and nyc", () => {
     const dirPath = path.resolve("fixture/scenario/babel-mocha-nyc")
     const cwdPath = path.resolve(dirPath, "cwd.js")
@@ -612,7 +613,7 @@ describe("scenario tests", function () {
         })
     })
 
-    it.skip("should work with babel/register from the Node CLI", () => {
+    it("should work with babel/register from the Node CLI", () => {
       const nodeArgs = defaultNodeArgs.concat(
         "-r", pkgPath,
         "-r", "@babel/register"
