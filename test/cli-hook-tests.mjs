@@ -37,7 +37,7 @@ describe("CLI hook tests", function () {
               request
             ], envAuto))
           .then(({ stderr }) => {
-            if (semver.gte(process.versions.node, "20.11.3")) {
+            if (semver.gte(process.versions.node, "20.11.0")) {
               assert.strictEqual(stderr, "")
             } else {
               assert.ok(stderr.includes("DEP0144") || stderr.length === 0)
