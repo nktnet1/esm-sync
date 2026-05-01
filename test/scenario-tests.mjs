@@ -374,7 +374,7 @@ describe("scenario tests", function () {
   })
 
   describe("should work with babel plugins", () => {
-    it.skip("should work from the `esm` bridge", () =>
+    it("should work from the `esm` bridge", () =>
       node([
         path.resolve("fixture/scenario/babel-flow")
       ])
@@ -599,7 +599,7 @@ describe("scenario tests", function () {
         })
     })
 
-    it.skip("should work with babel/register from the `esm` bridge", () => {
+    it("should work with babel/register from the `esm` bridge", () => {
       const pm2Args = defaultPM2Args.concat(
         "--node-args", defaultNodeArgs.join(" "),
         path.resolve("fixture/scenario/pm2-babel")
