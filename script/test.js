@@ -119,8 +119,8 @@ function runTests(cached) {
     stdio: "inherit"
   })
   .catch((e) => {
-    console.error(e)
-    process.exit(e.code)
+    console.error("Error running tests", e, { errorCode: e.code })
+    process.exit(typeof e.code === "number" ? e.code : 1)
   })
 }
 
