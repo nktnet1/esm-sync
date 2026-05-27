@@ -3,7 +3,7 @@ import { Stream } from "stream"
 
 import assert from "assert"
 import mockIo from "mock-stdio"
-import stripANSI  from "strip-ansi"
+import stripANSI from "strip-ansi"
 import accessor1, { a, b } from "../../fixture/cjs/export/accessor.js"
 import * as accessor2 from "../../fixture/cjs/export/accessor.js"
 import console1, { log } from "console"

@@ -3,7 +3,7 @@
 const execa = require("execa")
 const fleece = require("golden-fleece")
 const fs = require("fs-extra")
-const htmlmin = require("html-minifier").minify
+const { minify } = require("html-minifier-next")
 const path = require("path")
 const terser = require("terser").minify
 
@@ -66,7 +66,7 @@ function cleanReadme() {
 }
 
 function minifyHTML(content) {
-  return htmlmin(content, {
+  return minify(content, {
     collapseBooleanAttributes: true,
     collapseWhitespace: true,
     decodeEntities: true,

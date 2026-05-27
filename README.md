@@ -236,7 +236,6 @@ Tips
 * Load `esm-sync` before loaders/monitors like
   [`@babel/register`](https://babeljs.io/docs/en/next/babel-register.html),
   [`newrelic`](https://github.com/newrelic/node-newrelic),
-  [`sqreen`](https://docs.sqreen.io/sqreen-for-nodejs/getting-started-2/), and
   [`ts-node`](https://github.com/TypeStrong/ts-node#programmatic).
 
 * Load `esm-sync` for [`jasmine`](https://jasmine.github.io/) using the

@@ -40,7 +40,6 @@ async function setupAcorn() {
   console.log("[acorn] entries:", entries.length)
 
   for (const entry of entries) {
-    console.log({ entry })
     if (entry.isDirectory) {
       continue
     }

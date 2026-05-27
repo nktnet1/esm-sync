@@ -153,5 +153,10 @@ Promise
     setupNode(),
     setupTest262()
   ])
+  .then(() => {
+    // eslint-disable-next-line no-console
+    console.log("Running tests in 1 second...")
+    new Promise((r) => setTimeout(r, 1000))
+  })
   .then(() => runTests())
   .then(() => runTests(true))

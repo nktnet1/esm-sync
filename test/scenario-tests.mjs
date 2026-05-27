@@ -194,6 +194,8 @@ describe("scenario tests", function () {
     ], envAuto)
   )
 
+  /**
+   * sqreen has been acquired.
   it("should work with sqreen", () =>
     node([
       "-r", pkgPath,
@@ -201,6 +203,7 @@ describe("scenario tests", function () {
       path.resolve("fixture/scenario/sqreen")
     ], envAuto)
   )
+  */
 
   it("should work with ts-node", () =>
     Promise
