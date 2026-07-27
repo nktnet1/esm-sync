@@ -103,6 +103,7 @@
     "module-alias": "^2.3.4",
     "newrelic": "^12.25.1",
     "nop": "^1.0.0",
+    "npm-check-updates": "22.2.9",
     "nyc": "^18.0.0",
     "pm2": "^7.0.3",
     "postcss": "^8.5.23",
