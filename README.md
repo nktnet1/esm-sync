@@ -1,6 +1,6 @@
 # esm-sync
 
-**This is a fork of [esm](https://github.com/standard-things/esm)**: the brilliantly simple, babel-less, bundle-less ECMAScript module loader (which is now unmaintained).
+**This is a fork of [esm](https://github.com/standard-things/esm)**: the brilliantly simple, babel-less, bundle-less ECMAScript module loader.
 
 This fork includes:
 
