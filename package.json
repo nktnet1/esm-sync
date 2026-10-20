@@ -16,12 +16,14 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "pub": "node script/publish.js",
-    "test": "node script/test.js",
-    "test:prod": "node script/test.js --prod",
+    "test": "pnpm fixtures:prepare && pnpm build --test && pnpm test:run",
+    "test:prod": "pnpm fixtures:prepare && pnpm build --prod --test && pnpm test:run:prod",
+    "test:run": "node script/test.js",
+    "test:run:prod": "node script/test.js --prod",
     "test:packed": "node script/test-packed.js",
     "typecheck": "node script/check-typescript.js && pnpm typecheck:tsc",
     "typecheck:tsc": "tsc --noEmit && tsc --noEmit -p test/fixture/scenario/ava-nyc-tsc",
-    "verify:prod": "pnpm build:prod --test && pnpm test:prod"
+    "verify:prod": "pnpm build:prod --test && pnpm test:run:prod"
   },
   "main": "esm.js",
   "types": "index.d.ts",

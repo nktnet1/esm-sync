@@ -81,8 +81,9 @@ should be a separate, reviewable patch and remove its superseded tooling.
       failures for every Node version rather than cancelling the matrix early.
 - [x] Separate `lint`, `typecheck`, `build`, and `test`; remove implicit
       `prelint`/`pretest` rebuilds and mutating CI lint.
-- [x] Make vendor fixture downloads an explicit `pnpm fixtures:prepare` step;
-      fail fast when Acorn, Test262, or generated test bundles are unavailable.
+- [x] Keep `pnpm fixtures:prepare` and `pnpm test:run` explicit for CI;
+      make `pnpm test` automatically prepare fixtures and rebuild test bundles.
+      Direct run-only invocation still fails fast when prerequisites are missing.
 - [x] Propagate cleanup and child-process errors rather than silently passing
       builds or tests after a failed operation.
 - [ ] Pin the Test262 source revision for reproducible fixture preparation.
@@ -91,10 +92,10 @@ should be a separate, reviewable patch and remove its superseded tooling.
 - [ ] Defer removal of ESLint, Mocha, Rspack, and Babel packages until their
       replacement phases, so this phase does not break the existing toolchain.
 
-For local verification, prepare fixtures once with `pnpm fixtures:prepare`,
-then run `pnpm build --test` followed by `pnpm test`. For production checks,
-use `pnpm verify:prod` after preparing fixtures. `pnpm lint` is read-only;
-`pnpm lint:fix` explicitly applies ESLint fixes.
+For local verification, `pnpm test` automatically prepares fixtures and
+rebuilds development test bundles; `pnpm test:prod` does the same for production.
+CI can prepare once and use `pnpm test:run` or `pnpm test:run:prod` to avoid
+duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
 
 ### 5. Replace ESLint with Biome
 
@@ -124,6 +125,8 @@ use `pnpm verify:prod` after preparing fixtures. `pnpm lint` is read-only;
       cached/uncached execution, and production/minified builds.
 - [x] Add an isolated consumer smoke test that packs and installs the npm artefact,
       then checks the CommonJS API, ESM live bindings, and CLI preload.
+- [x] Account for Node 26 dropping stream `domain` properties and changing
+      proxy inspection formatting without relaxing namespace invariants.
 - [ ] Confirm that Node 26 passes the full suite, production tests, and packed-package
       smoke test in CI before claiming support.
 - [x] Stop passing `--experimental-worker` on Node 11.7+, where it is unnecessary.
@@ -142,8 +145,9 @@ use `pnpm verify:prod` after preparing fixtures. `pnpm lint` is read-only;
 - [ ] Preserve process-isolated tests for `require()` hooks, Node internals,
       module caches, CLI execution, and environment-dependent behaviours.
 - [ ] Run production/development and cached/uncached loader scenarios as needed.
-- [ ] Keep the Test262 and Acorn validation paths reproducible; make fixture
-      preparation explicit instead of hiding it in the normal test command.
+- [ ] Keep the Test262 and Acorn validation paths reproducible; preserve
+      standalone preparation and run-only commands while `pnpm test` remains
+      self-contained for local development.
 - [ ] Migrate internal coverage to Vitest's coverage provider if coverage is used.
 - [ ] Remove Mocha as the **internal** runner, its bootstrap and unused helpers.
 - [ ] Retain Mocha, Jest, AVA, Jasmine, or other runner packages **only** when

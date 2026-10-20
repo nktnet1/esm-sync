@@ -52,7 +52,7 @@ jobs:
         run: pnpm build --test
 
       - name: Run tests
-        run: pnpm test
+        run: pnpm test:run
 
       - name: Verify production build and tests on Node 26
         if: matrix.node-version == 26

@@ -174,7 +174,9 @@ describe("miscellaneous tests", () => {
 
         assert.ok(sub1 instanceof Ctor)
         assert.ok(sub1 instanceof Sub1)
-        assert.ok(Reflect.has(sub1, "domain"))
+        // EventEmitter no longer creates `domain` on newer Node versions.
+        // Check that subclassing preserves the current runtime's behaviour.
+        assert.strictEqual(Reflect.has(sub1, "domain"), Reflect.has(new Ctor, "domain"))
         assert.strictEqual(sub1.sub, "sub")
 
         assert.ok(sub2 instanceof Ctor)
