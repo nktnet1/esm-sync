@@ -11,7 +11,7 @@ observable behaviour intact unless an intentional breaking change is documented.
 | Runtime | Node.js `>=6`; CI on 22/24 | Node.js 26 |
 | Package manager | pnpm 11 | pnpm 12 |
 | Git hooks | Husky | Lefthook |
-| Type checking | TypeScript 4.9 | TypeScript 7 |
+| Type checking | TypeScript 4.9 | TypeScript 6.0.3; 7.1+ deferred |
 | Linting and formatting | ESLint 7 | Biome 2 |
 | Tests | Mocha-based internal runner | Vitest + real Node.js integration tests |
 | Bundling | Rspack + webpack-compatible plugins | tsdown (Rolldown) |
@@ -30,7 +30,7 @@ should be a separate, reviewable patch and remove its superseded tooling.
 | --- | --- | --- | --- |
 | 1 | Husky to Lefthook | 0.5 day | Hooks work; Husky is removed |
 | 2 | pnpm 11 to 12 | 0.5-1 day | Reproducible installs and CI |
-| 3 | TypeScript 4.9 to 7 | 1-2 days | Native `tsc` checks pass |
+| 3 | TypeScript 4.9 to 6 | 1-2 days | TypeScript 6 type checks; compiler API retained |
 | 4 | Dependency and CI hygiene | 1-3 days | Supported dependencies; clean CI |
 | 5 | ESLint to Biome | 2-4 days | Biome is the only main linter/formatter |
 | 6 | Node.js 26 support | 2-6 days | Loader and packed package pass on 26 |
@@ -56,15 +56,18 @@ should be a separate, reviewable patch and remove its superseded tooling.
       lifecycle script, and package publishing dry runs.
 - [ ] Remove unnecessary overrides after the dependency audit in phase 4.
 
-### 3. Upgrade to TypeScript 7
+### 3. Upgrade to TypeScript 6; defer TypeScript 7
 
-- [ ] Replace TypeScript 4.9 with stable TypeScript 7 and configure a real type-check task.
-- [ ] Validate `index.d.ts`; add targeted checking for JavaScript/JSDoc where useful.
-- [ ] Keep the JavaScript loader in JavaScript; a source-wide TypeScript rewrite is not required.
-- [ ] Audit `ts-node` fixture scenarios: TypeScript 7 has no legacy compiler API.
-- [ ] Isolate an older compiler only for a deliberately retained `ts-node`
-      interoperability test, or remove that scenario and its dependencies.
-- [ ] Remove obsolete TypeScript configuration and compatibility shims.
+- [x] Upgrade to TypeScript 6.0.3 and add a dedicated type-check task in CI.
+- [x] Add a public declaration consumer test and type-check the AVA/TypeScript fixture.
+- [x] Modernise fixture module resolution while preserving its ESM output.
+- [x] Keep the JavaScript loader in JavaScript; a source-wide TypeScript rewrite is not required.
+- [x] Retain the `ts-node` compatibility scenario and dependency: TypeScript 6
+      maintains the compiler API required by compiler-API-based tooling.
+- [ ] Verify `pnpm typecheck` and `ts-node` integration using installed TypeScript 6;
+      the supplied dependencies still contain TypeScript 4.9.
+- [ ] Keep TypeScript constrained to the 6.x line in `.ncurc.mjs` until TypeScript
+      7.1+ and dependent API consumers are ready.
 
 ### 4. Update dependencies and CI hygiene
 
@@ -147,6 +150,20 @@ blindly or assume Oxc provides equivalent Babel plugins.
       plugins. Remove Terser/`.terserrc` if the new minification path replaces them.
 - [ ] Remove legacy Node 6 transpilation targets; no Babel fallback is permitted.
 
+## Deferred follow-up: TypeScript 7.1 or later
+
+TypeScript 7.0 removed the JavaScript compiler API used by tools such as
+`ts-node`. The TypeScript team expects a new, **different** API in 7.1; this
+is not a guarantee that existing API consumers will work unchanged. Do not
+upgrade the main compiler to 7.0 or remove the `ts-node` scenario prematurely.
+
+- [ ] Wait for a stable TypeScript 7.1+ release with the replacement API.
+- [ ] Verify `ts-node` and other compiler-API consumers support it, or migrate
+      those integrations to maintained alternatives.
+- [ ] Upgrade in a separate patch; repeat declaration checks, fixture compilation,
+      real-Node integration tests, CI, and packed-package checks.
+- [ ] Only then remove the TypeScript 6 major-version constraint in `.ncurc.mjs`.
+
 ## Compatibility-test dependency policy
 
 Several apparently obsolete packages are used in `test/scenario-tests.mjs` to
@@ -168,9 +185,9 @@ to compile or test the project's own source after phase 8.
 - [ ] Tests are green before and after each phase; failures are not swallowed by scripts.
 - [ ] Development, production, cached, and uncached module-loading behaviours
       match the baseline unless changes have explicit regression tests and release notes.
-- [ ] Node 26 CI, Biome, TypeScript 7 checking, Vitest, real-Node integration
+- [ ] Node 26 CI, Biome, TypeScript 6 checking, Vitest, real-Node integration
       tests, tsdown build, and a packed-package smoke test all pass.
-- [ ] Only Lefthook, pnpm 12, TypeScript 7, Biome, Vitest, and tsdown/Oxc remain
+- [ ] Only Lefthook, pnpm 12, TypeScript 6, Biome, Vitest, and tsdown/Oxc remain
       as the primary development stack; superseded configs, scripts, and
       build/lint/test dependencies are removed.
 - [ ] Any retained legacy package exists solely for documented interoperability
@@ -182,8 +199,10 @@ to compile or test the project's own source after phase 8.
 
 - [Node.js release schedule](https://github.com/nodejs/Release)
 - [pnpm 12 release](https://pnpm.io/blog/releases/12.0)
+- [TypeScript 6 release notes][typescript-6]
 - [TypeScript 7 announcement and API limitations][typescript-7]
 - [Vitest guide](https://vitest.dev/guide/)
 - [tsdown documentation](https://tsdown.dev/)
 
+[typescript-6]: https://www.typescriptlang.org/docs/handbook/release-notes/typescript-6-0.html
 [typescript-7]: https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/

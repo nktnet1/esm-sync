@@ -3,8 +3,9 @@
     "inlineSourceMap": true,
     "inlineSources": true,
     "lib": ["es6"],
-    "moduleResolution": "node",
-    "target": "es6",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2015",
     "types": []
   },
   "exclude": ["node_modules"]
