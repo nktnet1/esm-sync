@@ -3,7 +3,6 @@
 const execa = require("execa")
 const fleece = require("golden-fleece")
 const fs = require("fs-extra")
-const { minify } = require("html-minifier-next")
 const path = require("path")
 const terser = require("terser").minify
 
@@ -20,25 +19,18 @@ const defaultScripts = {
   test: 'echo "Error: no test specified" && exit 1'
 }
 
-const fieldsToRemove = [
-  "devDependencies",
-  "esm",
-  "private",
-  "scripts"
-]
+const fieldsToRemove = ["devDependencies", "esm", "private", "scripts"]
 
-const jsPaths = [
-  esmPath,
-  indexPath
-]
+const jsPaths = [esmPath, indexPath]
 
-function cleanJS() {
+async function cleanJS() {
   for (const filename of jsPaths) {
     const content = fs.readFileSync(filename, "utf8")
+    const code = await minifyJS(content)
 
     process.once("exit", () => fs.outputFileSync(filename, content))
 
-    fs.outputFileSync(filename, minifyJS(content))
+    fs.outputFileSync(filename, code)
   }
 }
 
@@ -57,15 +49,25 @@ function cleanPackageJSON() {
   fs.outputFileSync(pkgPath, fleece.patch(content, pkgJSON))
 }
 
-function cleanReadme() {
+async function cleanReadme() {
   const content = fs.readFileSync(readmePath, "utf8")
+  const matches = Array.from(content.matchAll(tableRegExp))
+  const tables = await Promise.all(matches.map(([table]) => minifyHTML(table)))
+  let index = 0
 
   process.once("exit", () => fs.outputFileSync(readmePath, content))
 
-  fs.outputFileSync(readmePath, content.replace(tableRegExp, minifyHTML))
+  fs.outputFileSync(
+    readmePath,
+    content.replace(tableRegExp, () => tables[index++])
+  )
 }
 
-function minifyHTML(content) {
+async function minifyHTML(content) {
+  // import/no-unresolved does not resolve packages with only ESM exports.
+  // eslint-disable-next-line import/no-unresolved
+  const { minify } = await import("html-minifier-next")
+
   return minify(content, {
     collapseBooleanAttributes: true,
     collapseWhitespace: true,
@@ -76,14 +78,18 @@ function minifyHTML(content) {
     removeEmptyElements: true,
     removeOptionalTags: true,
     removeRedundantAttributes: true,
-    removeScriptTypeAttributes: true,
-    removeStyleLinkTypeAttributes: true,
     removeTagWhitespace: true
   })
 }
 
-function minifyJS(content) {
-  return terser(content, terserOptions).code
+async function minifyJS(content) {
+  const { code } = await terser(content, terserOptions)
+
+  if (typeof code !== "string") {
+    throw new Error("Terser did not produce JavaScript output")
+  }
+
+  return code
 }
 
 function publishPackage() {
@@ -93,11 +99,9 @@ function publishPackage() {
   })
 }
 
-Promise
-  .all([
-    cleanJS(),
-    cleanPackageJSON(),
-    cleanReadme()
-  ])
+Promise.all([cleanJS(), cleanPackageJSON(), cleanReadme()])
   .then(publishPackage)
-  .catch(console.error)
+  .catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })

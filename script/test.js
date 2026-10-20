@@ -13,9 +13,7 @@ const trash = require("./trash.js")
 
 const { program } = require("commander")
 
-program
-  .option("--prod")
-  .option("--test")
+program.option("--prod").option("--test")
 
 program.parse()
 
@@ -41,10 +39,7 @@ const NODE_PATH = [
   path.resolve(envPath, "node_path/relative")
 ].join(path.delimiter)
 
-const jsPaths = [
-  esmPath,
-  indexPath
-]
+const jsPaths = [esmPath, indexPath]
 
 const keptPaths = [
   path.resolve(rootPath, "build"),
@@ -64,33 +59,34 @@ if (process.env.HARMONY) {
   nodeArgs.push("--harmony")
 }
 
-nodeArgs.push(
-  mochaPath,
-  "--full-trace",
-  "--require", "../index.js",
-  "tests.js"
-)
+nodeArgs.push(mochaPath, "--full-trace", "--require", "../index.js", "tests.js")
 
 const terserOptions = fs.readJSONSync(path.resolve(rootPath, ".terserrc"))
 const trashPaths = ignorePaths.filter(isKept)
 
-function cleanJS() {
+async function cleanJS() {
   for (const filename of jsPaths) {
     const content = fs.readFileSync(filename, "utf8")
+    const code = await minifyJS(content)
 
     process.once("exit", () => fs.outputFileSync(filename, content))
 
-    fs.outputFileSync(filename, minifyJS(content))
+    fs.outputFileSync(filename, code)
   }
 }
 
 function isKept(thePath) {
-  return thePath.endsWith(".cache") ||
-         keptPaths.every((dirname) => ! thePath.startsWith(dirname))
+  return thePath.endsWith(".cache") || keptPaths.every((dirname) => !thePath.startsWith(dirname))
 }
 
-function minifyJS(content) {
-  return terser(content, terserOptions).code
+async function minifyJS(content) {
+  const { code } = await terser(content, terserOptions)
+
+  if (typeof code !== "string") {
+    throw new Error("Terser did not produce JavaScript output")
+  }
+
+  return code
 }
 
 function runTests(cached) {
@@ -99,9 +95,7 @@ function runTests(cached) {
   //     Please use require.main to find program entry point instead.
   const nodeOptions = [
     "--trace-warnings",
-    ...(semver.gte(process.versions.node, "20.11.0")
-      ? ["--disable-warning=DEP0144"]
-      : [])
+    ...(semver.gte(process.versions.node, "20.11.0") ? ["--disable-warning=DEP0144"] : [])
   ].join(" ")
 
   return execa(nodePath, nodeArgs, {
@@ -117,8 +111,7 @@ function runTests(cached) {
       USERPROFILE: HOME
     },
     stdio: "inherit"
-  })
-  .catch((e) => {
+  }).catch((e) => {
     console.error("Error running tests", e, { errorCode: e.code, errorNo: e.errno })
     process.exit(e.errno ?? 1)
   })
@@ -127,36 +120,26 @@ function runTests(cached) {
 function setupNode() {
   const basePath = path.resolve(nodePath, isWin ? "" : "..")
 
-  return trash(basePath)
-    .then(() => fs.ensureLink(process.execPath, nodePath))
+  return trash(basePath).then(() => fs.ensureLink(process.execPath, nodePath))
 }
 
 function setupRepo() {
-  return Promise
-    .all(trashPaths.map(trash))
-    .then(() => {
-      if (! isWin) {
-        const safeCharactersPath = path.resolve(fixturePath, "safe-characters[#%&;=].mjs")
-        const unsafeCharactersPath = path.resolve(fixturePath, "unsafe-characters[\b\t\n\r:?].mjs")
+  return Promise.all(trashPaths.map(trash)).then(() => {
+    if (!isWin) {
+      const safeCharactersPath = path.resolve(fixturePath, "safe-characters[#%&;=].mjs")
+      const unsafeCharactersPath = path.resolve(fixturePath, "unsafe-characters[\b\t\n\r:?].mjs")
 
-        if (! fs.existsSync(unsafeCharactersPath)) {
-          fs.copySync(safeCharactersPath, unsafeCharactersPath)
-        }
+      if (!fs.existsSync(unsafeCharactersPath)) {
+        fs.copySync(safeCharactersPath, unsafeCharactersPath)
       }
-    })
+    }
+  })
 }
 
-Promise
-  .all([
-    argv.prod && cleanJS(),
-    setupRepo(),
-    setupNode(),
-    setupTest262()
-  ])
+Promise.all([argv.prod && cleanJS(), setupRepo(), setupNode(), setupTest262()])
   .then(() => {
     // eslint-disable-next-line no-console
-    console.log("Running tests in 1 second...")
-    new Promise((r) => setTimeout(r, 1000))
+    console.log("Running tests...")
   })
   .then(() => runTests())
   .then(() => runTests(true))

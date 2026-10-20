@@ -8,9 +8,7 @@ const trash = require("./trash.js")
 
 const { program } = require("commander")
 
-program
-  .option("--prod", "enable production mode")
-  .option("--test", "enable test mode")
+program.option("--prod", "enable production mode").option("--test", "enable test mode")
 
 program.parse(process.argv)
 
@@ -23,10 +21,7 @@ const rootPath = path.resolve(__dirname, "..")
 const buildPath = path.resolve(rootPath, "build")
 const loaderPath = path.resolve(rootPath, "esm/loader.js")
 
-const trashPaths = [
-  buildPath,
-  loaderPath
-]
+const trashPaths = [buildPath, loaderPath]
 
 function cleanRepo() {
   return Promise.all(trashPaths.map(trash))
@@ -35,9 +30,7 @@ function cleanRepo() {
 function copyBundle() {
   const srcPath = path.resolve(buildPath, "esm.js")
 
-  return fs.existsSync(srcPath)
-    ? fs.copy(srcPath, loaderPath)
-    : Promise.resolve()
+  return fs.existsSync(srcPath) ? fs.copy(srcPath, loaderPath) : Promise.resolve()
 }
 
 function makeBundle() {
@@ -51,11 +44,10 @@ function makeBundle() {
   })
 }
 
-Promise
-  .all([
-    cleanRepo(),
-    setupAcorn()
-  ])
+Promise.all([cleanRepo(), setupAcorn()])
   .then(makeBundle)
   .then(copyBundle)
-  .catch(console.error)
+  .catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
