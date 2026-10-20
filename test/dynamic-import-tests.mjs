@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 
 import Compiler from "../build/compiler.js"
 

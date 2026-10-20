@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 import SemVer from "semver"
 
 import assert from "assert"
@@ -25,14 +26,10 @@ describe("import declaration tests", () => {
       .then((ns) => ns.default())
   )
 
-  it("should support live binding of named exports for CJS modules", function () {
-    if (! canTestLiveBinding) {
-      this.skip()
-    }
-
-    return import("./cjs/import/live.js")
+  it("should support live binding of named exports for CJS modules", { skip: !canTestLiveBinding }, () =>
+    import("./cjs/import/live.js")
       .then((ns) => ns.default())
-  })
+  )
 
   it("should not swallow getter errors of CJS modules", () =>
     import("./fixture/cjs/import/getter-error.js")

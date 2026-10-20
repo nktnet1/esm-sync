@@ -1,3 +1,4 @@
+const { describe, it, before, beforeEach, after } = globalThis.__esmSyncNativeTest
 import assert from "assert"
 import execa from "execa"
 import fs from "fs-extra"
@@ -49,36 +50,19 @@ function runMain(filename, env) {
   ], env)
 }
 
-describe("cache tests", function () {
-  this.timeout(0)
-
-  before(function () {
-    if (! canTestCache) {
-      // skip() doesn't work for nested describe() calls.
-      // https://github.com/mochajs/mocha/issues/2683#issuecomment-375629901
-      this.test.parent.pending = true
-      this.skip()
-    }
-
+describe("cache tests", { skip: !canTestCache }, () => {
+  before(() => {
     move(sharedCachePath, backupSharedCachePath)
   })
 
-  beforeEach(function () {
-    if (! canTestCache) {
-      this.skip()
-    }
-
-    return trash([
+  beforeEach(() =>
+    trash([
       loaderCachePath,
       fixtureCachePath
     ])
-  })
+  )
 
-  after(function () {
-    if (! canTestCache) {
-      this.skip()
-    }
-
+  after(() => {
     move(backupSharedCachePath, sharedCachePath)
   })
 

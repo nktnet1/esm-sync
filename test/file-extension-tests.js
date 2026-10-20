@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 import assert from "assert"
 import require2 from "./require.js"
 

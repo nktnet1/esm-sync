@@ -1,15 +1,14 @@
 import { defineConfig } from "vitest/config"
 
-// Only native-process-safe tests belong here. Loader-interception tests remain
-// in the real-Node integration runner until they can be migrated safely.
+// Pure assertions run in Vitest. Loader-interception tests execute through
+// test/vitest/native-suites.test.mts in real Node subprocesses.
 export default defineConfig(({ mode }) => ({
   test: {
-    include: ["test/vitest/**/*.test.{mjs,mts}"],
+    include: ["test/*.test.mjs", "test/vitest/**/*.test.{mjs,mts}"],
     environment: "node",
+    setupFiles: ["./test/vitest/setup.mts"],
     fsModuleCache: true,
     isolate: false,
-    // Native loader processes share a disk cache; keep test files sequential.
-    fileParallelism: false,
     env: {
       ESM_SYNC_NODE_ENV: mode === "production" ? "production" : "development"
     },

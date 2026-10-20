@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 import { Console } from "console"
 import JSON6 from "json-6"
 import Module from "module"
@@ -205,10 +206,7 @@ describe("miscellaneous tests", () => {
       }
     })
 
-    it("should support `util.formatWithOptions()`", function () {
-      if (! canTestUtilFormatWithOptions) {
-        this.skip()
-      }
+    it("should support `util.formatWithOptions()`", { skip: !canTestUtilFormatWithOptions }, () => {
 
       const { formatWithOptions } = util
 
@@ -231,10 +229,7 @@ describe("miscellaneous tests", () => {
       }
     })
 
-    it("should support `util.types.isModuleNamespaceObject()`", function () {
-      if (! canTestUtilTypes) {
-        this.skip()
-      }
+    it("should support `util.types.isModuleNamespaceObject()`", { skip: !canTestUtilTypes }, () => {
 
       const { isModuleNamespaceObject } = util.types
 
@@ -244,10 +239,7 @@ describe("miscellaneous tests", () => {
       assert.strictEqual(isModuleNamespaceObject(), false)
     })
 
-    it("should support `util.types.isProxy()`", function () {
-      if (! canTestUtilTypes) {
-        this.skip()
-      }
+    it("should support `util.types.isProxy()`", { skip: !canTestUtilTypes }, () => {
 
       const { isProxy } = util.types
 
@@ -863,10 +855,7 @@ describe("miscellaneous tests", () => {
         .catch((e) => checkError(e, "ERR_MODULE_RESOLUTION_LEGACY"))
     })
 
-    it("should support requests with trailing backslashes in Windows", function () {
-      if (! isWin) {
-        this.skip()
-      }
+    it("should support requests with trailing backslashes in Windows", { skip: !isWin }, () => {
 
       const request = ".\\node_modules\\ext-priority\\"
 
@@ -884,10 +873,7 @@ describe("miscellaneous tests", () => {
         .map((request) => import(request)))
     )
 
-    it("should support requests containing unsafe characters in ESM", function () {
-      if (isWin) {
-        this.skip()
-      }
+    it("should support requests containing unsafe characters in ESM", { skip: isWin }, () => {
 
       return Promise
         .all([
@@ -1901,12 +1887,7 @@ describe("miscellaneous tests", () => {
     )
   })
 
-  describe("workers support", () => {
-    before(function () {
-      if (! canTestWorker) {
-        this.skip()
-      }
-    })
+  describe("workers support", { skip: !canTestWorker }, () => {
 
     const Worker = canTestWorker
       ? require2("worker_threads").Worker

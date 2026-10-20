@@ -1,3 +1,4 @@
+const { describe, it, beforeEach, afterEach } = globalThis.__esmSyncNativeTest
 import SemVer from "semver"
 
 import assert from "assert"
@@ -40,8 +41,9 @@ function node(args, env) {
   return exec(nodePath, defaultNodeArgs.concat(args), env)
 }
 
-describe("scenario tests", function () {
-  this.timeout(0)
+// These tests execute independent CLI processes. Run a few at a time;
+// keep the PM2 cases serial because they share a daemon and log directory.
+describe("scenario tests", { concurrency: 3 }, () => {
 
   it("should work with dual packages", () =>
     [
@@ -501,12 +503,7 @@ describe("scenario tests", function () {
     })
   })
 
-  describe("should work with lab", function () {
-    before(function () {
-      if (! canTestLab) {
-        this.skip()
-      }
-    })
+  describe("should work with lab", { skip: !canTestLab }, () => {
 
     it("should work with lab", () =>
       node([
@@ -524,12 +521,7 @@ describe("scenario tests", function () {
     )
   })
 
-  describe("should work with pm2", () => {
-    before(function () {
-      if (! canTestPM2) {
-        this.skip()
-      }
-    })
+  describe("should work with pm2", { skip: !canTestPM2, concurrency: false }, () => {
 
     beforeEach(beforeAndAfterEach)
     afterEach(beforeAndAfterEach)
@@ -547,10 +539,6 @@ describe("scenario tests", function () {
     ]
 
     function beforeAndAfterEach() {
-      if (! canTestPM2) {
-        this.skip()
-      }
-
       return exec("pm2", ["kill"])
         .then(() => trash(logsPath))
     }

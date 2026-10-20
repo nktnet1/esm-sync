@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 describe("export declaration tests", () => {
   it("should support star exports", () =>
     import("./export/star.mjs")

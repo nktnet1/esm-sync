@@ -131,7 +131,7 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
       smoke test in CI before claiming support.
 - [x] Stop passing `--experimental-worker` on Node 11.7+, where it is unnecessary.
 - [x] Override transitive yargs 16/17 to the Node 26-compatible patch releases,
-      so the legacy Mocha runner does not load extensionless CommonJS as ESM.
+      so legacy Mocha compatibility scenarios do not load extensionless CommonJS as ESM.
 - [ ] Identify remaining Node 6-era runtime shims for removal and defer Babel-specific
       changes until the tsdown phase validates output parity.
 - [ ] Explicitly decide whether Node 24 remains supported. If Node 26 becomes
@@ -148,7 +148,10 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
       Each test spawns a genuine Node process.
 - [x] Run both Vitest and the remaining Mocha suite in CI and in the local
       development/production test commands; do not rebuild twice in CI.
-- [ ] Migrate ordinary assertions, hooks, mocks, and test files to Vitest.
+- [x] Run compiler and output assertions directly in Vitest and register
+      native-loader suites under Vitest through isolated `node:test` processes.
+- [x] Report every native `node:test` case individually in Vitest without
+      rerunning suites per assertion, and keep Vitest file parallelism enabled.
 - [x] Move the native-Node eval/print hook matrix and built-in module checks to
       Vitest, sharing a subprocess harness with the existing CLI-hook tests.
       Preserve cached/uncached scenarios and skip historical Node-only cases.
@@ -158,16 +161,18 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
 - [x] Preserve process-isolated tests for `require()` hooks, Node internals,
       module caches, CLI execution, and environment-dependent behaviours.
       Only move tests when their native-Node execution boundary is preserved.
-- [ ] Run production/development and cached/uncached loader scenarios as needed.
+- [x] Run development/production and cached/uncached loader scenarios as needed.
 - [ ] Keep the Test262 and Acorn validation paths reproducible; preserve
       standalone preparation and run-only commands while `pnpm test` remains
       self-contained for local development.
-- [ ] Migrate internal coverage to Vitest's coverage provider if coverage is used.
-- [ ] Remove Mocha as the **internal** runner, its bootstrap and unused helpers.
+- [x] Confirm no internal coverage runner needs migration; `nyc` remains
+      solely in external-tool compatibility scenarios.
+- [x] Remove Mocha as the **internal** runner, its bootstrap and unused helpers.
 - [ ] Retain Mocha, Jest, AVA, Jasmine, or other runner packages **only** when
       an intentional, passing third-party compatibility scenario exercises them.
       Otherwise remove the scenarios and dependencies together.
-- [x] Make CI run both Vitest and the separate real-Node integration suite.
+- [x] Make CI run the complete Vitest suite, including isolated real-Node
+      integration suites and both cached and uncached environments.
 
 ### 8. Replace Rspack and Babel with tsdown/Oxc
 

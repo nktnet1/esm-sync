@@ -1,14 +1,18 @@
+import { describe, it } from "vitest"
 import Compiler from "../build/compiler.js"
 
 import assert from "assert"
 import fs from "fs-extra"
 import globby from "globby"
 import path from "path"
+import { fileURLToPath } from "node:url"
 
 const SCRIPT = 1
 const MODULE = 2
 
-const files = globby.sync("output/**/*.{js,mjs}", {
+const files = globby.sync("**/*.{js,mjs}", {
+  absolute: true,
+  cwd: fileURLToPath(new URL("./output/", import.meta.url)),
   transform: path.normalize
 })
 

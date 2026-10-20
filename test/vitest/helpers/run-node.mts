@@ -15,7 +15,11 @@ export const testPath = fileURLToPath(new URL("../../", import.meta.url))
 export function runNode(
   args: readonly string[],
   esmEnv: string,
-  options: NodeJS.ProcessEnv = {}
+  options: NodeJS.ProcessEnv = {},
+  {
+    timeout = 20_000,
+    executable = process.execPath
+  }: { timeout?: number; executable?: string } = {}
 ): Promise<NodeResult> {
   return new Promise((resolve, reject) => {
     const env: NodeJS.ProcessEnv = {
@@ -38,11 +42,11 @@ export function runNode(
       }
     }
 
-    const child = spawn(process.execPath, args, {
+    const child = spawn(executable, args, {
       cwd: testPath,
       env,
       stdio: ["ignore", "pipe", "pipe"],
-      timeout: 20_000
+      timeout
     })
     let stdout = ""
     let stderr = ""
