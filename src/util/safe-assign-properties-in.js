@@ -25,4 +25,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSafeAssignPropertiesIn
-  : shared.module.utilSafeAssignPropertiesIn = init()
+  : (shared.module.utilSafeAssignPropertiesIn = init())

@@ -23,4 +23,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilToExternalFunction
-  : shared.module.utilToExternalFunction = init()
+  : (shared.module.utilToExternalFunction = init())

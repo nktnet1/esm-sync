@@ -78,10 +78,10 @@ function init() {
       this.firstChunk = chunk
       this.lastSearchedChunk = chunk
 
-      this.byStart = new Map
+      this.byStart = new Map()
       this.byStart.set(0, chunk)
 
-      this.byEnd = new Map
+      this.byEnd = new Map()
       this.byEnd.set(string.length, chunk)
     }
 
@@ -121,9 +121,7 @@ function init() {
       const last = this.byEnd.get(end)
 
       if (start === end) {
-        return content
-          ? this.appendLeft(start, content)
-          : this
+        return content ? this.appendLeft(start, content) : this
       }
 
       first.edit(content)
@@ -172,8 +170,7 @@ function init() {
     }
 
     _split(index) {
-      if (this.byStart.has(index) ||
-          this.byEnd.has(index)) {
+      if (this.byStart.has(index) || this.byEnd.has(index)) {
         return
       }
 
@@ -187,9 +184,7 @@ function init() {
           return
         }
 
-        chunk = searchForward
-          ? this.byStart.get(chunk.end)
-          : this.byEnd.get(chunk.start)
+        chunk = searchForward ? this.byStart.get(chunk.end) : this.byEnd.get(chunk.start)
       }
     }
 
@@ -220,6 +215,4 @@ function init() {
   return MagicString
 }
 
-export default shared.inited
-  ? shared.module.MagicString
-  : shared.module.MagicString = init()
+export default shared.inited ? shared.module.MagicString : (shared.module.MagicString = init())

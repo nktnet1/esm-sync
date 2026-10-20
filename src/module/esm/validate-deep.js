@@ -14,16 +14,13 @@ function init() {
     TYPE_PSEUDO
   } = ENTRY
 
-  const {
-    ERR_EXPORT_CYCLE,
-    ERR_EXPORT_MISSING
-  } = errors
+  const { ERR_EXPORT_CYCLE, ERR_EXPORT_MISSING } = errors
 
   function validateDeep(entry, seen) {
     const { children } = entry
 
     if (seen === void 0) {
-      seen = new Set
+      seen = new Set()
     } else if (seen.has(entry)) {
       return
     }
@@ -45,7 +42,7 @@ function init() {
     const { name } = entry
 
     if (seen === void 0) {
-      seen = new Set
+      seen = new Set()
     } else if (seen.has(name)) {
       return true
     }
@@ -53,8 +50,10 @@ function init() {
     seen.add(name)
 
     for (const setter of entry.setters[exportedName]) {
-      if (setter.type === SETTER_TYPE_EXPORT_FROM &&
-          isCyclicalExport(setter.owner, setter.exportedName, seen)) {
+      if (
+        setter.type === SETTER_TYPE_EXPORT_FROM &&
+        isCyclicalExport(setter.owner, setter.exportedName, seen)
+      ) {
         return true
       }
     }
@@ -81,9 +80,7 @@ function init() {
   function validate(entry, parentEntry) {
     const parentIsMJS = parentEntry.extname === ".mjs"
 
-    const parentNamedExports =
-      parentEntry.package.options.cjs.namedExports &&
-      ! parentIsMJS
+    const parentNamedExports = parentEntry.package.options.cjs.namedExports && !parentIsMJS
 
     if (entry._namespaceFinalized === NAMESPACE_FINALIZATION_DEFERRED) {
       return
@@ -94,16 +91,10 @@ function init() {
     const isLoaded = entry._loaded === LOAD_COMPLETED
 
     const defaultOnly =
-      ((isCJS ||
-        type === TYPE_JSON) &&
-       ! parentNamedExports &&
-       ! entry.builtin) ||
-      (type === TYPE_PSEUDO &&
-       parentIsMJS)
+      ((isCJS || type === TYPE_JSON) && !parentNamedExports && !entry.builtin) ||
+      (type === TYPE_PSEUDO && parentIsMJS)
 
-    if (isCJS &&
-        ! defaultOnly &&
-        ! isLoaded) {
+    if (isCJS && !defaultOnly && !isLoaded) {
       return
     }
 
@@ -115,8 +106,7 @@ function init() {
 
     for (const exportedName in settersMap) {
       if (defaultOnly) {
-        if (exportedName === "*" ||
-            exportedName === "default") {
+        if (exportedName === "*" || exportedName === "default") {
           continue
         }
 
@@ -130,9 +120,7 @@ function init() {
       }
 
       if (namespace === void 0) {
-        namespace = isLoaded
-          ? entry.getExportByName("*", parentEntry)
-          : getters
+        namespace = isLoaded ? entry.getExportByName("*", parentEntry) : getters
       }
 
       if (has(namespace, exportedName)) {
@@ -140,17 +128,16 @@ function init() {
 
         const { owner } = getter
 
-        if (owner.type === TYPE_CJS &&
-            owner._loaded !== LOAD_COMPLETED) {
+        if (owner.type === TYPE_CJS && owner._loaded !== LOAD_COMPLETED) {
           continue
         }
 
-        if (! getter.deferred) {
+        if (!getter.deferred) {
           cache.set(exportedName, true)
           continue
         }
 
-        const seen = new Set
+        const seen = new Set()
 
         while (getter !== void 0 && getter.deferred) {
           if (seen.has(getter)) {
@@ -179,4 +166,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.moduleEsmValidateDeep
-  : shared.module.moduleEsmValidateDeep = init()
+  : (shared.module.moduleEsmValidateDeep = init())

@@ -19,4 +19,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornWalkDynamicImport
-  : shared.module.acornWalkDynamicImport = init()
+  : (shared.module.acornWalkDynamicImport = init())

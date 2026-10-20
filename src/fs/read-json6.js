@@ -6,14 +6,10 @@ function init() {
   function readJSON6(filename) {
     const content = readFile(filename, "utf8")
 
-    return content === null
-      ? null
-      : parseJSON6(content)
+    return content === null ? null : parseJSON6(content)
   }
 
   return readJSON6
 }
 
-export default shared.inited
-  ? shared.module.fsReadJSON6
-  : shared.module.fsReadJSON6 = init()
+export default shared.inited ? shared.module.fsReadJSON6 : (shared.module.fsReadJSON6 = init())

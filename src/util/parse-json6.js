@@ -4,13 +4,11 @@ import shared from "../shared.js"
 
 function init() {
   function parseJSON6(string) {
-    return tryParse(string) ||
-           tryParse(quotifyJSON(string))
+    return tryParse(string) || tryParse(quotifyJSON(string))
   }
 
   function tryParse(string) {
-    if (typeof string === "string" &&
-        string.length) {
+    if (typeof string === "string" && string.length) {
       try {
         return JSON6.parse(string)
       } catch {}
@@ -24,4 +22,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilParseJSON6
-  : shared.module.utilParseJSON6 = init()
+  : (shared.module.utilParseJSON6 = init())

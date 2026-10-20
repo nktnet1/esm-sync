@@ -11,4 +11,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envIsDevelopment
-  : shared.module.envIsDevelopment = init()
+  : (shared.module.envIsDevelopment = init())

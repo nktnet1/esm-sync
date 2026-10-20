@@ -30,9 +30,11 @@ function init() {
       if (externalMap.has(name)) {
         const newValue = builtinMap[name]
 
-        if (newValue !== value &&
-            value === externalMap.get(name) &&
-            isUpdatableGet(unsafeGlobal, name)) {
+        if (
+          newValue !== value &&
+          value === externalMap.get(name) &&
+          isUpdatableGet(unsafeGlobal, name)
+        ) {
           return newValue
         }
       }
@@ -42,10 +44,12 @@ function init() {
     getOwnPropertyDescriptor(unsafeGlobal, name) {
       const descriptor = Reflect.getOwnPropertyDescriptor(unsafeGlobal, name)
 
-      if (externalMap.has(name) &&
-          descriptor !== void 0 &&
-          descriptor.value === externalMap.get(name) &&
-          isUpdatableDescriptor(descriptor)) {
+      if (
+        externalMap.has(name) &&
+        descriptor !== void 0 &&
+        descriptor.value === externalMap.get(name) &&
+        isUpdatableDescriptor(descriptor)
+      ) {
         descriptor.value = builtinMap[name]
       }
 
@@ -56,6 +60,4 @@ function init() {
   return proxy
 }
 
-export default shared.inited
-  ? shared.module.builtinGlobal
-  : shared.module.builtinGlobal = init()
+export default shared.inited ? shared.module.builtinGlobal : (shared.module.builtinGlobal = init())

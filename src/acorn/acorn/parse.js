@@ -6,10 +6,7 @@ import defaults from "../../util/defaults.js"
 import shared from "../../shared.js"
 
 function init() {
-  const {
-    SOURCE_TYPE_MODULE,
-    SOURCE_TYPE_SCRIPT
-  } = COMPILER
+  const { SOURCE_TYPE_MODULE, SOURCE_TYPE_SCRIPT } = COMPILER
 
   const Plugin = {
     enable(acorn) {
@@ -22,10 +19,13 @@ function init() {
     let error
     let threw = true
 
-    options = defaults({
-      sourceType: SOURCE_TYPE_MODULE,
-      strict: false
-    }, options)
+    options = defaults(
+      {
+        sourceType: SOURCE_TYPE_MODULE,
+        strict: false
+      },
+      options
+    )
 
     try {
       ast = Parser.parse(code, options)
@@ -55,4 +55,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornAcornParse
-  : shared.module.acornAcornParse = init()
+  : (shared.module.acornAcornParse = init())

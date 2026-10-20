@@ -33,8 +33,7 @@ function maskFunction(func, source) {
 
   const proxy = new OwnProxy(func, {
     get(func, name, receiver) {
-      if (name === "toString" &&
-          ! has(func, "toString")) {
+      if (name === "toString" && !has(func, "toString")) {
         return cached.toString
       }
 
@@ -46,16 +45,12 @@ function maskFunction(func, source) {
     }
   })
 
-  const sourceProto = has(source, "prototype")
-    ? source.prototype
-    : void 0
+  const sourceProto = has(source, "prototype") ? source.prototype : void 0
 
   if (isObjectLike(sourceProto)) {
-    let proto = has(func, "prototype")
-      ? func.prototype
-      : void 0
+    let proto = has(func, "prototype") ? func.prototype : void 0
 
-    if (! isObjectLike(proto)) {
+    if (!isObjectLike(proto)) {
       proto = GenericObject.create()
 
       Reflect.defineProperty(func, "prototype", {
@@ -89,9 +84,11 @@ function maskFunction(func, source) {
     source,
     toString: new OwnProxy(func.toString, {
       apply: nativeTrap((toString, thisArg, args) => {
-        if (! Loader.state.package.default.options.debug &&
-            typeof thisArg === "function" &&
-            unwrapOwnProxy(thisArg) === func) {
+        if (
+          !Loader.state.package.default.options.debug &&
+          typeof thisArg === "function" &&
+          unwrapOwnProxy(thisArg) === func
+        ) {
           thisArg = cached.source
         }
 

@@ -12,10 +12,7 @@ function init() {
   const markerRegExp = /toString|(function ).*?(?=\\\()/g
 
   const nativeFuncRegExp = RegExp(
-    "^" +
-    escapeRegExp(toString.call(toString))
-      .replace(markerRegExp, "$1.*?") +
-    "$"
+    "^" + escapeRegExp(toString.call(toString)).replace(markerRegExp, "$1.*?") + "$"
   )
 
   function isNativeLikeFunction(value) {
@@ -35,4 +32,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsNativeLikeFunction
-  : shared.module.utilIsNativeLikeFunction = init()
+  : (shared.module.utilIsNativeLikeFunction = init())

@@ -13,13 +13,9 @@ import { dirname } from "../../safe/path.js"
 import isRelative from "../../path/is-relative.js"
 import staticNodeModulePaths from "../static/node-module-paths.js"
 
-const {
-  RUNKIT
-} = ENV
+const { RUNKIT } = ENV
 
-const {
-  PACKAGE_DIRNAME
-} = ESM
+const { PACKAGE_DIRNAME } = ESM
 
 let availableModulesPath
 
@@ -27,15 +23,12 @@ function resolveLookupPaths(request, parent = null, skipGlobalPaths = false) {
   const parentFilename = parent !== null && parent.filename
 
   // Look outside if not a relative path.
-  if (! isRelative(request)) {
+  if (!isRelative(request)) {
     const parentPaths = parent !== null && parent.paths
 
-    const paths = parentPaths
-      ? GenericArray.from(parentPaths)
-      : GenericArray.of()
+    const paths = parentPaths ? GenericArray.from(parentPaths) : GenericArray.of()
 
-    if (parentPaths &&
-        ! skipGlobalPaths) {
+    if (parentPaths && !skipGlobalPaths) {
       GenericArray.push(paths, ...Loader.state.module.globalPaths)
     }
 
@@ -47,18 +40,14 @@ function resolveLookupPaths(request, parent = null, skipGlobalPaths = false) {
       paths.push(availableModulesPath)
     }
 
-    return paths.length
-      ? paths
-      : null
+    return paths.length ? paths : null
   }
 
   if (typeof parentFilename === "string") {
     return GenericArray.of(dirname(parentFilename))
   }
 
-  const paths = skipGlobalPaths
-    ? staticNodeModulePaths(".")
-    : Module._nodeModulePaths(".")
+  const paths = skipGlobalPaths ? staticNodeModulePaths(".") : Module._nodeModulePaths(".")
 
   GenericArray.unshift(paths, ".")
   return paths

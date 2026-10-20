@@ -9,9 +9,11 @@ function init() {
       // Step 11: If either the data descriptor is not configurable or writable,
       // or the accessor descriptor has no setter, then the value must be the same.
       // https://tc39.github.io/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver
-      return descriptor.configurable === true ||
-             descriptor.writable === true ||
-             typeof descriptor.set === "function"
+      return (
+        descriptor.configurable === true ||
+        descriptor.writable === true ||
+        typeof descriptor.set === "function"
+      )
     }
 
     return true
@@ -22,4 +24,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsUpdatableSet
-  : shared.module.utilIsUpdatableSet = init()
+  : (shared.module.utilIsUpdatableSet = init())

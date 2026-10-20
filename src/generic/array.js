@@ -18,6 +18,4 @@ function init() {
   }
 }
 
-export default shared.inited
-  ? shared.module.GenericArray
-  : shared.module.GenericArray = init()
+export default shared.inited ? shared.module.GenericArray : (shared.module.GenericArray = init())

@@ -18,4 +18,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseGetNamesFromPattern
-  : shared.module.parseGetNamesFromPattern = init()
+  : (shared.module.parseGetNamesFromPattern = init())

@@ -23,4 +23,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserFunctionParamsStart
-  : shared.module.acornParserFunctionParamsStart = init()
+  : (shared.module.acornParserFunctionParamsStart = init())

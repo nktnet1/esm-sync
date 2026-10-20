@@ -3,11 +3,7 @@ import shared from "../../shared.js"
 
 function init() {
   function findCompilerExtension(extCompilers, entry) {
-    const {
-      basename,
-      extname,
-      filename
-    } = entry
+    const { basename, extname, filename } = entry
 
     if (extname === "") {
       return extname
@@ -27,9 +23,7 @@ function init() {
 
       const done = index === extIndex
 
-      const ext = done
-        ? extname
-        : basename.slice(index)
+      const ext = done ? extname : basename.slice(index)
 
       if (has(extCompilers, ext)) {
         return ext
@@ -48,4 +42,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.moduleInternalFindCompilerExtension
-  : shared.module.moduleInternalFindCompilerExtension = init()
+  : (shared.module.moduleInternalFindCompilerExtension = init())

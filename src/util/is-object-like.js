@@ -4,8 +4,7 @@ function init() {
   function isObjectLike(value) {
     const type = typeof value
 
-    return type === "function" ||
-           (type === "object" && value !== null)
+    return type === "function" || (type === "object" && value !== null)
   }
 
   return isObjectLike
@@ -13,4 +12,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsObjectLike
-  : shared.module.utilIsObjectLike = init()
+  : (shared.module.utilIsObjectLike = init())

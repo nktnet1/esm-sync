@@ -21,4 +21,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilInstanceOf
-  : shared.module.utilInstanceOf = init()
+  : (shared.module.utilInstanceOf = init())

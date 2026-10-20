@@ -4,10 +4,7 @@ import load from "./load.js"
 import shared from "../../shared.js"
 import validateDeep from "./validate-deep.js"
 
-const {
-  STATE_PARSING_COMPLETED,
-  TYPE_CJS
-} = ENTRY
+const { STATE_PARSING_COMPLETED, TYPE_CJS } = ENTRY
 
 function parseLoad(request, parent, isMain) {
   const { moduleState } = shared

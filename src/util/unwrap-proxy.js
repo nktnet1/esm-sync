@@ -4,7 +4,7 @@ import shared from "../shared.js"
 
 function init() {
   function unwrapProxy(value) {
-    if (! isObjectLike(value)) {
+    if (!isObjectLike(value)) {
       return value
     }
 
@@ -32,4 +32,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilUnwrapProxy
-  : shared.module.utilUnwrapProxy = init()
+  : (shared.module.utilUnwrapProxy = init())

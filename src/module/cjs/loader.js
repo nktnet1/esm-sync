@@ -17,7 +17,7 @@ function loader(entry, filename) {
 
   Module._extensions[foundExt](mod, filename)
 
-  if (! mod.loaded) {
+  if (!mod.loaded) {
     mod.loaded = true
     entry.loaded()
   }

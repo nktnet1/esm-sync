@@ -10,6 +10,4 @@ function init() {
   return isRunkit
 }
 
-export default shared.inited
-  ? shared.module.envIsRunkit
-  : shared.module.envIsRunkit = init()
+export default shared.inited ? shared.module.envIsRunkit : (shared.module.envIsRunkit = init())

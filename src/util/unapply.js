@@ -8,6 +8,4 @@ function init() {
   return unapply
 }
 
-export default shared.inited
-  ? shared.module.utilUnapply
-  : shared.module.utilUnapply = init()
+export default shared.inited ? shared.module.utilUnapply : (shared.module.utilUnapply = init())

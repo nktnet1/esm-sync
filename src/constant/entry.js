@@ -1,4 +1,3 @@
-/* eslint-disable sort-keys */
 const ENTRY = {
   ERROR_GETTER: {},
   ERROR_STAR: {},

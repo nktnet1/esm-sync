@@ -13,8 +13,7 @@ function init() {
   }
 
   function parseReturnStatement(func, args) {
-    if (! this.inFunction &&
-        this.firstReturnOutsideFunction === null) {
+    if (!this.inFunction && this.firstReturnOutsideFunction === null) {
       this.firstReturnOutsideFunction = getLineInfo(this.input, this.start)
     }
 
@@ -26,4 +25,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserFirstReturnOutSideFunction
-  : shared.module.acornParserFirstReturnOutSideFunction = init()
+  : (shared.module.acornParserFirstReturnOutSideFunction = init())

@@ -6,4 +6,4 @@ import shared from "../shared.js"
 
 export default shared.inited
   ? shared.module.builtinTimers
-  : shared.module.builtinTimers = assignProperties(GenericObject.create(), safeTimers)
+  : (shared.module.builtinTimers = assignProperties(GenericObject.create(), safeTimers))

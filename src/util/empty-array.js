@@ -6,4 +6,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilEmptyArray
-  : shared.module.utilEmptyArray = init()
+  : (shared.module.utilEmptyArray = init())

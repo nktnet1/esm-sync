@@ -7,15 +7,14 @@ function init() {
   const newlineRegExp = /\n/g
 
   function createSourceMap(filename, content) {
-    if (! isPath(filename)) {
+    if (!isPath(filename)) {
       return ""
     }
 
     let lineCount = 0
     let mapping = ""
 
-    while (lineCount === 0 ||
-           newlineRegExp.test(content)) {
+    while (lineCount === 0 || newlineRegExp.test(content)) {
       // Each segment has 4 VLQ fields. They are:
       //  - The starting column index of the current line.
       //  - The index of the source file.
@@ -35,9 +34,13 @@ function init() {
       lineCount += 1
     }
 
-    return '{"version":3,"sources":[' +
+    return (
+      '{"version":3,"sources":[' +
       toStringLiteral(getURLFromFilePath(filename)) +
-      '],"names":[],"mappings":"' + mapping + '"}'
+      '],"names":[],"mappings":"' +
+      mapping +
+      '"}'
+    )
   }
 
   return createSourceMap
@@ -45,4 +48,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilCreateSourceMap
-  : shared.module.utilCreateSourceMap = init()
+  : (shared.module.utilCreateSourceMap = init())

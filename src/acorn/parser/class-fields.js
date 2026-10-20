@@ -10,9 +10,7 @@ import { tokTypes as tt } from "../../acorn.js"
 import wrap from "../../util/wrap.js"
 
 function init() {
-  const {
-    NUMSIGN
-  } = CHAR_CODE
+  const { NUMSIGN } = CHAR_CODE
 
   const Plugin = {
     enable(parser) {
@@ -38,8 +36,7 @@ function init() {
   function parseClassElement(func, args) {
     const { type } = this
 
-    if (type !== tt.bracketL &&
-        type !== tt.name) {
+    if (type !== tt.bracketL && type !== tt.name) {
       return Reflect.apply(func, this, args)
     }
 
@@ -58,18 +55,13 @@ function init() {
       return Reflect.apply(func, this, args)
     }
 
-    if (branched1Type !== tt.braceR &&
-        branched1Type !== tt.eq &&
-        branched1Type !== tt.semi) {
-      if (this.isContextual("async") ||
-          this.isContextual("get") ||
-          this.isContextual("set")) {
+    if (branched1Type !== tt.braceR && branched1Type !== tt.eq && branched1Type !== tt.semi) {
+      if (this.isContextual("async") || this.isContextual("get") || this.isContextual("set")) {
         return Reflect.apply(func, this, args)
       }
 
       if (this.isContextual("static")) {
-        if (branched1Type !== tt.bracketL &&
-            branched1Type !== tt.name) {
+        if (branched1Type !== tt.bracketL && branched1Type !== tt.name) {
           return Reflect.apply(func, this, args)
         }
 
@@ -83,12 +75,14 @@ function init() {
           return Reflect.apply(func, this, args)
         }
 
-        if (branched2Type !== tt.braceR &&
-            branched2Type !== tt.eq &&
-            branched2Type !== tt.semi &&
-            (branched1.isContextual("async") ||
-             branched1.isContextual("get") ||
-             branched1.isContextual("set"))) {
+        if (
+          branched2Type !== tt.braceR &&
+          branched2Type !== tt.eq &&
+          branched2Type !== tt.semi &&
+          (branched1.isContextual("async") ||
+            branched1.isContextual("get") ||
+            branched1.isContextual("set"))
+        ) {
           return Reflect.apply(func, this, args)
         }
       }
@@ -97,15 +91,11 @@ function init() {
     const node = this.startNode()
 
     node.static =
-      branched1Type !== tt.braceR &&
-      branched1Type !== tt.eq &&
-      this.eatContextual("static")
+      branched1Type !== tt.braceR && branched1Type !== tt.eq && this.eatContextual("static")
 
     this.parsePropertyName(node)
 
-    node.value = this.eat(tt.eq)
-      ? this.parseExpression()
-      : null
+    node.value = this.eat(tt.eq) ? this.parseExpression() : null
 
     this.finishNode(node, "FieldDefinition")
     this.semicolon()
@@ -118,4 +108,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserClassFields
-  : shared.module.acornParserClassFields = init()
+  : (shared.module.acornParserClassFields = init())

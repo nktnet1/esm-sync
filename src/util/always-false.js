@@ -10,4 +10,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilAlwaysFalse
-  : shared.module.utilAlwaysFalse = init()
+  : (shared.module.utilAlwaysFalse = init())

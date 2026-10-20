@@ -6,9 +6,7 @@ import { sep } from "../safe/path.js"
 
 import escapeRegExp from "../util/escape-regexp.js"
 
-const {
-  FLAGS
-} = ENV
+const { FLAGS } = ENV
 
 const yarnPnpFilenameRegExp = new RegExp(`${escapeRegExp(sep)}\\.pnp\\.c?js$`)
 

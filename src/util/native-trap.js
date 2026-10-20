@@ -21,4 +21,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilNativeTrap
-  : shared.module.utilNativeTrap = init()
+  : (shared.module.utilNativeTrap = init())

@@ -12,6 +12,4 @@ function init() {
   return __non_webpack_require__
 }
 
-export default shared.inited
-  ? shared.module.realRequire
-  : shared.module.realRequire = init()
+export default shared.inited ? shared.module.realRequire : (shared.module.realRequire = init())

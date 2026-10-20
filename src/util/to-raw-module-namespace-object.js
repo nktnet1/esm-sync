@@ -25,4 +25,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilToRawModuleNamespaceObject
-  : shared.module.utilToRawModuleNamespaceObject = init()
+  : (shared.module.utilToRawModuleNamespaceObject = init())

@@ -8,14 +8,9 @@ function init() {
   const safeConsole = safe(realConsole)
   const { Console } = safeConsole
 
-  setProperty(safeConsole, "Console", maskFunction(
-    safe(Console),
-    Console
-  ))
+  setProperty(safeConsole, "Console", maskFunction(safe(Console), Console))
 
   return safeConsole
 }
 
-export default shared.inited
-  ? shared.module.safeConsole
-  : shared.module.safeConsole = init()
+export default shared.inited ? shared.module.safeConsole : (shared.module.safeConsole = init())

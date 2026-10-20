@@ -16,13 +16,11 @@ function init() {
       return false
     }
 
-    if (index >= SCRIPT_PRAGMA_WIDTH &&
-        pragma === MODULE_PRAGMA) {
+    if (index >= SCRIPT_PRAGMA_WIDTH && pragma === MODULE_PRAGMA) {
       return indexOfPragma(code.slice(0, index), SCRIPT_PRAGMA) === -1
     }
 
-    if (index >= MODULE_PRAGMA_WIDTH &&
-        pragma === SCRIPT_PRAGMA) {
+    if (index >= MODULE_PRAGMA_WIDTH && pragma === SCRIPT_PRAGMA) {
       return indexOfPragma(code.slice(0, index), MODULE_PRAGMA) === -1
     }
 
@@ -34,4 +32,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseHasPragma
-  : shared.module.parseHasPragma = init()
+  : (shared.module.parseHasPragma = init())

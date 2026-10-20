@@ -6,13 +6,7 @@ import CHAR_CODE from "../../constant/char-code.js"
 import shared from "../../shared.js"
 
 function init() {
-  const {
-    DIGIT_0,
-    DIGIT_9,
-    LOWERCASE_A,
-    UNDERSCORE,
-    UPPERCASE_A
-  } = CHAR_CODE
+  const { DIGIT_0, DIGIT_9, LOWERCASE_A, UNDERSCORE, UPPERCASE_A } = CHAR_CODE
 
   const Plugin = {
     enable(parser) {
@@ -26,9 +20,7 @@ function init() {
     const start = this.pos
     const hasLength = typeof length === "number"
 
-    const end = hasLength
-      ? length
-      : Infinity
+    const end = hasLength ? length : Infinity
 
     let i = -1
     let total = 0
@@ -47,8 +39,7 @@ function init() {
         value = code - LOWERCASE_A + 10
       } else if (code >= UPPERCASE_A) {
         value = code - UPPERCASE_A + 10
-      } else if (code >= DIGIT_0 &&
-                 code <= DIGIT_9) {
+      } else if (code >= DIGIT_0 && code <= DIGIT_9) {
         value = code - DIGIT_0
       }
 
@@ -57,14 +48,12 @@ function init() {
       }
 
       ++this.pos
-      total = (total * radix) + value
+      total = total * radix + value
     }
 
     const { pos } = this
 
-    if (pos === start ||
-        (hasLength &&
-         (pos - start) !== length)) {
+    if (pos === start || (hasLength && pos - start !== length)) {
       return null
     }
 
@@ -76,4 +65,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserNumericSeparator
-  : shared.module.acornParserNumericSeparator = init()
+  : (shared.module.acornParserNumericSeparator = init())

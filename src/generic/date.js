@@ -7,6 +7,4 @@ function init() {
   }
 }
 
-export default shared.inited
-  ? shared.module.GenericDate
-  : shared.module.GenericDate = init()
+export default shared.inited ? shared.module.GenericDate : (shared.module.GenericDate = init())

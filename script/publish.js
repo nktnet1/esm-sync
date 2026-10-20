@@ -12,7 +12,7 @@ const indexPath = path.resolve(rootPath, "index.js")
 const pkgPath = path.resolve(rootPath, "package.json")
 const readmePath = path.resolve(rootPath, "README.md")
 
-const tableRegExp = /^<table>[^]*?\n<\/table>/gm
+const tableRegExp = /^<table>[\s\S]*?\n<\/table>/gm
 const terserOptions = fs.readJSONSync(path.resolve(rootPath, ".terserrc"))
 
 const defaultScripts = {
@@ -65,7 +65,6 @@ async function cleanReadme() {
 
 async function minifyHTML(content) {
   // import/no-unresolved does not resolve packages with only ESM exports.
-  // eslint-disable-next-line import/no-unresolved
   const { minify } = await import("html-minifier-next")
 
   return minify(content, {

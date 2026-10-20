@@ -43,10 +43,7 @@ import toExternalFunction from "../util/to-external-function.js"
 import wrap from "../util/wrap.js"
 import safeProcess from "../safe/process.js"
 
-const {
-  SOURCE_TYPE_MODULE,
-  SOURCE_TYPE_UNAMBIGUOUS
-} = COMPILER
+const { SOURCE_TYPE_MODULE, SOURCE_TYPE_UNAMBIGUOUS } = COMPILER
 
 const {
   STATE_EXECUTION_COMPLETED,
@@ -57,18 +54,9 @@ const {
   TYPE_ESM
 } = ENTRY
 
-const {
-  CHECK,
-  EVAL,
-  FLAGS,
-  HAS_INSPECTOR,
-  INTERNAL,
-  REPL
-} = ENV
+const { CHECK, EVAL, FLAGS, HAS_INSPECTOR, INTERNAL, REPL } = ENV
 
-const {
-  ERR_INVALID_ARG_TYPE
-} = errors
+const { ERR_INVALID_ARG_TYPE } = errors
 
 function hook(vm) {
   let entry
@@ -105,19 +93,21 @@ function hook(vm) {
 
     const code =
       "(()=>{" +
-        'var g=Function("return this")(),' +
-        "m=g.module," +
-        "e=m&&m.exports," +
-        'n="' + runtimeName + '";' +
-        "if(e&&!g[n]){" +
-          "m.exports=e.entry.exports;" +
-          "require=e.entry.require;" +
-          "e.entry.addBuiltinModules(g);" +
-          "Reflect.defineProperty(g,n,{" +
-            "__proto__:null," +
-            "value:e" +
-          "})" +
-        "}" +
+      'var g=Function("return this")(),' +
+      "m=g.module," +
+      "e=m&&m.exports," +
+      'n="' +
+      runtimeName +
+      '";' +
+      "if(e&&!g[n]){" +
+      "m.exports=e.entry.exports;" +
+      "require=e.entry.require;" +
+      "e.entry.addBuiltinModules(g);" +
+      "Reflect.defineProperty(g,n,{" +
+      "__proto__:null," +
+      "value:e" +
+      "})" +
+      "}" +
       "})();" +
       compileData.code
 
@@ -136,9 +126,9 @@ function hook(vm) {
     const { code, cacheName, compileData } = transpile(content)
 
     if (
-      compileData.scriptData !== null
-      && scriptOptions.produceCachedData
-      && !has(scriptOptions, "cachedData")
+      compileData.scriptData !== null &&
+      scriptOptions.produceCachedData &&
+      !has(scriptOptions, "cachedData")
     ) {
       scriptOptions.cachedData = compileData.scriptData
     }
@@ -155,9 +145,7 @@ function hook(vm) {
       entry.compileData = compileData
       entry.state = STATE_EXECUTION_STARTED
 
-      entry.type = compileData.sourceType === SOURCE_TYPE_MODULE
-        ? TYPE_ESM
-        : TYPE_CJS
+      entry.type = compileData.sourceType === SOURCE_TYPE_MODULE ? TYPE_ESM : TYPE_CJS
 
       const result = tryWrapper.call(this, runInFunc, args, content)
 
@@ -181,8 +169,7 @@ function hook(vm) {
       if (Array.isArray(wrapper)) {
         const [prefix, suffix] = wrapper
 
-        if (typeof prefix === "string" &&
-            typeof suffix === "string") {
+        if (typeof prefix === "string" && typeof suffix === "string") {
           code = code.slice(prefix.length, -suffix.length)
         }
       }
@@ -206,9 +193,7 @@ function hook(vm) {
   }
 
   function setupEval() {
-    vm.runInThisContext = proxyWrap(
-      vm.runInThisContext, (runInThisContext, [code, options]
-    ) => {
+    vm.runInThisContext = proxyWrap(vm.runInThisContext, (runInThisContext, [code, options]) => {
       vm.runInThisContext = runInThisContext
       setupEntry(shared.unsafeGlobal.module)
       return vm.createScript(code, options).runInThisContext(options)
@@ -298,10 +283,7 @@ function hook(vm) {
 
     builtinVM.createScript = vm.createScript
 
-    if (
-      INTERNAL
-      && FLAGS.experimentalREPLAwait
-    ) {
+    if (INTERNAL && FLAGS.experimentalREPLAwait) {
       acornInternalAcorn.enable()
       acornInternalWalk.enable()
     }
@@ -314,21 +296,29 @@ function hook(vm) {
 
     const _inspect = realUtil.inspect
 
-    setGetter(realUtil, "inspect", toExternalFunction(function () {
-      // Prevent re-entering the getter by triggering the setter to convert
-      // `util.inspect()` from an accessor property to a data property.
-      this.inspect = builtinInspect
+    setGetter(
+      realUtil,
+      "inspect",
+      toExternalFunction(function () {
+        // Prevent re-entering the getter by triggering the setter to convert
+        // `util.inspect()` from an accessor property to a data property.
+        this.inspect = builtinInspect
 
-      // The first getter call occurs in Node's lib/repl.js as an assignment
-      // to `repl.writer()`. It needs to be the original `util.inspect()`
-      // for ANSI coloring to be enabled.
-      // https://github.com/nodejs/node/blob/v9.11.1/lib/repl.js#L377-L382
-      return _inspect
-    }))
+        // The first getter call occurs in Node's lib/repl.js as an assignment
+        // to `repl.writer()`. It needs to be the original `util.inspect()`
+        // for ANSI coloring to be enabled.
+        // https://github.com/nodejs/node/blob/v9.11.1/lib/repl.js#L377-L382
+        return _inspect
+      })
+    )
 
-    setSetter(realUtil, "inspect", toExternalFunction(function (value) {
-      setProperty(this, "inspect", value)
-    }))
+    setSetter(
+      realUtil,
+      "inspect",
+      toExternalFunction(function (value) {
+        setProperty(this, "inspect", value)
+      })
+    )
   }
 
   Wrapper.manage(vm, "createScript", managerWrapper)
@@ -336,7 +326,7 @@ function hook(vm) {
 
   if (CHECK) {
     setupCheck()
-  } else if (EVAL)  {
+  } else if (EVAL) {
     setupEval()
   } else if (REPL) {
     setupREPL()
@@ -345,10 +335,37 @@ function hook(vm) {
 
 function createAddBuiltinModules(entry) {
   const lazyModules = [
-    "assert", "async_hooks", "buffer", "child_process", "cluster", "crypto",
-    "dgram", "dns", "domain", "events", "fs", "http", "http2", "https", "net",
-    "os", "path", "perf_hooks", "punycode", "querystring", "readline", "repl",
-    "stream", "string_decoder", "tls", "tty", "url", "util", "v8", "vm", "zlib"
+    "assert",
+    "async_hooks",
+    "buffer",
+    "child_process",
+    "cluster",
+    "crypto",
+    "dgram",
+    "dns",
+    "domain",
+    "events",
+    "fs",
+    "http",
+    "http2",
+    "https",
+    "net",
+    "os",
+    "path",
+    "perf_hooks",
+    "punycode",
+    "querystring",
+    "readline",
+    "repl",
+    "stream",
+    "string_decoder",
+    "tls",
+    "tty",
+    "url",
+    "util",
+    "v8",
+    "vm",
+    "zlib"
   ]
 
   const { length } = lazyModules
@@ -423,8 +440,7 @@ function tryWrapper(func, args, content) {
     error = e
   }
 
-  if (!Loader.state.package.default.options.debug &&
-      isStackTraceMaskable(error)) {
+  if (!Loader.state.package.default.options.debug && isStackTraceMaskable(error)) {
     maskStackTrace(error, { content })
   } else {
     toExternalError(error)

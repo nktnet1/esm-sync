@@ -39,8 +39,7 @@ function init() {
       return "eval" + dot
     }
 
-    if (name === "_" ||
-        name === "i") {
+    if (name === "_" || name === "i") {
       return "import" + dot
     }
 
@@ -60,4 +59,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilUntransformRuntime
-  : shared.module.utilUntransformRuntime = init()
+  : (shared.module.utilUntransformRuntime = init())

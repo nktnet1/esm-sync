@@ -6,9 +6,7 @@ import shared from "../shared.js"
 function init() {
   function getModuleURL(request) {
     if (typeof request === "string") {
-      return isPath(request)
-        ? getURLFromFilePath(request)
-        : request
+      return isPath(request) ? getURLFromFilePath(request) : request
     }
 
     if (isObject(request)) {
@@ -31,4 +29,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetModuleURL
-  : shared.module.utilGetModuleURL = init()
+  : (shared.module.utilGetModuleURL = init())

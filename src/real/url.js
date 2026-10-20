@@ -4,4 +4,4 @@ import unwrapProxy from "../util/unwrap-proxy.js"
 
 export default shared.inited
   ? shared.module.realURL
-  : shared.module.realURL = unwrapProxy(realRequire("url"))
+  : (shared.module.realURL = unwrapProxy(realRequire("url")))

@@ -53,4 +53,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseGetIdentifiersFromPattern
-  : shared.module.parseGetIdentifiersFromPattern = init()
+  : (shared.module.parseGetIdentifiersFromPattern = init())

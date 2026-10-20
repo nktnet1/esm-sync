@@ -23,9 +23,8 @@ function init() {
 
     const binding = getSilent(safeProcess, "binding")
 
-    const wrapper = typeof binding === "function"
-      ? GenericFunction.bind(binding, realProcess)
-      : noop
+    const wrapper =
+      typeof binding === "function" ? GenericFunction.bind(binding, realProcess) : noop
 
     setProperty(safeProcess, "binding", wrapper)
 
@@ -40,31 +39,43 @@ function init() {
     }
   }
 
-  if (isObjectLike(config) &&
-      has(config, "variables") &&
-      isObjectLike(config.variables) &&
-      has(config.variables, "v8_enable_inspector") &&
-      config.variables.v8_enable_inspector) {
+  if (
+    isObjectLike(config) &&
+    has(config, "variables") &&
+    isObjectLike(config.variables) &&
+    has(config.variables, "v8_enable_inspector") &&
+    config.variables.v8_enable_inspector
+  ) {
     safeConfig.variables.v8_enable_inspector = 1
   }
 
   setProperty(safeProcess, "argv", safe(safeProcess.argv))
   setProperty(safeProcess, "config", safeConfig)
   setProperty(safeProcess, "dlopen", GenericFunction.bind(safeProcess.dlopen, realProcess))
-  setProperty(safeProcess, "emitWarning", GenericFunction.bind(safeProcess.emitWarning, realProcess))
+  setProperty(
+    safeProcess,
+    "emitWarning",
+    GenericFunction.bind(safeProcess.emitWarning, realProcess)
+  )
   setProperty(safeProcess, "env", safe(safeProcess.env))
   setProperty(safeProcess, "execArgv", safe(safeProcess.execArgv))
-  setProperty(safeProcess, "getMaxListeners", GenericFunction.bind(realProcess.getMaxListeners, realProcess))
+  setProperty(
+    safeProcess,
+    "getMaxListeners",
+    GenericFunction.bind(realProcess.getMaxListeners, realProcess)
+  )
   setProperty(safeProcess, "once", GenericFunction.bind(realProcess.once, realProcess))
-  setProperty(safeProcess, "setMaxListeners", GenericFunction.bind(realProcess.setMaxListeners, realProcess))
+  setProperty(
+    safeProcess,
+    "setMaxListeners",
+    GenericFunction.bind(realProcess.setMaxListeners, realProcess)
+  )
   setProperty(safeProcess, "versions", safe(safeProcess.versions))
 
   return safeProcess
 }
 
-const safeProcess = shared.inited
-  ? shared.module.safeProcess
-  : shared.module.safeProcess = init()
+const safeProcess = shared.inited ? shared.module.safeProcess : (shared.module.safeProcess = init())
 
 export const {
   argv,

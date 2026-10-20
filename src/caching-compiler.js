@@ -1,8 +1,4 @@
-import {
-  getMaxListeners,
-  once,
-  setMaxListeners
-} from "./safe/process.js"
+import { getMaxListeners, once, setMaxListeners } from "./safe/process.js"
 
 import { sep, resolve } from "./safe/path.js"
 
@@ -26,24 +22,15 @@ import toExternalFunction from "./util/to-external-function.js"
 import writeFile from "./fs/write-file.js"
 
 function init() {
-  const {
-    SOURCE_TYPE_MODULE,
-    SOURCE_TYPE_SCRIPT
-  } = COMPILER
+  const { SOURCE_TYPE_MODULE, SOURCE_TYPE_SCRIPT } = COMPILER
 
-  const {
-    TYPE_ESM
-  } = ENTRY
+  const { TYPE_ESM } = ENTRY
 
-  const {
-    PACKAGE_VERSION
-  } = ESM
+  const { PACKAGE_VERSION } = ESM
 
   const CachingCompiler = {
     compile(code, options = {}) {
-      if (! options.eval &&
-          options.filename &&
-          options.cachePath) {
+      if (!options.eval && options.filename && options.cachePath) {
         return compileAndWrite(code, options)
       }
 
@@ -99,8 +86,7 @@ function init() {
         result.transforms = +meta[2]
       }
 
-      if (length > 7 &&
-          result.sourceType === SOURCE_TYPE_MODULE) {
+      if (length > 7 && result.sourceType === SOURCE_TYPE_MODULE) {
         entry.type = TYPE_ESM
         result.circular = +meta[8]
         result.yieldIndex = +meta[9]
@@ -108,8 +94,7 @@ function init() {
 
       const [offsetStart, offsetEnd] = meta
 
-      if (offsetStart !== -1 &&
-          offsetEnd !== -1) {
+      if (offsetStart !== -1 && offsetEnd !== -1) {
         result.scriptData = GenericBuffer.slice(cache.buffer, offsetStart, offsetEnd)
       }
 
@@ -137,9 +122,7 @@ function init() {
     const { cacheName, cachePath } = options
     const result = compile(code, options)
 
-    if (! cacheName ||
-        ! cachePath ||
-        result.transforms === 0) {
+    if (!cacheName || !cachePath || result.transforms === 0) {
       return result
     }
 
@@ -148,7 +131,7 @@ function init() {
     let compileDatas = pendingWrites.get(cachePath)
 
     if (compileDatas === void 0) {
-      compileDatas = new Map
+      compileDatas = new Map()
       pendingWrites.set(cachePath, compileDatas)
     }
 
@@ -176,18 +159,16 @@ function init() {
         return
       }
 
-      const noCacheDir = ! mkdirp(cachePath)
+      const noCacheDir = !mkdirp(cachePath)
 
       let { dirty } = cache
 
-      if (! dirty &&
-          ! noCacheDir) {
-        dirty = !! parseJSON(getEnv("ESM_DISABLE_CACHE"))
+      if (!dirty && !noCacheDir) {
+        dirty = !!parseJSON(getEnv("ESM_DISABLE_CACHE"))
         cache.dirty = dirty
       }
 
-      if (dirty ||
-          noCacheDir) {
+      if (dirty || noCacheDir) {
         dir.delete(cachePath)
         pendingScripts.delete(cachePath)
         pendingWrites.delete(cachePath)
@@ -208,7 +189,7 @@ function init() {
       }
     })
 
-    const pendingScriptDatas = new Map
+    const pendingScriptDatas = new Map()
     const useCreateCachedData = shared.support.createCachedData
 
     pendingScripts.forEach((scripts, cachePath) => {
@@ -237,24 +218,21 @@ function init() {
         let scriptData = null
 
         if (cachedData === void 0) {
-          if (useCreateCachedData &&
-              typeof script.createCachedData === "function") {
+          if (useCreateCachedData && typeof script.createCachedData === "function") {
             scriptData = script.createCachedData()
           } else if (script.cachedDataProduced) {
             scriptData = script.cachedData
           }
         }
 
-        if (scriptData !== null &&
-            scriptData.length) {
+        if (scriptData !== null && scriptData.length) {
           changed = true
         }
 
         if (compileData !== null) {
           if (scriptData !== null) {
             compileData.scriptData = scriptData
-          } else if (cachedData !== void 0 &&
-                     script.cachedDataRejected) {
+          } else if (cachedData !== void 0 && script.cachedDataRejected) {
             changed = true
 
             const meta = metas.get(cacheName)
@@ -269,12 +247,11 @@ function init() {
           }
         }
 
-        if (changed &&
-            cacheName !== "") {
+        if (changed && cacheName !== "") {
           let scriptDatas = pendingScriptDatas.get(cachePath)
 
           if (scriptDatas === void 0) {
-            scriptDatas = new Map
+            scriptDatas = new Map()
             pendingScriptDatas.set(cachePath, scriptDatas)
           }
 
@@ -313,13 +290,11 @@ function init() {
             transforms
           } = compileData
 
-          const deflatedFirstAwaitOutsideFunction = firstAwaitOutsideFunction === null
-            ? null
-            : deflateLineInfo(firstAwaitOutsideFunction)
+          const deflatedFirstAwaitOutsideFunction =
+            firstAwaitOutsideFunction === null ? null : deflateLineInfo(firstAwaitOutsideFunction)
 
-          const deflatedFirstReturnOutsideFunction = firstReturnOutsideFunction === null
-            ? null
-            : deflateLineInfo(firstReturnOutsideFunction)
+          const deflatedFirstReturnOutsideFunction =
+            firstReturnOutsideFunction === null ? null : deflateLineInfo(firstReturnOutsideFunction)
 
           if (sourceType === SOURCE_TYPE_SCRIPT) {
             if (transforms !== 0) {
@@ -371,8 +346,7 @@ function init() {
 
           if (compileData !== null) {
             scriptData = compileData.scriptData
-          } else if (offsetStart !== -1 &&
-                     offsetEnd !== -1) {
+          } else if (offsetStart !== -1 && offsetEnd !== -1) {
             scriptData = GenericBuffer.slice(buffer, offsetStart, offsetEnd)
           }
         }
@@ -388,10 +362,13 @@ function init() {
       })
 
       writeFile(cachePath + sep + ".data.blob", GenericBuffer.concat(buffers))
-      writeFile(cachePath + sep + ".data.json", JSON.stringify({
-        meta: jsonMeta,
-        version: PACKAGE_VERSION
-      }))
+      writeFile(
+        cachePath + sep + ".data.json",
+        JSON.stringify({
+          meta: jsonMeta,
+          version: PACKAGE_VERSION
+        })
+      )
     })
 
     pendingWrites.forEach((compileDatas, cachePath) => {
@@ -410,8 +387,7 @@ function init() {
     const pathHash = getCachePathHash(cacheName)
 
     compileDatas.forEach((compileData, otherCacheName) => {
-      if (otherCacheName !== cacheName &&
-          otherCacheName.startsWith(pathHash)) {
+      if (otherCacheName !== cacheName && otherCacheName.startsWith(pathHash)) {
         compileDatas.delete(otherCacheName)
         metas.delete(otherCacheName)
         removeFile(cachePath + sep + otherCacheName)
@@ -420,11 +396,7 @@ function init() {
   }
 
   function toCompileOptions(options = {}) {
-    let {
-      cjsPaths,
-      cjsVars,
-      topLevelReturn
-    } = options
+    let { cjsPaths, cjsVars, topLevelReturn } = options
 
     if (isExtMJS(options.filename)) {
       cjsPaths = void 0
@@ -459,7 +431,7 @@ function init() {
   }
 
   function writeMarker(filename) {
-    if (! exists(filename)) {
+    if (!exists(filename)) {
       writeFile(filename, "")
     }
   }
@@ -475,4 +447,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.CachingCompiler
-  : shared.module.CachingCompiler = init()
+  : (shared.module.CachingCompiler = init())

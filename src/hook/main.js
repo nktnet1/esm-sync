@@ -40,8 +40,7 @@ function hook(Mod) {
     try {
       esmParseLoad(mainPath, null, true)
     } catch (e) {
-      if (! defaultPkg.options.debug &&
-          isStackTraceMaskable(e)) {
+      if (!defaultPkg.options.debug && isStackTraceMaskable(e)) {
         maskStackTrace(e, { filename })
       } else {
         toExternalError(e)

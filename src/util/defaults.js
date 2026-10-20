@@ -11,9 +11,7 @@ function init() {
       const source = arguments[i]
 
       for (const name in source) {
-        if (has(source, name) &&
-            (object[name] === void 0 ||
-            ! has(object, name))) {
+        if (has(source, name) && (object[name] === void 0 || !has(object, name))) {
           object[name] = source[name]
         }
       }
@@ -25,6 +23,4 @@ function init() {
   return defaults
 }
 
-export default shared.inited
-  ? shared.module.utilDefaults
-  : shared.module.utilDefaults = init()
+export default shared.inited ? shared.module.utilDefaults : (shared.module.utilDefaults = init())

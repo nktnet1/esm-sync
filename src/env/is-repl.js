@@ -14,16 +14,16 @@ function init() {
       return true
     }
 
-    return rootModule.id === "<repl>" &&
+    return (
+      rootModule.id === "<repl>" &&
       rootModule.filename === null &&
       rootModule.loaded === false &&
       rootModule.parent == null &&
       hasLoaderModule(rootModule.children)
+    )
   }
 
   return isREPL
 }
 
-export default shared.inited
-  ? shared.module.envIsREPL
-  : shared.module.envIsREPL = init()
+export default shared.inited ? shared.module.envIsREPL : (shared.module.envIsREPL = init())

@@ -36,15 +36,9 @@ const {
   UPDATE_TYPE_LIVE
 } = ENTRY
 
-const {
-  ERR_CONST_ASSIGNMENT,
-  ERR_UNDEFINED_IDENTIFIER
-} = errors
+const { ERR_CONST_ASSIGNMENT, ERR_UNDEFINED_IDENTIFIER } = errors
 
-const {
-  Promise: ExPromise,
-  eval: evalIndirect
-} = shared.external
+const { Promise: ExPromise, eval: evalIndirect } = shared.external
 
 const Runtime = {
   addDefaultValue(value) {
@@ -62,8 +56,7 @@ const Runtime = {
         return true
       }
 
-      if (childEntry.type === TYPE_CJS &&
-          childEntry._loaded !== LOAD_COMPLETED) {
+      if (childEntry.type === TYPE_CJS && childEntry._loaded !== LOAD_COMPLETED) {
         entry._namespaceFinalized = NAMESPACE_FINALIZATION_DEFERRED
       }
 
@@ -87,8 +80,7 @@ const Runtime = {
 
       const childIsLoaded = childEntry._loaded === LOAD_COMPLETED
 
-      if (! childIsLoaded &&
-          childEntry.type === TYPE_CJS) {
+      if (!childIsLoaded && childEntry.type === TYPE_CJS) {
         entry._namespaceFinalized = NAMESPACE_FINALIZATION_DEFERRED
         return
       }
@@ -96,9 +88,7 @@ const Runtime = {
       const childGetters = childEntry.getters
       const { getters, name } = entry
 
-      const namespace = childIsLoaded
-        ? childEntry.getExportByName("*", entry)
-        : childEntry.getters
+      const namespace = childIsLoaded ? childEntry.getExportByName("*", entry) : childEntry.getters
 
       for (const exportedName in namespace) {
         if (exportedName === "default") {
@@ -118,16 +108,17 @@ const Runtime = {
 
         const childOwnerName = childGetters[exportedName].owner.name
 
-        if (getter === void 0 ||
-            ownerName === childOwnerName) {
+        if (getter === void 0 || ownerName === childOwnerName) {
           entry.addGetterFrom(childEntry, exportedName)
         }
 
         ownerName = getters[exportedName].owner.name
 
-        if (ownerName !== name &&
-            ownerName !== childOwnerName) {
-          entry.addGetter(exportedName, createAccessor(GETTER_TYPE_STAR_CONFLICT, () => ERROR_STAR))
+        if (ownerName !== name && ownerName !== childOwnerName) {
+          entry.addGetter(
+            exportedName,
+            createAccessor(GETTER_TYPE_STAR_CONFLICT, () => ERROR_STAR)
+          )
         }
       }
     })
@@ -142,7 +133,7 @@ const Runtime = {
   assertUndeclared: function assertUndeclared(name) {
     const { unsafeGlobal } = shared
 
-    if (! has(unsafeGlobal, name)) {
+    if (!has(unsafeGlobal, name)) {
       throw new ERR_UNDEFINED_IDENTIFIER(name, assertUndeclared)
     }
 
@@ -160,9 +151,7 @@ const Runtime = {
     const { cjs } = entry.package.options
     const isMJS = entry.extname === ".mjs"
 
-    const cjsVars =
-      cjs.vars &&
-      ! isMJS
+    const cjsVars = cjs.vars && !isMJS
 
     try {
       return CachingCompiler.compile(content, {
@@ -171,18 +160,13 @@ const Runtime = {
         runtimeName: entry.runtimeName
       }).code
     } catch (e) {
-      if (! Loader.state.package.default.options.debug &&
-          isStackTraceMaskable(e)) {
+      if (!Loader.state.package.default.options.debug && isStackTraceMaskable(e)) {
         const { type } = entry
 
         maskStackTrace(e, {
           content,
           filename: "eval",
-          inModule:
-            (! cjs.paths ||
-             isMJS) &&
-            type !== TYPE_CJS &&
-            type !== TYPE_PSEUDO
+          inModule: (!cjs.paths || isMJS) && type !== TYPE_CJS && type !== TYPE_PSEUDO
         })
       } else {
         toExternalError(e)
@@ -201,9 +185,7 @@ const Runtime = {
     const isMJS = entry.extname === ".mjs"
     const { runtimeName } = entry
 
-    const cjsVars =
-      cjs.vars &&
-      ! isMJS
+    const cjsVars = cjs.vars && !isMJS
 
     let code
 
@@ -220,18 +202,13 @@ const Runtime = {
 
       code = compileData.code
     } catch (e) {
-      if (! Loader.state.package.default.options.debug &&
-          isStackTraceMaskable(e)) {
+      if (!Loader.state.package.default.options.debug && isStackTraceMaskable(e)) {
         const { type } = entry
 
         maskStackTrace(e, {
           content,
           filename: "eval",
-          inModule:
-            (! cjs.paths ||
-             isMJS) &&
-            type !== TYPE_CJS &&
-            type !== TYPE_PSEUDO
+          inModule: (!cjs.paths || isMJS) && type !== TYPE_CJS && type !== TYPE_PSEUDO
         })
       } else {
         toExternalError(e)
@@ -258,7 +235,11 @@ const Runtime = {
 
     code =
       (hasPragma(code, "use strict") ? '"use strict";' : "") +
-      "let " + runtimeName + "=global." + runtimeName + ";" +
+      "let " +
+      runtimeName +
+      "=global." +
+      runtimeName +
+      ";" +
       code
 
     return code
@@ -279,26 +260,29 @@ const Runtime = {
           let lastValue
           let timerId
 
-          const setterArgsList = [["*", null, createAccessor(SETTER_TYPE_DYNAMIC_IMPORT, (value, childEntry) => {
-            if (childEntry._loaded === LOAD_COMPLETED) {
-              lastValue = value
+          const setterArgsList = [
+            [
+              "*",
+              null,
+              createAccessor(SETTER_TYPE_DYNAMIC_IMPORT, (value, childEntry) => {
+                if (childEntry._loaded === LOAD_COMPLETED) {
+                  lastValue = value
 
-              if (timerId === void 0) {
-                timerId = setImmediate(() => resolvePromise(lastValue))
-              }
+                  if (timerId === void 0) {
+                    timerId = setImmediate(() => resolvePromise(lastValue))
+                  }
 
-              return true
-            }
-          })]]
+                  return true
+                }
+              })
+            ]
+          ]
 
           esmImport(request, entry, setterArgsList, true)
         } catch (e) {
-          if (! Loader.state.package.default.options.debug &&
-              isStackTraceMaskable(e)) {
+          if (!Loader.state.package.default.options.debug && isStackTraceMaskable(e)) {
             maskStackTrace(e, {
-              inModule:
-                ! entry.package.options.cjs.paths ||
-                entry.extname === ".mjs"
+              inModule: !entry.package.options.cjs.paths || entry.extname === ".mjs"
             })
           } else {
             toExternalError(e)
@@ -380,7 +364,7 @@ const Runtime = {
     runtime.w = runtime.import
     runtime.x = runtime.addExportGetters
 
-    return entry.runtime = runtime
+    return (entry.runtime = runtime)
   },
   globalEval(content) {
     return evalIndirect(this.compileGlobalEval(content))
@@ -397,11 +381,9 @@ const Runtime = {
   run(moduleWrapper) {
     const { entry } = this
 
-    const runner = entry.type === TYPE_ESM
-      ? runESM
-      : runCJS
+    const runner = entry.type === TYPE_ESM ? runESM : runCJS
 
-    return this.runResult = runner(entry, moduleWrapper)
+    return (this.runResult = runner(entry, moduleWrapper))
   },
   throwConstAssignment: function throwConstAssignment() {
     throw new ERR_CONST_ASSIGNMENT(throwConstAssignment)
@@ -439,10 +421,7 @@ function runCJS(entry, moduleWrapper) {
 
   mod.exports = exported
 
-  return Reflect.apply(moduleWrapper, exported, [
-    exported,
-    makeRequireFunction(mod)
-  ])
+  return Reflect.apply(moduleWrapper, exported, [exported, makeRequireFunction(mod)])
 }
 
 function runESM(entry, moduleWrapper) {
@@ -451,12 +430,8 @@ function runESM(entry, moduleWrapper) {
 
   mod.exports = exported
 
-  if (entry.package.options.cjs.vars &&
-      entry.extname !== ".mjs") {
-    return Reflect.apply(moduleWrapper, exported, [
-      exported,
-      makeRequireFunction(mod)
-    ])
+  if (entry.package.options.cjs.vars && entry.extname !== ".mjs") {
+    return Reflect.apply(moduleWrapper, exported, [exported, makeRequireFunction(mod)])
   }
 
   return Reflect.apply(moduleWrapper, void 0, [])

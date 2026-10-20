@@ -23,4 +23,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.errorCaptureStackTrace
-  : shared.module.errorCaptureStackTrace = init()
+  : (shared.module.errorCaptureStackTrace = init())

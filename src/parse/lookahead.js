@@ -15,4 +15,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseLookahead
-  : shared.module.parseLookahead = init()
+  : (shared.module.parseLookahead = init())

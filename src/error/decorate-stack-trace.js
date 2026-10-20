@@ -16,4 +16,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.errorDecorateStackTrace
-  : shared.module.errorDecorateStackTrace = init()
+  : (shared.module.errorDecorateStackTrace = init())

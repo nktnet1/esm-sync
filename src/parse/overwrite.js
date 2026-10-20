@@ -14,4 +14,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseOverwrite
-  : shared.module.parseOverwrite = init()
+  : (shared.module.parseOverwrite = init())

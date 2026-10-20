@@ -9,4 +9,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.GenericFunction
-  : shared.module.GenericFunction = init()
+  : (shared.module.GenericFunction = init())

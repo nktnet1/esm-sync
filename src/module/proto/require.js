@@ -13,9 +13,7 @@ import maskFunction from "../../util/mask-function.js"
 import shared from "../../shared.js"
 import validateString from "../../util/validate-string.js"
 
-const {
-  ERR_INVALID_ARG_VALUE
-} = errors
+const { ERR_INVALID_ARG_VALUE } = errors
 
 const RealProto = RealModule.prototype
 
@@ -23,7 +21,7 @@ const req = maskFunction(function (request) {
   validateString(request, "request")
 
   if (request === "") {
-    throw new ERR_INVALID_ARG_VALUE("request",  request, "must be a non-empty string")
+    throw new ERR_INVALID_ARG_VALUE("request", request, "must be a non-empty string")
   }
 
   const { moduleState } = shared
@@ -31,12 +29,9 @@ const req = maskFunction(function (request) {
   moduleState.requireDepth += 1
 
   try {
-    const parentEntry = isExtMJS(this.filename)
-      ? Entry.get(this)
-      : null
+    const parentEntry = isExtMJS(this.filename) ? Entry.get(this) : null
 
-    if (parentEntry !== null &&
-        parentEntry._passthruRequire) {
+    if (parentEntry !== null && parentEntry._passthruRequire) {
       parentEntry._passthruRequire = false
       return esmLoad(request, this).module.exports
     }

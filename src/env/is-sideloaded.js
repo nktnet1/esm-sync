@@ -12,8 +12,7 @@ import shared from "../shared.js"
 
 function init() {
   function isSideloaded() {
-    if (isJasmine() ||
-        isNyc()) {
+    if (isJasmine() || isNyc()) {
       return true
     }
 
@@ -26,8 +25,7 @@ function init() {
     const filename = realpath(argv[1])
     const nodeModulesIndex = filename.lastIndexOf(sep + "node_modules" + sep)
 
-    if (nodeModulesIndex === -1 ||
-        ! hasLoaderArg(args)) {
+    if (nodeModulesIndex === -1 || !hasLoaderArg(args)) {
       return false
     }
 
@@ -37,13 +35,15 @@ function init() {
     const pkgState = Loader.state.package
     const pkgCache = pkgState.cache
 
-    entryState.cache = new WeakMap
-    pkgState.cache = new Map
+    entryState.cache = new WeakMap()
+    pkgState.cache = new Map()
 
     let result = false
 
-    if (Package.get(cwd()) !== null ||
-        Package.get(filename.slice(0, nodeModulesIndex + 1)) !== null) {
+    if (
+      Package.get(cwd()) !== null ||
+      Package.get(filename.slice(0, nodeModulesIndex + 1)) !== null
+    ) {
       result = true
     }
 
@@ -58,4 +58,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envIsSideloaded
-  : shared.module.envIsSideloaded = init()
+  : (shared.module.envIsSideloaded = init())

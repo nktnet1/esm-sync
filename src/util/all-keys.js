@@ -22,6 +22,4 @@ function init() {
   return allKeys
 }
 
-export default shared.inited
-  ? shared.module.utilAllKeys
-  : shared.module.utilAllKeys = init()
+export default shared.inited ? shared.module.utilAllKeys : (shared.module.utilAllKeys = init())

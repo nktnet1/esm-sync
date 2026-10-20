@@ -4,4 +4,4 @@ import unwrapProxy from "../util/unwrap-proxy.js"
 
 export default shared.inited
   ? shared.module.realConsole
-  : shared.module.realConsole = unwrapProxy(realRequire("console"))
+  : (shared.module.realConsole = unwrapProxy(realRequire("console")))

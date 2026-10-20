@@ -4,7 +4,7 @@ import shared from "../shared.js"
 
 function init() {
   function isPlainObject(value) {
-    if (! isObject(value)) {
+    if (!isObject(value)) {
       return false
     }
 
@@ -26,4 +26,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsPlainObject
-  : shared.module.utilIsPlainObject = init()
+  : (shared.module.utilIsPlainObject = init())

@@ -8,9 +8,7 @@ import { tokTypes as tt } from "../../acorn.js"
 import wrap from "../../util/wrap.js"
 
 function init() {
-  const {
-    LOWERCASE_N
-  } = CHAR_CODE
+  const { LOWERCASE_N } = CHAR_CODE
 
   const Plugin = {
     enable(parser) {
@@ -30,8 +28,7 @@ function init() {
       radix = 10
     }
 
-    if (parser.readInt(radix) !== null &&
-        parser.input.charCodeAt(parser.pos) === LOWERCASE_N) {
+    if (parser.readInt(radix) !== null && parser.input.charCodeAt(parser.pos) === LOWERCASE_N) {
       ++parser.pos
 
       return parser.finishToken(tt.num, null)
@@ -45,7 +42,7 @@ function init() {
   function readNumber(func, args) {
     const [startsWithDot] = args
 
-    if (! startsWithDot) {
+    if (!startsWithDot) {
       const result = readBigInt(this)
 
       if (result !== null) {
@@ -60,9 +57,7 @@ function init() {
     const [radix] = args
     const result = readBigInt(this, radix)
 
-    return result === null
-      ? Reflect.apply(func, this, args)
-      : result
+    return result === null ? Reflect.apply(func, this, args) : result
   }
 
   return Plugin
@@ -70,4 +65,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserBigInt
-  : shared.module.acornParserBigInt = init()
+  : (shared.module.acornParserBigInt = init())

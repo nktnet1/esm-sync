@@ -11,11 +11,7 @@ function init() {
 
   const { isNativeError } = binding.util
 
-  return typeof isNativeError === "function"
-    ? isNativeError
-    : safeUtil.isError
+  return typeof isNativeError === "function" ? isNativeError : safeUtil.isError
 }
 
-export default shared.inited
-  ? shared.module.utilIsError
-  : shared.module.utilIsError = init()
+export default shared.inited ? shared.module.utilIsError : (shared.module.utilIsError = init())

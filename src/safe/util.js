@@ -12,13 +12,11 @@ function init() {
 
   // Node < 6.6.0 uses the property "inspect" as the custom inspection key
   // instead of the `util.inspect.custom` symbol.
-  shared.customInspectKey = typeof custom === "symbol"
-    ? custom
-    : "inspect"
+  shared.customInspectKey = typeof custom === "symbol" ? custom : "inspect"
 
   let { defaultOptions } = inspect
 
-  if (! isObjectLike(defaultOptions)) {
+  if (!isObjectLike(defaultOptions)) {
     defaultOptions = {
       breakLength: 60,
       colors: false,
@@ -40,14 +38,8 @@ function init() {
   return safeUtil
 }
 
-const safeUtil = shared.inited
-  ? shared.module.safeUtil
-  : shared.module.safeUtil = init()
+const safeUtil = shared.inited ? shared.module.safeUtil : (shared.module.safeUtil = init())
 
-export const {
-  deprecate,
-  inspect,
-  types
-} = safeUtil
+export const { deprecate, inspect, types } = safeUtil
 
 export default safeUtil

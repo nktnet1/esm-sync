@@ -18,17 +18,11 @@ import maskFunction from "../../util/mask-function.js"
 import shared from "../../shared.js"
 import validateString from "../../util/validate-string.js"
 
-const {
-  TYPE_ESM
-} = ENTRY
+const { TYPE_ESM } = ENTRY
 
-const {
-  MODE_STRICT
-} = PACKAGE
+const { MODE_STRICT } = PACKAGE
 
-const {
-  ERR_REQUIRE_ESM
-} = errors
+const { ERR_REQUIRE_ESM } = errors
 
 const load = maskFunction(function (request, parent, isMain = false) {
   validateString(request, "request")
@@ -36,15 +30,12 @@ const load = maskFunction(function (request, parent, isMain = false) {
   const { parsing } = shared.moduleState
   const parentEntry = Entry.get(parent)
 
-  if (parentEntry !== null &&
-      parentEntry._passthruRequire) {
+  if (parentEntry !== null && parentEntry._passthruRequire) {
     parentEntry._passthruRequire = false
     return esmLoad(request, parent, isMain).module.exports
   }
 
-  const parentIsStrict =
-    parentEntry !== null &&
-    parentEntry.package.options.mode === MODE_STRICT
+  const parentIsStrict = parentEntry !== null && parentEntry.package.options.mode === MODE_STRICT
 
   const filename = Module._resolveFilename(request, parent, isMain)
   const { scratchCache } = Loader.state.module
@@ -64,17 +55,14 @@ const load = maskFunction(function (request, parent, isMain = false) {
     loaderCalled = true
     cache[filename] = entry.module
 
-    if (parentIsStrict ||
-        entry.extname === ".mjs") {
+    if (parentIsStrict || entry.extname === ".mjs") {
       entry._passthruCompile = true
     }
 
     tryLoader(entry, cache, filename, filename)
   })
 
-  if (! loaderCalled &&
-      parentIsStrict &&
-      entry.type === TYPE_ESM) {
+  if (!loaderCalled && parentIsStrict && entry.type === TYPE_ESM) {
     throw new ERR_REQUIRE_ESM(filename)
   }
 

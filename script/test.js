@@ -149,7 +149,6 @@ Promise.resolve()
   .then(assertFixturesReady)
   .then(() => Promise.all([argv.prod && cleanJS(), setupRepo(), setupNode()]))
   .then(() => {
-    // eslint-disable-next-line no-console
     console.log("Running tests...")
   })
   .then(() => runTests())

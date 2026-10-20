@@ -11,13 +11,45 @@ import shared from "../shared.js"
 
 function init() {
   const possibleBuiltins = [
-    "Array", "ArrayBuffer", "Atomics", "BigInt", "BigInt64Array",
-    "BigUint64Array", "Boolean", "DataView", "Date", "Error", "EvalError",
-    "Float32Array", "Float64Array", "Function", "Int16Array", "Int32Array",
-    "Int8Array", "Map","Number", "Object", "Promise", "Proxy", "RangeError",
-    "ReferenceError", "Reflect", "RegExp", "Set", "SharedArrayBuffer",
-    "String", "Symbol", "SyntaxError", "TypeError", "URIError", "Uint16Array",
-    "Uint32Array", "Uint8Array", "Uint8ClampedArray", "WeakMap", "WeakSet"
+    "Array",
+    "ArrayBuffer",
+    "Atomics",
+    "BigInt",
+    "BigInt64Array",
+    "BigUint64Array",
+    "Boolean",
+    "DataView",
+    "Date",
+    "Error",
+    "EvalError",
+    "Float32Array",
+    "Float64Array",
+    "Function",
+    "Int16Array",
+    "Int32Array",
+    "Int8Array",
+    "Map",
+    "Number",
+    "Object",
+    "Promise",
+    "Proxy",
+    "RangeError",
+    "ReferenceError",
+    "Reflect",
+    "RegExp",
+    "Set",
+    "SharedArrayBuffer",
+    "String",
+    "Symbol",
+    "SyntaxError",
+    "TypeError",
+    "URIError",
+    "Uint16Array",
+    "Uint32Array",
+    "Uint8Array",
+    "Uint8ClampedArray",
+    "WeakMap",
+    "WeakSet"
   ]
 
   const reassignableBuiltins = [
@@ -54,10 +86,9 @@ function init() {
           value: context,
           writable: true
         }
-      } else if (name === "GLOBAL" ||
-                 name === "root") {
+      } else if (name === "GLOBAL" || name === "root") {
         descriptor = getDeprecatedGlobalDescriptor(name, context)
-      } else if (! has(context, name)) {
+      } else if (!has(context, name)) {
         descriptor = Reflect.getOwnPropertyDescriptor(defaultGlobal, name)
       }
 
@@ -71,13 +102,12 @@ function init() {
     for (const name of reassignableBuiltins) {
       const descriptor = Reflect.getOwnPropertyDescriptor(context, name)
 
-      if (descriptor !== void 0 &&
-          Reflect.deleteProperty(context, name)) {
+      if (descriptor !== void 0 && Reflect.deleteProperty(context, name)) {
         Reflect.defineProperty(context, name, descriptor)
       }
     }
 
-    const descriptors = new Map
+    const descriptors = new Map()
 
     for (const name of possibleBuiltins) {
       if (has(context, name)) {
@@ -94,26 +124,21 @@ function init() {
 
     const realmBuiltins = new Script(
       "({" +
-      (() => {
-        const names = descriptors.keys()
+        (() => {
+          const names = descriptors.keys()
 
-        let status
-        let code = ""
+          let status
+          let code = ""
 
-        do {
-          status = names.next()
+          do {
+            status = names.next()
 
-          code +=
-            toBuiltinPropertySnippet(status.value) +
-            (status.done
-              ? ""
-              : ","
-            )
-        } while (! status.done)
+            code += toBuiltinPropertySnippet(status.value) + (status.done ? "" : ",")
+          } while (!status.done)
 
-        return code
-      })() +
-      "})"
+          return code
+        })() +
+        "})"
     ).runInContext(context)
 
     descriptors.forEach((descriptor, name) => {
@@ -122,22 +147,19 @@ function init() {
       const Builtin = context[name]
       const RealmBuiltin = realmBuiltins[name]
 
-      if (Builtin === RealmBuiltin ||
-          ! isObjectLike(Builtin) ||
-          ! isObjectLike(RealmBuiltin)) {
+      if (Builtin === RealmBuiltin || !isObjectLike(Builtin) || !isObjectLike(RealmBuiltin)) {
         return
       }
 
       if (name === "Error") {
-        RealmBuiltin.prepareStackTrace =
-          (...args) => Reflect.apply(Builtin.prepareStackTrace, Builtin, args)
+        RealmBuiltin.prepareStackTrace = (...args) =>
+          Reflect.apply(Builtin.prepareStackTrace, Builtin, args)
       } else if (name === "Object") {
         Reflect.defineProperty(Builtin, Symbol.hasInstance, {
           configurable: true,
           value: function (instance) {
             if (this === Builtin) {
-              return instance instanceof RealmBuiltin ||
-                     instanceOf(instance, Builtin)
+              return instance instanceof RealmBuiltin || instanceOf(instance, Builtin)
             }
 
             return instanceOf(instance, this)
@@ -157,8 +179,11 @@ function init() {
             setPrototypeOf(RealmProto, BuiltinProto)
 
             if (has(BuiltinProto, "constructor")) {
-              Reflect.defineProperty(RealmProto, "constructor",
-                Reflect.getOwnPropertyDescriptor(BuiltinProto, "constructor"))
+              Reflect.defineProperty(
+                RealmProto,
+                "constructor",
+                Reflect.getOwnPropertyDescriptor(BuiltinProto, "constructor")
+              )
             }
           }
         }
@@ -175,13 +200,17 @@ function init() {
     return {
       configurable: true,
       get: deprecate(() => context, depMessage, depCode),
-      set: deprecate(function (value) {
-        Reflect.defineProperty(this, name, {
-          configurable: true,
-          value,
-          writable: true
-        })
-      }, depMessage, depCode)
+      set: deprecate(
+        function (value) {
+          Reflect.defineProperty(this, name, {
+            configurable: true,
+            value,
+            writable: true
+          })
+        },
+        depMessage,
+        depCode
+      )
     }
   }
 
@@ -216,4 +245,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilPrepareContext
-  : shared.module.utilPrepareContext = init()
+  : (shared.module.utilPrepareContext = init())

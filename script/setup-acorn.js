@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-/* eslint-disable node/no-unsupported-features */
 "use strict"
 
 const fs = require("fs")

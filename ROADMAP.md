@@ -98,14 +98,22 @@ use `pnpm verify:prod` after preparing fixtures. `pnpm lint` is read-only;
 
 ### 5. Replace ESLint with Biome
 
-- [ ] Add `biome.json` with the repository's formatting conventions (100-column limit).
-- [ ] Migrate applicable lint rules, explicitly accounting for the loader's
-      unusual but intentional patterns and generated/vendor files.
-- [ ] Run `biome check --write` on tracked source and tooling files; review the diff.
-- [ ] Make `biome check` the CI gate and Lefthook's staged-file check.
-- [ ] Remove `.eslintrc.js`, `.eslintignore`, nested ESLint configs, ESLint plugins,
-      `babel-eslint`, and `eslint` itself.
-- [ ] Verify that linting no longer triggers a build or mutates files in CI.
+- [x] Add `biome.json` with two-space indentation, double quotes, no optional
+      semicolons, and a 100-column line-width target.
+- [x] Apply Biome's recommended rules to loader source and test drivers;
+      exclude generated/vendor code, syntax-error fixtures, and output snapshots.
+      Preserve intentional loader globals, prototype shadowing, and language
+      compatibility tests instead of automatically rewriting their semantics.
+- [x] Format tracked loader source and tooling with Biome. Leave test source
+      formatting disabled so exact-syntax and `this`/strict-mode tests are not
+      rewritten; linting still covers the test drivers.
+- [x] Replace ESLint with `biome check` in CI and Lefthook. Staged fixture files
+      that are intentionally ignored do not cause a failed hook.
+- [x] Remove `.eslintrc.js`, `.eslintignore`, nested ESLint configs,
+      `babel-eslint`, `eslint`, and all direct `eslint-plugin-*` dependencies.
+- [x] Keep normal lint read-only and independent of the build; use `pnpm lint:fix`
+      only when applying formatter and safe lint fixes intentionally.
+
 
 ### 6. Validate and adopt Node.js 26
 

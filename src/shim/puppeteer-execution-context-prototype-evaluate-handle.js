@@ -19,50 +19,52 @@ function init() {
 
       const ExecutionContextProto = exported.ExecutionContext.prototype
 
-      const evaluateHandleWrapper = proxyWrap(ExecutionContextProto.evaluateHandle, function (evaluateHandle, args) {
-        const [pageFunction] = args
+      const evaluateHandleWrapper = proxyWrap(
+        ExecutionContextProto.evaluateHandle,
+        function (evaluateHandle, args) {
+          const [pageFunction] = args
 
-        if (typeof pageFunction === "function") {
-          const pageFunctionProxy = new OwnProxy(pageFunction, {
-            get(pageFunction, name, receiver) {
-              if (name === "toString" &&
-                  ! has(pageFunction, "toString")) {
-                return toStringProxy
+          if (typeof pageFunction === "function") {
+            const pageFunctionProxy = new OwnProxy(pageFunction, {
+              get(pageFunction, name, receiver) {
+                if (name === "toString" && !has(pageFunction, "toString")) {
+                  return toStringProxy
+                }
+
+                if (receiver === pageFunctionProxy) {
+                  receiver = pageFunction
+                }
+
+                return Reflect.get(pageFunction, name, receiver)
               }
-
-              if (receiver === pageFunctionProxy) {
-                receiver = pageFunction
-              }
-
-              return Reflect.get(pageFunction, name, receiver)
-            }
-          })
-
-          const toStringProxy = new OwnProxy(pageFunction.toString, {
-            apply: nativeTrap((toString, thisArg, args) => {
-              if (thisArg === pageFunctionProxy) {
-                thisArg = pageFunction
-              }
-
-              const result = Reflect.apply(toString, thisArg, args)
-
-              return typeof result === "string"
-                ? untransformRuntime(result)
-                : result
             })
-          })
 
-          args[0] = pageFunctionProxy
+            const toStringProxy = new OwnProxy(pageFunction.toString, {
+              apply: nativeTrap((toString, thisArg, args) => {
+                if (thisArg === pageFunctionProxy) {
+                  thisArg = pageFunction
+                }
+
+                const result = Reflect.apply(toString, thisArg, args)
+
+                return typeof result === "string" ? untransformRuntime(result) : result
+              })
+            })
+
+            args[0] = pageFunctionProxy
+          }
+
+          return Reflect.apply(evaluateHandle, this, args)
         }
+      )
 
-        return Reflect.apply(evaluateHandle, this, args)
-      })
-
-      if (Reflect.defineProperty(ExecutionContextProto, "evaluateHandle", {
-            configurable: true,
-            value: evaluateHandleWrapper,
-            writable: true
-          })) {
+      if (
+        Reflect.defineProperty(ExecutionContextProto, "evaluateHandle", {
+          configurable: true,
+          value: evaluateHandleWrapper,
+          writable: true
+        })
+      ) {
         cache.set(ExecutionContextProto, true)
       }
 
@@ -71,13 +73,10 @@ function init() {
   }
 
   function check(exported, cache) {
-    const ExecutionContext = isObjectLike(exported)
-      ? exported.ExecutionContext
-      : void 0
+    const ExecutionContext = isObjectLike(exported) ? exported.ExecutionContext : void 0
 
-    const ExecutionContextProto = typeof ExecutionContext === "function"
-      ? ExecutionContext.prototype
-      : void 0
+    const ExecutionContextProto =
+      typeof ExecutionContext === "function" ? ExecutionContext.prototype : void 0
 
     const evaluateHandle = isObjectLike(ExecutionContextProto)
       ? ExecutionContextProto.evaluateHandle
@@ -104,4 +103,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.shimPuppeteerExecutionContextPrototypeEvaluateHandle
-  : shared.module.shimPuppeteerExecutionContextPrototypeEvaluateHandle = init()
+  : (shared.module.shimPuppeteerExecutionContextPrototypeEvaluateHandle = init())

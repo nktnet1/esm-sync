@@ -17,4 +17,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsParseError
-  : shared.module.utilIsParseError = init()
+  : (shared.module.utilIsParseError = init())

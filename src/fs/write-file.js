@@ -16,6 +16,4 @@ function init() {
   return writeFile
 }
 
-export default shared.inited
-  ? shared.module.fsWriteFile
-  : shared.module.fsWriteFile = init()
+export default shared.inited ? shared.module.fsWriteFile : (shared.module.fsWriteFile = init())

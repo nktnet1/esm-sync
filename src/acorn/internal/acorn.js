@@ -6,9 +6,7 @@ import safeRequire from "../../safe/require.js"
 import shared from "../../shared.js"
 
 function init() {
-  const {
-    INTERNAL
-  } = ENV
+  const { INTERNAL } = ENV
 
   const Plugin = {
     enable() {
@@ -27,4 +25,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornInternalAcorn
-  : shared.module.acornInternalAcorn = init()
+  : (shared.module.acornInternalAcorn = init())

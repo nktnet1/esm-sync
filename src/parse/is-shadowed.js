@@ -11,4 +11,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseIsShadowed
-  : shared.module.parseIsShadowed = init()
+  : (shared.module.parseIsShadowed = init())

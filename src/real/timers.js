@@ -4,4 +4,4 @@ import unwrapProxy from "../util/unwrap-proxy.js"
 
 export default shared.inited
   ? shared.module.realTimers
-  : shared.module.realTimers = unwrapProxy(realRequire("timers"))
+  : (shared.module.realTimers = unwrapProxy(realRequire("timers")))

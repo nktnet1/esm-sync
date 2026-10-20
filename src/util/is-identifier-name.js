@@ -4,15 +4,14 @@ import shared from "../shared.js"
 
 function init() {
   function isIdentifierName(name) {
-    if (typeof name !== "string" ||
-        name.length === 0) {
+    if (typeof name !== "string" || name.length === 0) {
       return false
     }
 
     let i = 0
     let point = name.codePointAt(i)
 
-    if (! isIdentifierStart(point, true)) {
+    if (!isIdentifierStart(point, true)) {
       return false
     }
 
@@ -22,8 +21,8 @@ function init() {
     // to the astral planes which are represented by surrogate pairs and require
     // incrementing `i` by 2.
     // https://mathiasbynens.be/notes/javascript-unicode#unicode-basics
-    while ((point = name.codePointAt(i += prevPoint > 0xFFFF ? 2 : 1)) !== void 0) {
-      if (! isIdentifierChar(point, true)) {
+    while ((point = name.codePointAt((i += prevPoint > 0xffff ? 2 : 1))) !== void 0) {
+      if (!isIdentifierChar(point, true)) {
         return false
       }
 
@@ -38,4 +37,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsIdentifierName
-  : shared.module.utilIsIdentifierName = init()
+  : (shared.module.utilIsIdentifierName = init())

@@ -48,7 +48,7 @@ function formatWithOptions(options, ...args) {
       if (first.charCodeAt(i) === PERCENT) {
         const nextCode = first.charCodeAt(++i)
 
-        if ((argsIndex + 1) !== argsLength) {
+        if (argsIndex + 1 !== argsLength) {
           let segment
 
           switch (nextCode) {
@@ -128,9 +128,7 @@ function formatWithOptions(options, ...args) {
             case LOWERCASE_F: {
               const value = args[++argsIndex]
 
-              segment = typeof value === "symbol"
-                ? "NaN"
-                : parseFloat(value) + ""
+              segment = typeof value === "symbol" ? "NaN" : parseFloat(value) + ""
 
               break
             }
@@ -166,12 +164,7 @@ function formatWithOptions(options, ...args) {
   while (argsIndex < argsLength) {
     const value = args[argsIndex]
 
-    result +=
-      join +
-      (typeof value === "string"
-        ? value
-        : inspect(value, options)
-      )
+    result += join + (typeof value === "string" ? value : inspect(value, options))
 
     join = " "
     ++argsIndex
@@ -185,8 +178,7 @@ function tryStringify(value) {
     return JSON.stringify(value)
   } catch (e) {
     if (isError(e)) {
-      if (get(e, "name") === "TypeError" &&
-          get(e, "message") === shared.circularErrorMessage) {
+      if (get(e, "name") === "TypeError" && get(e, "message") === shared.circularErrorMessage) {
         return "[Circular]"
       }
 

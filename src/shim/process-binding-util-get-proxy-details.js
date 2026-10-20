@@ -30,15 +30,21 @@ function init() {
       const trap = nativeTrap((getProxyDetails, ...rest) => {
         const [value] = rest[rest.length - 1]
 
-        if (! isOwnProxy(value)) {
+        if (!isOwnProxy(value)) {
           return Reflect.apply(getProxyDetails, utilBinding, [value])
         }
       })
 
-      if (setProperty(utilBinding, "getProxyDetails", new OwnProxy(getProxyDetails, {
+      if (
+        setProperty(
+          utilBinding,
+          "getProxyDetails",
+          new OwnProxy(getProxyDetails, {
             apply: trap,
             construct: trap
-          }))) {
+          })
+        )
+      ) {
         cache.set(utilBinding, true)
       }
 
@@ -47,8 +53,7 @@ function init() {
   }
 
   function check(utilBinding, getProxyDetails, cache) {
-    if (! isObjectLike(utilBinding) ||
-        typeof getProxyDetails !== "function") {
+    if (!isObjectLike(utilBinding) || typeof getProxyDetails !== "function") {
       return true
     }
 
@@ -74,4 +79,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.shimProcessBindingUtilGetProxyDetails
-  : shared.module.shimProcessBindingUtilGetProxyDetails = init()
+  : (shared.module.shimProcessBindingUtilGetProxyDetails = init())

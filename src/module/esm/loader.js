@@ -7,11 +7,7 @@ import findCompilerExtension from "../internal/find-compiler-extension.js"
 import shared from "../../shared.js"
 import staticNodeModulePaths from "../static/node-module-paths.js"
 
-const {
-  STATE_PARSING_COMPLETED,
-  TYPE_CJS,
-  TYPE_PSEUDO
-} = ENTRY
+const { STATE_PARSING_COMPLETED, TYPE_CJS, TYPE_PSEUDO } = ENTRY
 
 function loader(entry, filename, parentEntry) {
   const { parsing } = shared.moduleState
@@ -31,12 +27,12 @@ function loader(entry, filename, parentEntry) {
   const parentIsMJS = parentExt === ".mjs"
   const parentIsPseudo = parentType === TYPE_PSEUDO
 
-  if (parentIsCJS ||
-      parentIsPseudo ||
-      ext === ".js" ||
-      ((ext === ".cjs" ||
-        parentEntry.package.options.cjs.extensions) &&
-       ! parentIsMJS)) {
+  if (
+    parentIsCJS ||
+    parentIsPseudo ||
+    ext === ".js" ||
+    ((ext === ".cjs" || parentEntry.package.options.cjs.extensions) && !parentIsMJS)
+  ) {
     extensions = Module._extensions
   }
 
@@ -48,32 +44,33 @@ function loader(entry, filename, parentEntry) {
 
   const mod = entry.module
 
-  if (! mod.paths) {
-    if (parentIsCJS ||
-        parentIsPseudo ||
-        (entry.package.options.cjs.paths &&
-         ! parentIsMJS &&
-         ext !== ".mjs")) {
+  if (!mod.paths) {
+    if (
+      parentIsCJS ||
+      parentIsPseudo ||
+      (entry.package.options.cjs.paths && !parentIsMJS && ext !== ".mjs")
+    ) {
       mod.paths = Module._nodeModulePaths(entry.dirname)
     } else {
       mod.paths = staticNodeModulePaths(entry.dirname)
     }
   }
 
-  if (parsing &&
-      foundExt !== ".cjs" &&
-      foundExt !== ".js" &&
-      foundExt !== ".json" &&
-      foundExt !== ".mjs" &&
-      foundExt !== ".wasm") {
+  if (
+    parsing &&
+    foundExt !== ".cjs" &&
+    foundExt !== ".js" &&
+    foundExt !== ".json" &&
+    foundExt !== ".mjs" &&
+    foundExt !== ".wasm"
+  ) {
     entry.state = STATE_PARSING_COMPLETED
     return
   }
 
   extensions[foundExt](mod, filename)
 
-  if (! parsing &&
-      ! mod.loaded) {
+  if (!parsing && !mod.loaded) {
     mod.loaded = true
   }
 }

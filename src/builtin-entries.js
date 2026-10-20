@@ -21,28 +21,21 @@ function createEntry(id) {
 
   const isFunc = typeof unwrapped === "function"
 
-  if (isFunc &&
-      id !== "assert") {
+  if (isFunc && id !== "assert") {
     const func = unwrapped
     const { prototype } = func
 
-    const hasInstance = maskFunction(
-      function (instance) {
-        if ((this === exported ||
-             this === proxyFunc) &&
-            instance instanceof func) {
-          return true
-        }
+    const hasInstance = maskFunction(function (instance) {
+      if ((this === exported || this === proxyFunc) && instance instanceof func) {
+        return true
+      }
 
-        return instanceOf(instance, this)
-      },
-      FuncHasInstance
-    )
+      return instanceOf(instance, this)
+    }, FuncHasInstance)
 
     const proxyFunc = new OwnProxy(func, {
       get(func, name, receiver) {
-        if (receiver === exported ||
-            receiver === proxyFunc) {
+        if (receiver === exported || receiver === proxyFunc) {
           receiver = func
         }
 
@@ -58,8 +51,7 @@ function createEntry(id) {
           newValue = proxyProto
         }
 
-        if (newValue !== value &&
-            isUpdatableGet(func, name)) {
+        if (newValue !== value && isUpdatableGet(func, name)) {
           return newValue
         }
 
@@ -68,9 +60,11 @@ function createEntry(id) {
       getOwnPropertyDescriptor(func, name) {
         const descriptor = Reflect.getOwnPropertyDescriptor(func, name)
 
-        if (descriptor !== void 0 &&
-            descriptor.value === prototype &&
-            isUpdatableDescriptor(descriptor)) {
+        if (
+          descriptor !== void 0 &&
+          descriptor.value === prototype &&
+          isUpdatableDescriptor(descriptor)
+        ) {
           descriptor.value = proxyProto
         }
 
@@ -86,8 +80,7 @@ function createEntry(id) {
 
         const value = Reflect.get(prototype, name, receiver)
 
-        if (value === func &&
-            isUpdatableGet(prototype, name)) {
+        if (value === func && isUpdatableGet(prototype, name)) {
           return exported
         }
 
@@ -96,9 +89,11 @@ function createEntry(id) {
       getOwnPropertyDescriptor(prototype, name) {
         const descriptor = Reflect.getOwnPropertyDescriptor(prototype, name)
 
-        if (descriptor !== void 0 &&
-            descriptor.value === func &&
-            isUpdatableDescriptor(descriptor)) {
+        if (
+          descriptor !== void 0 &&
+          descriptor.value === func &&
+          isUpdatableDescriptor(descriptor)
+        ) {
           descriptor.value = exported
         }
 
@@ -118,8 +113,7 @@ function createEntry(id) {
   mod.exports = exported
   entry.exports = exported
 
-  if (isFunc &&
-      id === "module") {
+  if (isFunc && id === "module") {
     unwrapped.prototype.constructor = exported
   }
 
@@ -141,9 +135,7 @@ for (const id of builtinIds) {
 
     const entry = createEntry(id)
 
-    if (id !== "console" &&
-        id !== "module" &&
-        id !== "util") {
+    if (id !== "console" && id !== "module" && id !== "util") {
       cache.set(id, entry)
     }
 

@@ -1,5 +1,5 @@
 pre-commit:
   jobs:
-    - name: eslint
-      glob: "*.{js,mjs}"
-      run: pnpm exec eslint --quiet {staged_files}
+    - name: biome
+      glob: "*.{js,mjs,cjs,ts,tsx,json,jsonc,yaml,yml}"
+      run: pnpm exec biome check --no-errors-on-unmatched {staged_files}

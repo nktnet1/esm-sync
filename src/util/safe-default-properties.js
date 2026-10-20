@@ -15,9 +15,7 @@ function init() {
       const names = ownKeys(source)
 
       for (const name of names) {
-        if (has(source, name) &&
-            (! has(object, name) ||
-             get(object, name) === void 0)) {
+        if (has(source, name) && (!has(object, name) || get(object, name) === void 0)) {
           safeCopyProperty(object, source, name)
         }
       }
@@ -31,4 +29,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSafeDefaultProperties
-  : shared.module.utilSafeDefaultProperties = init()
+  : (shared.module.utilSafeDefaultProperties = init())

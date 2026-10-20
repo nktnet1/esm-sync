@@ -14,9 +14,7 @@ import rootModule from "../root-module.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    HYPHEN_MINUS
-  } = CHAR_CODE
+  const { HYPHEN_MINUS } = CHAR_CODE
 
   function hasLoaderValue(value) {
     if (typeof value === "string") {
@@ -30,8 +28,10 @@ function init() {
         if (isOwnPath(realpath(thePath))) {
           return true
         }
-      } else if (value.charCodeAt(0) !== HYPHEN_MINUS &&
-                 isOwnPath(tryDualResolveFilename(value, rootModule, false))) {
+      } else if (
+        value.charCodeAt(0) !== HYPHEN_MINUS &&
+        isOwnPath(tryDualResolveFilename(value, rootModule, false))
+      ) {
         return true
       }
     } else if (isObjectLike(value)) {
@@ -54,8 +54,8 @@ function init() {
     const pkgState = Loader.state.package
     const pkgCache = pkgState.cache
 
-    entryState.cache = new WeakMap
-    pkgState.cache = new Map
+    entryState.cache = new WeakMap()
+    pkgState.cache = new Map()
 
     let result
     let threw = true
@@ -80,4 +80,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envHasLoaderValue
-  : shared.module.envHasLoaderValue = init()
+  : (shared.module.envHasLoaderValue = init())

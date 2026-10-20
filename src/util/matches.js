@@ -21,6 +21,4 @@ function init() {
   return matches
 }
 
-export default shared.inited
-  ? shared.module.utilMatches
-  : shared.module.utilMatches = init()
+export default shared.inited ? shared.module.utilMatches : (shared.module.utilMatches = init())

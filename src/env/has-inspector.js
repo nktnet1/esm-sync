@@ -12,8 +12,7 @@ function init() {
 
     // Use `safeRequire()` because an `ERR_INSPECTOR_NOT_AVAILABLE` error may
     // be thrown on initialization.
-    return builtinLookup.has("inspector") &&
-      isObjectLike(safeRequire("inspector"))
+    return builtinLookup.has("inspector") && isObjectLike(safeRequire("inspector"))
   }
 
   return hasInspector
@@ -21,4 +20,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envHasInspector
-  : shared.module.envHasInspector = init()
+  : (shared.module.envHasInspector = init())

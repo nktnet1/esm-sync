@@ -3,9 +3,7 @@ import ESM from "../constant/esm.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    PACKAGE_FILENAMES
-  } = ESM
+  const { PACKAGE_FILENAMES } = ESM
 
   function isOwnPath(thePath) {
     if (typeof thePath === "string") {
@@ -22,6 +20,4 @@ function init() {
   return isOwnPath
 }
 
-export default shared.inited
-  ? shared.module.utilIsOwnPath
-  : shared.module.utilIsOwnPath = init()
+export default shared.inited ? shared.module.utilIsOwnPath : (shared.module.utilIsOwnPath = init())

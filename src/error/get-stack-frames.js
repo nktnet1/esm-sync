@@ -10,12 +10,15 @@ function init() {
   const getStructuredStackTrace = toExternalFunction((error, trace) => trace)
 
   function getStackFrames(error) {
-    if (! isError(error)) {
+    if (!isError(error)) {
       return []
     }
 
     const BuiltinError = getBuiltinErrorConstructor(error)
-    const prepareStackTraceDescriptor = Reflect.getOwnPropertyDescriptor(BuiltinError, "prepareStackTrace")
+    const prepareStackTraceDescriptor = Reflect.getOwnPropertyDescriptor(
+      BuiltinError,
+      "prepareStackTrace"
+    )
 
     setProperty(BuiltinError, "prepareStackTrace", getStructuredStackTrace)
 
@@ -35,4 +38,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.errorGetStackFrames
-  : shared.module.errorGetStackFrames = init()
+  : (shared.module.errorGetStackFrames = init())

@@ -1,4 +1,3 @@
-/* eslint-disable sort-keys */
 const CHAR_CODE = {
   TAB: 9,
   CARRIAGE_RETURN: 13,

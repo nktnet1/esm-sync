@@ -6,17 +6,12 @@ import shared from "../shared.js"
 
 function init() {
   function maxSatisfying(versions, range) {
-    if (! Array.isArray(versions) ||
-        typeof range !== "string") {
+    if (!Array.isArray(versions) || typeof range !== "string") {
       return null
     }
 
     const cacheKey =
-      (versions.length === 1
-        ? versions[0]
-        : GenericArray.join(versions)
-      ) + "\0" +
-      range
+      (versions.length === 1 ? versions[0] : GenericArray.join(versions)) + "\0" + range
 
     const cache = shared.memoize.utilMaxSatisfying
 
@@ -35,4 +30,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilMaxSatisfying
-  : shared.module.utilMaxSatisfying = init()
+  : (shared.module.utilMaxSatisfying = init())

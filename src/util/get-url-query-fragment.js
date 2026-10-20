@@ -6,13 +6,9 @@ function init() {
   const questionMarkHashRegExp = /[?#]/
 
   function getURLQueryFragment(request) {
-    const index = typeof request === "string"
-      ? request.search(questionMarkHashRegExp)
-      : -1
+    const index = typeof request === "string" ? request.search(questionMarkHashRegExp) : -1
 
-    return index === -1
-      ? ""
-      : decodeURI(encodeURI(request.slice(index)))
+    return index === -1 ? "" : decodeURI(encodeURI(request.slice(index)))
   }
 
   return getURLQueryFragment
@@ -20,4 +16,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetURLQueryFragment
-  : shared.module.utilGetURLQueryFragment = init()
+  : (shared.module.utilGetURLQueryFragment = init())

@@ -14,13 +14,9 @@ import toString from "./util/to-string.js"
 import toStringLiteral from "./util/to-string-literal.js"
 
 function init() {
-  const {
-    APOSTROPHE
-  } = CHAR_CODE
+  const { APOSTROPHE } = CHAR_CODE
 
-  const {
-    PACKAGE_VERSION
-  } = ESM
+  const { PACKAGE_VERSION } = ESM
 
   const {
     Error: ExError,
@@ -29,13 +25,14 @@ function init() {
     TypeError: ExTypeError
   } = shared.external
 
-  const templateMap = new Map
+  const templateMap = new Map()
 
   const errors = {
     MAIN_NOT_FOUND: function (request, jsonPath) {
       const error = new ExError(
-        "Cannot find module " + toStringLiteral(request, APOSTROPHE) +
-        '. Please verify that the package.json has a valid "main" entry'
+        "Cannot find module " +
+          toStringLiteral(request, APOSTROPHE) +
+          '. Please verify that the package.json has a valid "main" entry'
       )
 
       error.code = "MODULE_NOT_FOUND"
@@ -50,9 +47,7 @@ function init() {
       let message = "Cannot find module " + toStringLiteral(request, APOSTROPHE)
 
       if (requireStack.length !== 0) {
-        message +=
-          "\nRequire stack:\n- " +
-          requireStack.join("\n- ")
+        message += "\nRequire stack:\n- " + requireStack.join("\n- ")
       }
 
       const error = new ExError(message)
@@ -99,13 +94,9 @@ function init() {
     return function BuiltinError(...args) {
       const { length } = args
 
-      const last = length === 0
-        ? null
-        : args[length - 1]
+      const last = length === 0 ? null : args[length - 1]
 
-      const beforeFunc = typeof last === "function"
-        ? args.pop()
-        : null
+      const beforeFunc = typeof last === "function" ? args.pop() : null
 
       const template = templateMap.get(code)
       const message = template(...args)
@@ -127,10 +118,7 @@ function init() {
         if (typeof stack === "string") {
           Reflect.defineProperty(error, "stack", {
             configurable: true,
-            value:
-              loc.filename + ":" +
-              loc.line + "\n" +
-              stack,
+            value: loc.filename + ":" + loc.line + "\n" + stack,
             writable: true
           })
         }
@@ -175,10 +163,9 @@ function init() {
 
   function getStructuredRequireStack(parent) {
     const stack = []
-    const seen = new Set
+    const seen = new Set()
 
-    while (parent != null &&
-           ! seen.has(parent)) {
+    while (parent != null && !seen.has(parent)) {
       seen.add(parent)
       stack.push(getModuleName(parent))
       parent = parent.parent
@@ -188,9 +175,7 @@ function init() {
   }
 
   function stringifyName(name) {
-    return typeof name === "symbol"
-      ? toString(name)
-      : toStringLiteral(name, APOSTROPHE)
+    return typeof name === "symbol" ? toString(name) : toStringLiteral(name, APOSTROPHE)
   }
 
   function constAssignment() {
@@ -198,38 +183,41 @@ function init() {
   }
 
   function exportCycle(request, name) {
-    return "Detected cycle while resolving name '" + name +
-           "' in '" + getModuleURL(request) + "'"
+    return "Detected cycle while resolving name '" + name + "' in '" + getModuleURL(request) + "'"
   }
 
   function exportMissing(request, name) {
-    return "The requested module '" + getModuleURL(request) +
-           "' does not provide an export named '" + name + "'"
+    return (
+      "The requested module '" +
+      getModuleURL(request) +
+      "' does not provide an export named '" +
+      name +
+      "'"
+    )
   }
 
   function exportStarConflict(request, name) {
-    return "The requested module '" + getModuleURL(request) +
-           "' contains conflicting star exports for name '" + name + "'"
+    return (
+      "The requested module '" +
+      getModuleURL(request) +
+      "' contains conflicting star exports for name '" +
+      name +
+      "'"
+    )
   }
 
   function invalidArgType(name, expected, actual) {
     let message = "The '" + name + "' argument must be " + expected
 
     if (arguments.length > 2) {
-      message +=
-        ". Received type " +
-        (actual === null
-          ? "null"
-          : typeof actual
-        )
+      message += ". Received type " + (actual === null ? "null" : typeof actual)
     }
 
     return message
   }
 
   function invalidArgValue(name, value, reason = "is invalid") {
-    return "The argument '" + name + "' " + reason +
-           ". Received " + inspectTrunc(value)
+    return "The argument '" + name + "' " + reason + ". Received " + inspectTrunc(value)
   }
 
   function invalidExtension(request) {
@@ -237,47 +225,70 @@ function init() {
   }
 
   function invalidPkgOption(name, value, unquoted) {
-    return "The esm@" + PACKAGE_VERSION + " option " +
-           (unquoted
-             ? toString(name)
-             : toStringLiteral(name, APOSTROPHE)
-           ) +
-           " is invalid. Received " + inspectTrunc(value)
+    return (
+      "The esm@" +
+      PACKAGE_VERSION +
+      " option " +
+      (unquoted ? toString(name) : toStringLiteral(name, APOSTROPHE)) +
+      " is invalid. Received " +
+      inspectTrunc(value)
+    )
   }
 
   function invalidProtocol(protocol, expected) {
-    return "Protocol '" + protocol +
-           "' not supported. Expected '" + expected + "'"
+    return "Protocol '" + protocol + "' not supported. Expected '" + expected + "'"
   }
 
   function moduleResolutionLegacy(id, fromPath, foundPath) {
-    return id + " not found by import in " + fromPath +
-           ". Legacy behavior in require() would have found it at " + foundPath
+    return (
+      id +
+      " not found by import in " +
+      fromPath +
+      ". Legacy behavior in require() would have found it at " +
+      foundPath
+    )
   }
 
   function namespaceAssignment(request, name) {
-    return "Cannot assign to read only module namespace property " +
-           stringifyName(name) + " of " + getModuleURL(request)
+    return (
+      "Cannot assign to read only module namespace property " +
+      stringifyName(name) +
+      " of " +
+      getModuleURL(request)
+    )
   }
 
   function namespaceDefinition(request, name) {
-    return "Cannot define module namespace property " +
-           stringifyName(name) + " of " + getModuleURL(request)
+    return (
+      "Cannot define module namespace property " +
+      stringifyName(name) +
+      " of " +
+      getModuleURL(request)
+    )
   }
 
   function namespaceDeletion(request, name) {
-    return "Cannot delete module namespace property " +
-           stringifyName(name) + " of " + getModuleURL(request)
+    return (
+      "Cannot delete module namespace property " +
+      stringifyName(name) +
+      " of " +
+      getModuleURL(request)
+    )
   }
 
   function namespaceExtension(request, name) {
-    return "Cannot add module namespace property " +
-           stringifyName(name) + " to " + getModuleURL(request)
+    return (
+      "Cannot add module namespace property " + stringifyName(name) + " to " + getModuleURL(request)
+    )
   }
 
   function namespaceRedefinition(request, name) {
-    return "Cannot redefine module namespace property " +
-           stringifyName(name) + " of " + getModuleURL(request)
+    return (
+      "Cannot redefine module namespace property " +
+      stringifyName(name) +
+      " of " +
+      getModuleURL(request)
+    )
   }
 
   function requireESM(request) {
@@ -299,6 +310,4 @@ function init() {
   return errors
 }
 
-export default shared.inited
-  ? shared.module.errors
-  : shared.module.errors = init()
+export default shared.inited ? shared.module.errors : (shared.module.errors = init())

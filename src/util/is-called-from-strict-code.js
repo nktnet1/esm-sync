@@ -13,9 +13,7 @@ function init() {
     for (const frame of frames) {
       const filename = frame.getFileName()
 
-      if (filename &&
-          ! isOwnPath(filename) &&
-          ! frame.isNative()) {
+      if (filename && !isOwnPath(filename) && !frame.isNative()) {
         return frame.getFunction() === void 0
       }
     }
@@ -28,4 +26,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsCalledFromStrictCode
-  : shared.module.utilIsCalledFromStrictCode = init()
+  : (shared.module.utilIsCalledFromStrictCode = init())

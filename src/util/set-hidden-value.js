@@ -10,10 +10,12 @@ function init() {
       useSetHiddenValue = typeof binding.util.setHiddenValue === "function"
     }
 
-    if (useSetHiddenValue &&
-        typeof name === shared.utilBinding.hiddenKeyType &&
-        name != null &&
-        isObjectLike(object)) {
+    if (
+      useSetHiddenValue &&
+      typeof name === shared.utilBinding.hiddenKeyType &&
+      name != null &&
+      isObjectLike(object)
+    ) {
       try {
         return binding.util.setHiddenValue(object, name, value)
       } catch {}
@@ -27,4 +29,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSetHiddenValue
-  : shared.module.utilSetHiddenValue = init()
+  : (shared.module.utilSetHiddenValue = init())

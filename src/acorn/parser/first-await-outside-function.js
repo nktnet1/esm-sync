@@ -15,9 +15,7 @@ function init() {
   }
 
   function parseAwait(func, args) {
-    if (! this.inAsync &&
-        ! this.inFunction &&
-        this.firstAwaitOutsideFunction === null) {
+    if (!this.inAsync && !this.inFunction && this.firstAwaitOutsideFunction === null) {
       this.firstAwaitOutsideFunction = getLineInfo(this.input, this.start)
     }
 
@@ -25,9 +23,7 @@ function init() {
   }
 
   function parseForStatement(func, args) {
-    if (this.inAsync ||
-        this.inFunction ||
-        this.firstAwaitOutsideFunction !== null) {
+    if (this.inAsync || this.inFunction || this.firstAwaitOutsideFunction !== null) {
       return Reflect.apply(func, this, args)
     }
 
@@ -35,8 +31,7 @@ function init() {
     const { start } = lookahead(this)
     const result = Reflect.apply(func, this, args)
 
-    if (node.await &&
-        this.firstAwaitOutsideFunction === null) {
+    if (node.await && this.firstAwaitOutsideFunction === null) {
       this.firstAwaitOutsideFunction = getLineInfo(this.input, start)
     }
 
@@ -48,4 +43,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserFirstAwaitOutSideFunction
-  : shared.module.acornParserFirstAwaitOutSideFunction = init()
+  : (shared.module.acornParserFirstAwaitOutSideFunction = init())

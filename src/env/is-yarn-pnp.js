@@ -10,6 +10,4 @@ function init() {
   return isYarnPnP
 }
 
-export default shared.inited
-  ? shared.module.envIsYarnPnP
-  : shared.module.envIsYarnPnP = init()
+export default shared.inited ? shared.module.envIsYarnPnP : (shared.module.envIsYarnPnP = init())

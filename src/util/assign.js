@@ -23,6 +23,4 @@ function init() {
   return assign
 }
 
-export default shared.inited
-  ? shared.module.utilAssign
-  : shared.module.utilAssign = init()
+export default shared.inited ? shared.module.utilAssign : (shared.module.utilAssign = init())

@@ -9,6 +9,4 @@ function init() {
   return isFile
 }
 
-export default shared.inited
-  ? shared.module.utilIsFile
-  : shared.module.utilIsFile = init()
+export default shared.inited ? shared.module.utilIsFile : (shared.module.utilIsFile = init())

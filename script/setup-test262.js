@@ -36,31 +36,19 @@ function setupTest262() {
 
   return trash(repoPath)
     .then(() =>
-      git(rootPath, [
-        "clone",
-        "--depth",
-        "1",
-        "https://github.com/tc39/test262.git",
-        repoPath
-      ])
+      git(rootPath, ["clone", "--depth", "1", "https://github.com/tc39/test262.git", repoPath])
     )
     .then(() =>
-      testDirs
-        .reduce((promise, testDir) => {
-          const repoDirPath = path.resolve(repoPath, testDir)
-          const testDirPath = path.resolve(test262Path, testDir)
+      testDirs.reduce((promise, testDir) => {
+        const repoDirPath = path.resolve(repoPath, testDir)
+        const testDirPath = path.resolve(test262Path, testDir)
 
-          return promise
-            .then(() => trash(testDirPath))
-            .then(() => fs.move(repoDirPath, testDirPath))
-        }, Promise.resolve())
+        return promise.then(() => trash(testDirPath)).then(() => fs.move(repoDirPath, testDirPath))
+      }, Promise.resolve())
     )
     .then(() => trash(repoPath))
     .then(() => {
-      const test262Tests = globby.sync([
-        "test/language/**/*.js",
-        "!**/*_FIXTURE.js"
-      ], {
+      const test262Tests = globby.sync(["test/language/**/*.js", "!**/*_FIXTURE.js"], {
         absolute: true,
         cwd: test262Path
       })
@@ -74,42 +62,25 @@ function setupTest262() {
         const features = attrs.features || []
         const { flags } = attrs
 
-        if (! flags.module &&
-            ! features.includes("dynamic-import")) {
+        if (!flags.module && !features.includes("dynamic-import")) {
           trashed.push(filename)
           continue
         }
 
         // Follow Test262 guidance for strict mode.
         // https://github.com/tc39/test262/blob/master/INTERPRETING.md#strict-mode
-        content =
-          (flags.onlyStrict
-            ? '"use strict";\n'
-            : ""
-          ) +
-          content
+        content = (flags.onlyStrict ? '"use strict";\n' : "") + content
 
         const pos = content.indexOf(YAML_END)
 
-        const pragma =
-          '"use ' +
-          (flags.module
-            ? "module"
-            : "script"
-          ) +
-          '";'
+        const pragma = '"use ' + (flags.module ? "module" : "script") + '";'
 
         if (pos === -1) {
-          content =
-            pragma + "\n" +
-            content
+          content = pragma + "\n" + content
         } else {
           const start = pos + YAML_END.length
 
-          content =
-            content.slice(0, start) + "\n" +
-            pragma + "\n" +
-            content.slice(start)
+          content = content.slice(0, start) + "\n" + pragma + "\n" + content.slice(start)
         }
 
         fs.writeFileSync(filename, content)

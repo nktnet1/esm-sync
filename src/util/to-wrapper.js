@@ -10,6 +10,4 @@ function init() {
   return toWrapper
 }
 
-export default shared.inited
-  ? shared.module.utilToWrapper
-  : shared.module.utilToWrapper = init()
+export default shared.inited ? shared.module.utilToWrapper : (shared.module.utilToWrapper = init())

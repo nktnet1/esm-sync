@@ -9,6 +9,4 @@ function init() {
   return exists
 }
 
-export default shared.inited
-  ? shared.module.fsExists
-  : shared.module.fsExists = init()
+export default shared.inited ? shared.module.fsExists : (shared.module.fsExists = init())

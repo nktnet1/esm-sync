@@ -4,9 +4,7 @@ import escapeRegExp from "../util/escape-regexp.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    DOT
-  } = CHAR_CODE
+  const { DOT } = CHAR_CODE
 
   function findIndexes(code, identifiers) {
     const indexes = []
@@ -20,22 +18,17 @@ function init() {
 
     const pattern = new RegExp(
       "\\b(?:" +
-      (() => {
-        let i = -1
-        let source = ""
+        (() => {
+          let i = -1
+          let source = ""
 
-        while (++i < length) {
-          source +=
-            escapeRegExp(identifiers[i]) +
-            (i === lastIndex
-              ? ""
-              : "|"
-            )
-        }
+          while (++i < length) {
+            source += escapeRegExp(identifiers[i]) + (i === lastIndex ? "" : "|")
+          }
 
-        return source
-      })() +
-      ")\\b",
+          return source
+        })() +
+        ")\\b",
       "g"
     )
 
@@ -47,8 +40,7 @@ function init() {
       // Make sure the match isn't preceded by a `.` character, since that
       // probably means the identifier is a property access rather than a
       // variable reference.
-      if (index === 0 ||
-          code.charCodeAt(index - 1) !== DOT) {
+      if (index === 0 || code.charCodeAt(index - 1) !== DOT) {
         indexes.push(index)
       }
     }
@@ -61,4 +53,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseFindIndexes
-  : shared.module.parseFindIndexes = init()
+  : (shared.module.parseFindIndexes = init())

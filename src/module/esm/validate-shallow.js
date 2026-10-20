@@ -3,9 +3,7 @@ import has from "../../util/has.js"
 import shared from "../../shared.js"
 
 function init() {
-  const {
-    ERR_EXPORT_MISSING
-  } = errors
+  const { ERR_EXPORT_MISSING } = errors
 
   function validateShallow(entry, parentEntry) {
     const cache = entry._validation
@@ -48,4 +46,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.moduleEsmValidateShallow
-  : shared.module.moduleEsmValidateShallow = init()
+  : (shared.module.moduleEsmValidateShallow = init())

@@ -49,23 +49,16 @@ function init() {
     const exprType = expr.type
     const { start } = expr
 
-    if (exprType === "CallExpression" &&
-        expr.callee.type === "Import") {
-      throw new errors.SyntaxError(
-        this,
-        start,
-        INVALID_LEFT_HAND_SIDE_ASSIGNMENT
-      )
+    if (exprType === "CallExpression" && expr.callee.type === "Import") {
+      throw new errors.SyntaxError(this, start, INVALID_LEFT_HAND_SIDE_ASSIGNMENT)
     }
 
-    if (exprType === "MetaProperty" &&
-        expr.meta.name === "import" &&
-        expr.property.name === "meta") {
-      throw new errors.SyntaxError(
-        this,
-        start,
-        INVALID_IMPORT_META_ASSIGNMENT
-      )
+    if (
+      exprType === "MetaProperty" &&
+      expr.meta.name === "import" &&
+      expr.property.name === "meta"
+    ) {
+      throw new errors.SyntaxError(this, start, INVALID_IMPORT_META_ASSIGNMENT)
     }
 
     return Reflect.apply(func, this, args)
@@ -131,9 +124,7 @@ function init() {
     const node = Reflect.apply(func, this, args)
     const { type } = node
 
-    if (type === tt._false ||
-        type === tt._null ||
-        type === tt._true) {
+    if (type === tt._false || type === tt._null || type === tt._true) {
       node.raw = ""
     }
 
@@ -143,8 +134,7 @@ function init() {
   function parseNew(func, args) {
     const next = lookahead(this)
 
-    if (next.type === tt._import &&
-        lookahead(next).type === tt.parenL) {
+    if (next.type === tt._import && lookahead(next).type === tt.parenL) {
       this.unexpected()
     }
 
@@ -154,8 +144,7 @@ function init() {
   function parseSubscript(func, args) {
     const [base, startPos, startLoc] = args
 
-    if (base.type === "Import" &&
-        this.type === tt.parenL) {
+    if (base.type === "Import" && this.type === tt.parenL) {
       const callExpr = this.startNodeAt(startPos, startLoc)
 
       this.expect(tt.parenL)
@@ -178,17 +167,14 @@ function init() {
     if (this.type === tt._import) {
       const { start, type } = lookahead(this)
 
-      if (type === tt.dot ||
-          type === tt.parenL) {
+      if (type === tt.dot || type === tt.parenL) {
         const node = this.startNode()
         const expr = this.parseMaybeAssign()
 
         return this.parseExpressionStatement(node, expr)
       }
 
-      if (! this.inModule ||
-          (! topLevel &&
-           ! this.options.allowImportExportEverywhere)) {
+      if (!this.inModule || (!topLevel && !this.options.allowImportExportEverywhere)) {
         let message
 
         if (type === tt.name) {
@@ -231,7 +217,7 @@ function init() {
       parser.raise(property.start, UNEXPECTED_IDENTIFIER)
     } else if (containsEsc) {
       parser.raise(property.start, INVALID_ESCAPED_RESERVED_WORD)
-    } else if (! parser.inModule) {
+    } else if (!parser.inModule) {
       parser.raise(meta.start, ILLEGAL_IMPORT_META_OUTSIDE_MODULE)
     }
 
@@ -243,4 +229,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserImport
-  : shared.module.acornParserImport = init()
+  : (shared.module.acornParserImport = init())

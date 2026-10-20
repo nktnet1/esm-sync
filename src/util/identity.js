@@ -8,6 +8,4 @@ function init() {
   return identity
 }
 
-export default shared.inited
-  ? shared.module.utilIdentity
-  : shared.module.utilIdentity = init()
+export default shared.inited ? shared.module.utilIdentity : (shared.module.utilIdentity = init())

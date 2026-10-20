@@ -33,31 +33,15 @@ import stripShebang from "../../util/strip-shebang.js"
 import toExternalFunction from "../../util/to-external-function.js"
 import validateString from "../../util/validate-string.js"
 
-const {
-  STATE_INITIAL,
-  STATE_PARSING_COMPLETED,
-  TYPE_ESM
-} = ENTRY
+const { STATE_INITIAL, STATE_PARSING_COMPLETED, TYPE_ESM } = ENTRY
 
-const {
-  ELECTRON
-} = ENV
+const { ELECTRON } = ENV
 
-const {
-  PACKAGE_RANGE
-} = ESM
+const { PACKAGE_RANGE } = ESM
 
-const {
-  MODE_STRICT
-} = PACKAGE
+const { MODE_STRICT } = PACKAGE
 
-const compileFunctionParams = [
-  "exports",
-  "require",
-  "module",
-  "__filename",
-  "__dirname"
-]
+const compileFunctionParams = ["exports", "require", "module", "__filename", "__dirname"]
 
 const RealProto = RealModule.prototype
 
@@ -75,10 +59,11 @@ const compile = maskFunction(function (content, filename) {
   const { state } = entry
   const isInitial = state === STATE_INITIAL
 
-  if (entry.package.options.mode !== MODE_STRICT &&
-      entry.extname !== ".mjs" &&
-      (isInitial ||
-       state === STATE_PARSING_COMPLETED)) {
+  if (
+    entry.package.options.mode !== MODE_STRICT &&
+    entry.extname !== ".mjs" &&
+    (isInitial || state === STATE_PARSING_COMPLETED)
+  ) {
     if (contentPackage === void 0) {
       const defaultOptions = Loader.state.package.default.options
       const cjsOptions = assign({}, defaultOptions.cjs)
@@ -108,11 +93,9 @@ const compile = maskFunction(function (content, filename) {
   }
 
   if (useLegacyWrapper === void 0) {
-    useLegacyWrapper =
-      ELECTRON ||
-      ! shared.support.vmCompileFunction
+    useLegacyWrapper = ELECTRON || !shared.support.vmCompileFunction
 
-    if (! useLegacyWrapper) {
+    if (!useLegacyWrapper) {
       const proxy = new OwnProxy(staticWrapper, {
         defineProperty(staticWrapper, name, descriptor) {
           useLegacyWrapper = true
@@ -178,9 +161,7 @@ const compile = maskFunction(function (content, filename) {
       const argv = realProcess.argv[1]
 
       // Enter the REPL if no file path argument is provided.
-      resolvedArgv = argv
-        ? Module._resolveFilename(argv)
-        : "repl"
+      resolvedArgv = argv ? Module._resolveFilename(argv) : "repl"
     }
 
     // Set breakpoint on module start.
@@ -201,13 +182,7 @@ const compile = maskFunction(function (content, filename) {
   const exported = this.exports
   const { unsafeGlobal } = shared
 
-  const args = [
-    exported,
-    makeRequireFunction(this),
-    this,
-    filename,
-    dirname(filename)
-  ]
+  const args = [exported, makeRequireFunction(this), this, filename, dirname(filename)]
 
   if (ELECTRON) {
     args.push(realProcess, unsafeGlobal)
@@ -215,9 +190,7 @@ const compile = maskFunction(function (content, filename) {
     if (useBufferArg === void 0) {
       const { wrap } = Module
 
-      useBufferArg =
-        typeof wrap === "function" &&
-        String(wrap("")).indexOf("Buffer") !== -1
+      useBufferArg = typeof wrap === "function" && String(wrap("")).indexOf("Buffer") !== -1
     }
 
     if (useBufferArg) {
@@ -238,16 +211,13 @@ const compile = maskFunction(function (content, filename) {
   let compiledWrapper
   let script
 
-  if (isESM ||
-      useLegacyWrapper) {
-    preparedContent = isESM
-      ? staticWrap(preparedContent)
-      : Module.wrap(preparedContent)
+  if (isESM || useLegacyWrapper) {
+    preparedContent = isESM ? staticWrap(preparedContent) : Module.wrap(preparedContent)
 
     script = new realVM.Script(preparedContent, {
       cachedData,
       filename,
-      produceCachedData: ! shared.support.createCachedData
+      produceCachedData: !shared.support.createCachedData
     })
 
     compiledWrapper = useRunInContext
@@ -271,7 +241,7 @@ const compile = maskFunction(function (content, filename) {
     let scripts = pendingScripts.get(cachePath)
 
     if (scripts === void 0) {
-      scripts = new Map
+      scripts = new Map()
       pendingScripts.set(cachePath, scripts)
     }
 
@@ -282,8 +252,8 @@ const compile = maskFunction(function (content, filename) {
   const noDepth = moduleState.requireDepth === 0
 
   if (noDepth) {
-    moduleState.statFast = new Map
-    moduleState.statSync = new Map
+    moduleState.statFast = new Map()
+    moduleState.statSync = new Map()
   }
 
   const result = Reflect.apply(compiledWrapper, exported, args)

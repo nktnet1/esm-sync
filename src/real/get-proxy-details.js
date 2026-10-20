@@ -18,8 +18,7 @@ function init() {
       useGetProxyDetails = typeof binding.util.getProxyDetails === "function"
     }
 
-    if (useGetProxyDetails &&
-        isObjectLike(value)) {
+    if (useGetProxyDetails && isObjectLike(value)) {
       try {
         return binding.util.getProxyDetails(value)
       } catch {}
@@ -31,4 +30,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.realGetProxyDetails
-  : shared.module.realGetProxyDetails = init()
+  : (shared.module.realGetProxyDetails = init())

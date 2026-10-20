@@ -12,15 +12,15 @@ function init() {
   }
 
   function parseTopLevel(node) {
-    if (! Array.isArray(node.body)) {
+    if (!Array.isArray(node.body)) {
       node.body = []
     }
 
     const { body } = node
     const exported = {}
-    const funcs = new Set
-    const topIdentifiers = new Set
-    const importedBindings = new Set
+    const funcs = new Set()
+    const topIdentifiers = new Set()
+    const importedBindings = new Set()
     const { inModule } = this
 
     const top = {
@@ -40,13 +40,15 @@ function init() {
 
       let { type } = stmt
 
-      if (! inited) {
+      if (!inited) {
         // Avoid hoisting above string literal expression statements such as
         // "use strict", which may depend on occurring at the beginning of
         // their enclosing scopes.
-        if (type === "ExpressionStatement" &&
-            expression.type === "Literal" &&
-            typeof expression.value === "string") {
+        if (
+          type === "ExpressionStatement" &&
+          expression.type === "Literal" &&
+          typeof expression.value === "string"
+        ) {
           top.insertIndex = stmt.end
           top.insertPrefix = ";"
         } else {
@@ -56,8 +58,7 @@ function init() {
 
       let object = stmt
 
-      if (type === "ExportDefaultDeclaration" ||
-          type === "ExportNamedDeclaration") {
+      if (type === "ExportDefaultDeclaration" || type === "ExportNamedDeclaration") {
         object = stmt.declaration
 
         if (object !== null) {
@@ -72,8 +73,7 @@ function init() {
           for (const id of ids) {
             const { name } = id
 
-            if (inModule &&
-                funcs.has(name)) {
+            if (inModule && funcs.has(name)) {
               raiseRedeclaration(this, id.start, name)
             }
 
@@ -92,8 +92,7 @@ function init() {
         if (id !== null) {
           const { name } = id
 
-          if (inModule &&
-              topIdentifiers.has(name)) {
+          if (inModule && topIdentifiers.has(name)) {
             raiseRedeclaration(this, id.start, name)
           }
 
@@ -127,11 +126,7 @@ function init() {
   }
 
   function raiseRedeclaration(parser, pos, name) {
-    throw new errors.SyntaxError(
-      parser,
-      pos,
-      "Identifier '" + name + "' has already been declared"
-    )
+    throw new errors.SyntaxError(parser, pos, "Identifier '" + name + "' has already been declared")
   }
 
   return Plugin
@@ -139,4 +134,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserTopLevel
-  : shared.module.acornParserTopLevel = init()
+  : (shared.module.acornParserTopLevel = init())

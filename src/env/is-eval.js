@@ -11,21 +11,16 @@ function init() {
       return true
     }
 
-    if (argv.length !== 1 ||
-        ! isPreloaded()) {
+    if (argv.length !== 1 || !isPreloaded()) {
       return false
     }
 
     const flags = getFlags()
 
-    return flags.eval ||
-           (! stdin.isTTY &&
-            ! flags.interactive)
+    return flags.eval || (!stdin.isTTY && !flags.interactive)
   }
 
   return isEval
 }
 
-export default shared.inited
-  ? shared.module.envIsEval
-  : shared.module.envIsEval = init()
+export default shared.inited ? shared.module.envIsEval : (shared.module.envIsEval = init())

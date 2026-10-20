@@ -29,29 +29,15 @@ import shared from "../shared.js"
 import toExternalError from "../util/to-external-error.js"
 import toExternalFunction from "../util/to-external-function.js"
 
-const {
-  STATE_EXECUTION_COMPLETED,
-  STATE_EXECUTION_STARTED,
-  STATE_INITIAL
-} = ENTRY
+const { STATE_EXECUTION_COMPLETED, STATE_EXECUTION_STARTED, STATE_INITIAL } = ENTRY
 
-const {
-  OPTIONS
-} = ENV
+const { OPTIONS } = ENV
 
-const {
-  PACKAGE_VERSION
-} = ESM
+const { PACKAGE_VERSION } = ESM
 
-const {
-  MODE_ALL,
-  MODE_AUTO,
-  RANGE_ALL
-} = PACKAGE
+const { MODE_ALL, MODE_AUTO, RANGE_ALL } = PACKAGE
 
-const {
-  ERR_REQUIRE_ESM
-} = errors
+const { ERR_REQUIRE_ESM } = errors
 
 const exts = [".js", ".json", ".mjs", ".cjs", ".wasm"]
 const importExportRegExp = /^.*?\b(?:im|ex)port\b/
@@ -59,7 +45,7 @@ const realExtsJS = RealModule._extensions[".js"]
 
 function hook(Mod, parent) {
   const { _extensions } = Mod
-  const passthruMap = new Map
+  const passthruMap = new Map()
 
   let parentPkg = Package.from(parent)
 
@@ -72,8 +58,7 @@ function hook(Mod, parent) {
 
   defaultPkg.range = RANGE_ALL
 
-  if (! defaultOptions.force &&
-      defaultOptions.mode === MODE_ALL) {
+  if (!defaultOptions.force && defaultOptions.mode === MODE_ALL) {
     defaultOptions.mode = MODE_AUTO
   }
 
@@ -96,7 +81,7 @@ function hook(Mod, parent) {
 
   function jsWrapper(manager, func, args) {
     const [mod, filename] = args
-    const shouldOverwrite = ! Entry.has(mod)
+    const shouldOverwrite = !Entry.has(mod)
     const entry = Entry.get(mod)
     const ext = entry.extname
     const pkg = entry.package
@@ -108,15 +93,19 @@ function hook(Mod, parent) {
         const { _compile } = mod
         const shouldRestore = has(mod, "_compile")
 
-        setProperty(mod, "_compile", toExternalFunction(function (ignoredContent, filename) {
-          if (shouldRestore) {
-            setProperty(this, "_compile", _compile)
-          } else {
-            Reflect.deleteProperty(this, "_compile")
-          }
+        setProperty(
+          mod,
+          "_compile",
+          toExternalFunction(function (ignoredContent, filename) {
+            if (shouldRestore) {
+              setProperty(this, "_compile", _compile)
+            } else {
+              Reflect.deleteProperty(this, "_compile")
+            }
 
-          return Reflect.apply(_compile, this, [content, filename])
-        }))
+            return Reflect.apply(_compile, this, [content, filename])
+          })
+        )
       }
 
       let result
@@ -126,9 +115,7 @@ function hook(Mod, parent) {
         result = tryPassthru.call(this, func, args, pkg)
         threw = false
       } finally {
-        entry.state = threw
-          ? STATE_INITIAL
-          : STATE_EXECUTION_COMPLETED
+        entry.state = threw ? STATE_INITIAL : STATE_EXECUTION_COMPLETED
       }
 
       return result
@@ -138,19 +125,14 @@ function hook(Mod, parent) {
       setPrototypeOf(mod, Module.prototype)
     }
 
-    if (entry._passthruCompile ||
-        (shouldOverwrite &&
-         ext === ".mjs")) {
+    if (entry._passthruCompile || (shouldOverwrite && ext === ".mjs")) {
       entry._passthruCompile = false
       return compileFallback()
     }
 
     const { compileData } = entry
 
-    if ((compileData !== null &&
-         compileData.code !== null) ||
-        ext === ".json" ||
-        ext === ".wasm") {
+    if ((compileData !== null && compileData.code !== null) || ext === ".json" || ext === ".wasm") {
       entry._ranthruCompile = true
       compile(manager, entry, null, filename, compileFallback)
       return
@@ -174,9 +156,7 @@ function hook(Mod, parent) {
         }
       }
 
-      const compileWrapper = has(this, shared.symbol._compile)
-        ? this[shared.symbol._compile]
-        : null
+      const compileWrapper = has(this, shared.symbol._compile) ? this[shared.symbol._compile] : null
 
       if (typeof compileWrapper === "function") {
         Reflect.deleteProperty(this, shared.symbol._compile)
@@ -197,9 +177,7 @@ function hook(Mod, parent) {
       })
     }
 
-    if ((compileData === null ||
-         compileData.transforms === 0) &&
-        passthruMap.get(func)) {
+    if ((compileData === null || compileData.transforms === 0) && passthruMap.get(func)) {
       return tryPassthru.call(this, func, args, pkg)
     }
 
@@ -209,35 +187,29 @@ function hook(Mod, parent) {
   for (const ext of exts) {
     const extIsMJS = ext === ".mjs"
 
-    if (extIsMJS &&
-        ! has(_extensions, ext)) {
+    if (extIsMJS && !has(_extensions, ext)) {
       _extensions[ext] = maskFunction(mjsCompiler, realExtsJS)
     }
 
     const extIsWASM = ext === ".wasm"
 
-    if (extIsWASM &&
-        ! shared.support.wasm) {
+    if (extIsWASM && !shared.support.wasm) {
       continue
     }
 
-    if (! has(_extensions, ext)) {
+    if (!has(_extensions, ext)) {
       _extensions[ext] = realExtsJS
     }
 
     const extCompiler = Wrapper.unwrap(_extensions, ext)
 
-    let passthru =
-      typeof extCompiler === "function" &&
-      ! has(extCompiler, shared.symbol.mjs)
+    let passthru = typeof extCompiler === "function" && !has(extCompiler, shared.symbol.mjs)
 
-    if (extIsMJS &&
-        passthru) {
+    if (extIsMJS && passthru) {
       try {
         extCompiler()
       } catch (e) {
-        if (isError(e) &&
-            e.code === "ERR_REQUIRE_ESM") {
+        if (isError(e) && e.code === "ERR_REQUIRE_ESM") {
           passthru = false
         }
       }
@@ -264,8 +236,7 @@ function tryPassthru(func, args, pkg) {
     error = e
   }
 
-  if (Loader.state.package.default.options.debug ||
-      ! isStackTraceMaskable(error)) {
+  if (Loader.state.package.default.options.debug || !isStackTraceMaskable(error)) {
     toExternalError(error)
 
     throw error
@@ -279,11 +250,9 @@ function tryPassthru(func, args, pkg) {
     const message = toString(get(error, "message"))
     const { range } = pkg
 
-    if (importExportRegExp.test(message) &&
-        ! satisfies(PACKAGE_VERSION, range)) {
+    if (importExportRegExp.test(message) && !satisfies(PACKAGE_VERSION, range)) {
       const newMessage =
-        "Expected esm@" + range +
-        ". Using esm@" + PACKAGE_VERSION + ": " + filename
+        "Expected esm@" + range + ". Using esm@" + PACKAGE_VERSION + ": " + filename
 
       Reflect.defineProperty(error, "message", {
         configurable: true,

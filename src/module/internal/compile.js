@@ -62,21 +62,11 @@ const {
   TYPE_WASM
 } = ENTRY
 
-const {
-  DEVELOPMENT,
-  ELECTRON_RENDERER,
-  FLAGS,
-  NDB
-} = ENV
+const { DEVELOPMENT, ELECTRON_RENDERER, FLAGS, NDB } = ENV
 
-const {
-  ILLEGAL_AWAIT_IN_NON_ASYNC_FUNCTION
-} = MESSAGE
+const { ILLEGAL_AWAIT_IN_NON_ASYNC_FUNCTION } = MESSAGE
 
-const {
-  MODE_ALL,
-  MODE_AUTO
-} = PACKAGE
+const { MODE_ALL, MODE_AUTO } = PACKAGE
 
 const dummyParser = { input: "" }
 const exportsRegExp = /^.*?\bexports\b/
@@ -122,13 +112,9 @@ function compile(caller, entry, content, filename, fallback) {
 
     compileData = CachingCompiler.from(entry)
 
-    if (compileData === null ||
-        compileData.transforms !== 0) {
-      if (isJSON ||
-          isWASM) {
-        entry.type = isJSON
-          ? TYPE_JSON
-          : TYPE_WASM
+    if (compileData === null || compileData.transforms !== 0) {
+      if (isJSON || isWASM) {
+        entry.type = isJSON ? TYPE_JSON : TYPE_WASM
 
         compileData = {
           circular: 0,
@@ -146,21 +132,13 @@ function compile(caller, entry, content, filename, fallback) {
       } else {
         const { cjs } = options
 
-        const cjsPaths =
-          cjs.paths &&
-          ! isMJS
+        const cjsPaths = cjs.paths && !isMJS
 
-        const cjsVars =
-          cjs.vars &&
-          ! isMJS
+        const cjsVars = cjs.vars && !isMJS
 
-        const scriptData = compileData === null
-          ? null
-          : compileData.scriptData
+        const scriptData = compileData === null ? null : compileData.scriptData
 
-        const topLevelReturn =
-          cjs.topLevelReturn &&
-          ! isMJS
+        const topLevelReturn = cjs.topLevelReturn && !isMJS
 
         compileData = tryCompile(caller, entry, content, {
           cacheName,
@@ -181,9 +159,7 @@ function compile(caller, entry, content, filename, fallback) {
           entry.type = TYPE_ESM
         }
 
-        if (isDefaultPkg &&
-            entry.type === TYPE_CJS &&
-            compileData.transforms === TRANSFORMS_EVAL) {
+        if (isDefaultPkg && entry.type === TYPE_CJS && compileData.transforms === TRANSFORMS_EVAL) {
           // Under the default package configuration, discard changes for CJS
           // modules with only `eval()` transformations.
           compileData.code = content
@@ -196,8 +172,7 @@ function compile(caller, entry, content, filename, fallback) {
     }
   }
 
-  if (compileData !== null &&
-      compileData.code === null) {
+  if (compileData !== null && compileData.code === null) {
     compileData.code = content
   }
 
@@ -205,16 +180,12 @@ function compile(caller, entry, content, filename, fallback) {
 
   let useFallback = false
 
-  if (! isESM &&
-      ! isWASM &&
-      typeof fallback === "function") {
+  if (!isESM && !isWASM && typeof fallback === "function") {
     const parentEntry = Entry.get(entry.parent)
     const parentIsESM = parentEntry === null ? false : parentEntry.type === TYPE_ESM
     const parentPkg = parentEntry === null ? null : parentEntry.package
 
-    if (! parentIsESM &&
-        (isDefaultPkg ||
-         parentPkg === defaultPkg)) {
+    if (!parentIsESM && (isDefaultPkg || parentPkg === defaultPkg)) {
       useFallback = true
     }
   }
@@ -227,8 +198,7 @@ function compile(caller, entry, content, filename, fallback) {
     for (const frame of frames) {
       const framePath = frame.getFileName()
 
-      if (isAbsolute(framePath) &&
-          ! isOwnPath(framePath)) {
+      if (isAbsolute(framePath) && !isOwnPath(framePath)) {
         return fallback(content)
       }
     }
@@ -240,11 +210,8 @@ function compile(caller, entry, content, filename, fallback) {
 
   let isSideloaded = false
 
-  if (! moduleState.parsing) {
-    if ((isESM ||
-         isJSON ||
-         isWASM) &&
-        entry.state === STATE_INITIAL) {
+  if (!moduleState.parsing) {
+    if ((isESM || isJSON || isWASM) && entry.state === STATE_INITIAL) {
       isSideloaded = true
       moduleState.parsing = true
       entry.state = STATE_PARSING_STARTED
@@ -253,9 +220,7 @@ function compile(caller, entry, content, filename, fallback) {
     }
   }
 
-  if (isESM ||
-      isJSON ||
-      isWASM) {
+  if (isESM || isJSON || isWASM) {
     try {
       let result = tryRun(entry, filename, fallback)
 
@@ -286,7 +251,7 @@ function compile(caller, entry, content, filename, fallback) {
         entry.finalizeNamespace()
       }
 
-      if (! isSideloaded) {
+      if (!isSideloaded) {
         return result
       }
     } finally {
@@ -301,7 +266,7 @@ function compile(caller, entry, content, filename, fallback) {
 
 function isDescendant(entry, parentEntry, seen) {
   if (seen === void 0) {
-    seen = new Set
+    seen = new Set()
   } else if (seen.has(parentEntry)) {
     return false
   }
@@ -313,8 +278,7 @@ function isDescendant(entry, parentEntry, seen) {
   for (const name in children) {
     const childEntry = children[name]
 
-    if (entry === childEntry ||
-        isDescendant(entry, childEntry, seen)) {
+    if (entry === childEntry || isDescendant(entry, childEntry, seen)) {
       return true
     }
   }
@@ -333,8 +297,7 @@ function tryCompile(caller, entry, content, options) {
 
   entry.state = STATE_INITIAL
 
-  if (! Loader.state.package.default.options.debug &&
-      isStackTraceMaskable(error)) {
+  if (!Loader.state.package.default.options.debug && isStackTraceMaskable(error)) {
     captureStackTrace(error, caller)
 
     maskStackTrace(error, {
@@ -358,8 +321,7 @@ function tryRun(entry, filename, fallback) {
   let { runtime } = entry
 
   if (runtime === null) {
-    if (isESM ||
-        compileData.transforms !== 0) {
+    if (isESM || compileData.transforms !== 0) {
       runtime = Runtime.enable(entry, GenericObject.create())
     } else {
       runtime = GenericObject.create()
@@ -378,21 +340,19 @@ function tryRun(entry, filename, fallback) {
   let result
   let threw = false
 
-  entry.state = parsing
-    ? STATE_PARSING_STARTED
-    : STATE_EXECUTION_STARTED
+  entry.state = parsing ? STATE_PARSING_STARTED : STATE_EXECUTION_STARTED
 
   if (firstPass) {
     entry.running = true
 
-    if (isJSON)  {
-      runtime.runResult = (function *() {
+    if (isJSON) {
+      runtime.runResult = (function* () {
         const parsed = jsonParse(entry, filename, fallback)
         yield
         jsonEvaluate(entry, parsed)
       })()
     } else if (isWASM) {
-      runtime.runResult = (function *() {
+      runtime.runResult = (function* () {
         // Use a `null` [[Prototype]] for `importObject` because the lookup
         // includes inherited properties.
         const importObject = { __proto__: null }
@@ -401,9 +361,7 @@ function tryRun(entry, filename, fallback) {
         wasmEvaluate(entry, wasmMod, importObject)
       })()
     } else {
-      const cjsVars =
-        cjs.vars &&
-        ! isMJS
+      const cjsVars = cjs.vars && !isMJS
 
       const source = compileSource(compileData, {
         async,
@@ -427,12 +385,12 @@ function tryRun(entry, filename, fallback) {
       } else {
         const { _compile } = mod
 
-        runtime.runResult = (function *() {
+        runtime.runResult = (function* () {
           yield
 
           // Avoid V8 tail call optimization bug with --harmony flag in Node 6.
           // https://bugs.chromium.org/p/v8/issues/detail?id=5322
-          return result = Reflect.apply(_compile, mod, [source, filename])
+          return (result = Reflect.apply(_compile, mod, [source, filename]))
         })()
       }
     }
@@ -442,9 +400,7 @@ function tryRun(entry, filename, fallback) {
 
   const { runResult } = runtime
 
-  if (! threw &&
-      ! parsing &&
-      firstPass) {
+  if (!threw && !parsing && firstPass) {
     entry.running = true
 
     try {
@@ -459,17 +415,16 @@ function tryRun(entry, filename, fallback) {
 
   const { firstAwaitOutsideFunction } = compileData
 
-  const inModule =
-    (! cjs.paths ||
-     isMJS) &&
-    entry.type !== TYPE_CJS
+  const inModule = (!cjs.paths || isMJS) && entry.type !== TYPE_CJS
 
-  if (! threw &&
-      ! entry.running &&
-      async &&
-      isESM &&
-      firstAwaitOutsideFunction !== null &&
-      ! isObjectEmpty(entry.getters)) {
+  if (
+    !threw &&
+    !entry.running &&
+    async &&
+    isESM &&
+    firstAwaitOutsideFunction !== null &&
+    !isObjectEmpty(entry.getters)
+  ) {
     threw = true
     error = new errors.SyntaxError(dummyParser, ILLEGAL_AWAIT_IN_NON_ASYNC_FUNCTION)
     error.column = firstAwaitOutsideFunction.column
@@ -477,8 +432,7 @@ function tryRun(entry, filename, fallback) {
     error.line = firstAwaitOutsideFunction.line
   }
 
-  if (! threw &&
-      ! entry.running) {
+  if (!threw && !entry.running) {
     entry.running = true
 
     try {
@@ -491,9 +445,8 @@ function tryRun(entry, filename, fallback) {
     entry.running = false
   }
 
-  if (! threw) {
-    if (isESM ||
-        isWASM) {
+  if (!threw) {
+    if (isESM || isWASM) {
       Reflect.defineProperty(mod, "loaded", {
         configurable: true,
         enumerable: true,
@@ -508,17 +461,14 @@ function tryRun(entry, filename, fallback) {
       })
     }
 
-    entry.state = parsing
-      ? STATE_PARSING_COMPLETED
-      : STATE_EXECUTION_COMPLETED
+    entry.state = parsing ? STATE_PARSING_COMPLETED : STATE_EXECUTION_COMPLETED
 
     return result
   }
 
   entry.state = STATE_INITIAL
 
-  if (Loader.state.package.default.options.debug ||
-      ! isStackTraceMaskable(error)) {
+  if (Loader.state.package.default.options.debug || !isStackTraceMaskable(error)) {
     toExternalError(error)
 
     throw error
@@ -527,10 +477,10 @@ function tryRun(entry, filename, fallback) {
   const message = toString(get(error, "message"))
   const name = get(error, "name")
 
-  if (isESM &&
-      (name === "SyntaxError" ||
-       (name === "ReferenceError" &&
-        exportsRegExp.test(message)))) {
+  if (
+    isESM &&
+    (name === "SyntaxError" || (name === "ReferenceError" && exportsRegExp.test(message)))
+  ) {
     pkg.cache.dirty = true
   }
 
@@ -546,21 +496,17 @@ function tryRun(entry, filename, fallback) {
 }
 
 function useAsync(entry) {
-  return entry.package.options.await &&
-    shared.support.await &&
-    entry.extname !== ".mjs"
+  return entry.package.options.await && shared.support.await && entry.extname !== ".mjs"
 }
 
 function useSourceMap(entry) {
   const { sourceMap } = entry.package.options
 
-  return sourceMap !== false &&
-    (sourceMap ||
-     DEVELOPMENT ||
-     ELECTRON_RENDERER ||
-     NDB ||
-     FLAGS.inspect) &&
+  return (
+    sourceMap !== false &&
+    (sourceMap || DEVELOPMENT || ELECTRON_RENDERER || NDB || FLAGS.inspect) &&
     getSourceMappingURL(entry.compileData.code) === ""
+  )
 }
 
 function jsonEvaluate(entry, parsed) {
@@ -592,9 +538,7 @@ function jsonParse(entry, filename, fallback) {
       parentEntry.extname !== ".mjs"
   }
 
-  const content = useFallback
-    ? null
-    : stripBOM(readFile(filename, "utf8"))
+  const content = useFallback ? null : stripBOM(readFile(filename, "utf8"))
 
   let error
   let parsed
@@ -612,7 +556,7 @@ function jsonParse(entry, filename, fallback) {
   } catch (e) {
     error = e
 
-    if (! useFallback) {
+    if (!useFallback) {
       error.message = filename + ": " + error.message
     }
   }
@@ -686,10 +630,16 @@ function wasmParse(entry, filename, importObject) {
     }
   }
 
-  for (const { module:request, name } of importDescriptions) {
-    esmImport(request, entry, [[name, [name], (value, childEntry) => {
-      importObject[request] = childEntry.name
-    }]])
+  for (const { module: request, name } of importDescriptions) {
+    esmImport(request, entry, [
+      [
+        name,
+        [name],
+        (value, childEntry) => {
+          importObject[request] = childEntry.name
+        }
+      ]
+    ])
   }
 
   return wasmMod

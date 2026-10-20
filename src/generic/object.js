@@ -10,18 +10,15 @@ function init() {
         properties = void 0
       }
 
-      if (proto === null ||
-          isObjectLike(proto)) {
+      if (proto === null || isObjectLike(proto)) {
         return Object.create(proto, properties)
       }
 
       return properties === void 0
-        ? new ExObject
-        : Object.defineProperties(new ExObject, properties)
+        ? new ExObject()
+        : Object.defineProperties(new ExObject(), properties)
     }
   }
 }
 
-export default shared.inited
-  ? shared.module.GenericObject
-  : shared.module.GenericObject = init()
+export default shared.inited ? shared.module.GenericObject : (shared.module.GenericObject = init())

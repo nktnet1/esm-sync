@@ -3,10 +3,7 @@ import CHAR_CODE from "../constant/char-code.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    APOSTROPHE,
-    QUOTE
-  } = CHAR_CODE
+  const { APOSTROPHE, QUOTE } = CHAR_CODE
 
   const unescapeRegExpMap = new Map([
     [APOSTROPHE, /\\'/g],
@@ -28,4 +25,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilUnescapeQuotes
-  : shared.module.utilUnescapeQuotes = init()
+  : (shared.module.utilUnescapeQuotes = init())

@@ -26,12 +26,12 @@ const UNINITIALIZED_VALUE = {}
 const nonWhitespaceRegExp = /\S/
 
 function proxyInspectable(object, options, map) {
-  if (! isProxyInspectable(object)) {
+  if (!isProxyInspectable(object)) {
     return object
   }
 
   if (map === void 0) {
-    map = new Map
+    map = new Map()
   } else {
     const cached = map.get(object)
 
@@ -55,14 +55,10 @@ function proxyInspectable(object, options, map) {
 
       let newValue = value
 
-      if (value === builtinInspect &&
-          (name === customInspectKey ||
-            name === "inspect")) {
+      if (value === builtinInspect && (name === customInspectKey || name === "inspect")) {
         newValue = safeInspect
-      } else if (inspecting ||
-                  name !== customInspectKey) {
-        if (name === "toString" &&
-            typeof value === "function") {
+      } else if (inspecting || name !== customInspectKey) {
+        if (name === "toString" && typeof value === "function") {
           newValue = GenericFunction.bind(value, object)
         }
       } else {
@@ -97,9 +93,7 @@ function proxyInspectable(object, options, map) {
               objectIsProxy = isProxy(object)
             }
 
-            if (! showProxy ||
-                ! objectIsProxy ||
-                objectIsOwnProxy) {
+            if (!showProxy || !objectIsProxy || objectIsOwnProxy) {
               if (typeof value !== "function") {
                 contextAsOptions.customInspect = true
               }
@@ -116,8 +110,7 @@ function proxyInspectable(object, options, map) {
         })
       }
 
-      if (newValue !== value &&
-          isUpdatableGet(object, name)) {
+      if (newValue !== value && isUpdatableGet(object, name)) {
         return newValue
       }
 
@@ -172,10 +165,7 @@ function formatProxy(proxy, context) {
   let object = proxy
 
   if (details !== void 0) {
-    object = new Proxy(
-      toInspectable(details[0], context),
-      toInspectable(details[1], context)
-    )
+    object = new Proxy(toInspectable(details[0], context), toInspectable(details[1], context))
   }
 
   const contextAsOptions = assign({}, context)

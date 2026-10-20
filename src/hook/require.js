@@ -11,20 +11,16 @@ import makeRequireFunction from "../module/internal/make-require-function.js"
 import shared from "../shared.js"
 import validateString from "../util/validate-string.js"
 
-const {
-  TYPE_CJS
-} = ENTRY
+const { TYPE_CJS } = ENTRY
 
-const {
-  ERR_INVALID_ARG_VALUE
-} = errors
+const { ERR_INVALID_ARG_VALUE } = errors
 
 function hook(parent) {
   function requirer(request) {
     validateString(request, "request")
 
     if (request === "") {
-      throw new ERR_INVALID_ARG_VALUE("request",  request, "must be a non-empty string")
+      throw new ERR_INVALID_ARG_VALUE("request", request, "must be a non-empty string")
     }
 
     const filename = dualResolveFilename(request, parent)

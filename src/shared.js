@@ -4,14 +4,9 @@ import ESM from "./constant/esm.js"
 import encodeId from "./util/encode-id.js"
 import setDeferred from "./util/set-deferred.js"
 
-const {
-  PROXY_PREFIX
-} = INSPECT
+const { PROXY_PREFIX } = INSPECT
 
-const {
-  PACKAGE_PREFIX,
-  PACKAGE_VERSION
-} = ESM
+const { PACKAGE_PREFIX, PACKAGE_VERSION } = ESM
 
 const SHARED_SYMBOL = Symbol.for(PACKAGE_PREFIX + "@" + PACKAGE_VERSION + ":shared")
 
@@ -23,7 +18,6 @@ function getShared() {
   }
 
   try {
-    // eslint-disable-next-line no-global-assign
     __shared__ = __non_webpack_require__(SHARED_SYMBOL)
     __shared__.reloaded = true
 
@@ -61,34 +55,34 @@ function init() {
   const utilBinding = {}
 
   const shared = {
-    bridged: new Map,
+    bridged: new Map(),
     customInspectKey: void 0,
     defaultInspectOptions: void 0,
     entry: {
-      cache: new WeakMap
+      cache: new WeakMap()
     },
     external: __external__,
     inited: false,
-    loader: new Map,
+    loader: new Map(),
     memoize: {
-      builtinEntries: new Map,
-      builtinModules: new Map,
-      fsRealpath: new Map,
-      moduleESMResolveFilename: new Map,
-      moduleInternalFindPath: new Map,
-      moduleInternalReadPackage: new Map,
-      moduleStaticResolveFilename: new Map,
-      shimFunctionPrototypeToString: new WeakMap,
-      shimProcessBindingUtilGetProxyDetails: new Map,
-      shimPuppeteerExecutionContextPrototypeEvaluateHandle: new WeakMap,
-      utilGetProxyDetails: new WeakMap,
-      utilMaskFunction: new WeakMap,
-      utilMaxSatisfying: new Map,
-      utilParseURL: new Map,
-      utilProxyExports: new WeakMap,
-      utilSatisfies: new Map,
-      utilUnwrapOwnProxy: new WeakMap,
-      utilUnwrapProxy: new WeakMap
+      builtinEntries: new Map(),
+      builtinModules: new Map(),
+      fsRealpath: new Map(),
+      moduleESMResolveFilename: new Map(),
+      moduleInternalFindPath: new Map(),
+      moduleInternalReadPackage: new Map(),
+      moduleStaticResolveFilename: new Map(),
+      shimFunctionPrototypeToString: new WeakMap(),
+      shimProcessBindingUtilGetProxyDetails: new Map(),
+      shimPuppeteerExecutionContextPrototypeEvaluateHandle: new WeakMap(),
+      utilGetProxyDetails: new WeakMap(),
+      utilMaskFunction: new WeakMap(),
+      utilMaxSatisfying: new Map(),
+      utilParseURL: new Map(),
+      utilProxyExports: new WeakMap(),
+      utilSatisfies: new Map(),
+      utilUnwrapOwnProxy: new WeakMap(),
+      utilUnwrapProxy: new WeakMap()
     },
     module: {},
     moduleState: {
@@ -99,11 +93,11 @@ function init() {
       statSync: null
     },
     package: {
-      dir: new Map,
-      root: new Map
+      dir: new Map(),
+      root: new Map()
     },
-    pendingScripts: new Map,
-    pendingWrites: new Map,
+    pendingScripts: new Map(),
+    pendingWrites: new Map(),
     realpathNativeSync: void 0,
     reloaded: false,
     safeGlobal: __global__,
@@ -131,11 +125,7 @@ function init() {
   })
 
   setDeferred(shared, "originalConsole", () => {
-    const {
-      safeInspector,
-      safeVM,
-      utilGet
-    } = shared.module
+    const { safeInspector, safeVM, utilGet } = shared.module
 
     const originalConsole = utilGet(safeInspector, "console")
 
@@ -158,19 +148,12 @@ function init() {
     const { safeCrypto } = shared.module
 
     return encodeId(
-      "_" +
-      safeCrypto.createHash("md5")
-        .update(Date.now().toString())
-        .digest("hex")
-        .slice(0, 3)
+      "_" + safeCrypto.createHash("md5").update(Date.now().toString()).digest("hex").slice(0, 3)
     )
   })
 
   setDeferred(shared, "unsafeContext", () => {
-    const {
-      safeVM,
-      utilPrepareContext
-    } = shared.module
+    const { safeVM, utilPrepareContext } = shared.module
 
     return utilPrepareContext(safeVM.createContext(shared.unsafeGlobal))
   })
@@ -187,10 +170,7 @@ function init() {
   })
 
   setDeferred(support, "consoleOptions", () => {
-    const {
-      safeProcess,
-      utilSatisfies
-    } = shared.module
+    const { safeProcess, utilSatisfies } = shared.module
 
     return utilSatisfies(safeProcess.version, ">=10")
   })
@@ -210,8 +190,7 @@ function init() {
       showProxy: true
     })
 
-    return inspected.indexOf(PROXY_PREFIX) !== -1 &&
-           inspected.indexOf(PACKAGE_PREFIX) !== -1
+    return inspected.indexOf(PROXY_PREFIX) !== -1 && inspected.indexOf(PACKAGE_PREFIX) !== -1
   })
 
   setDeferred(support, "lookupShadowed", () => {
@@ -220,23 +199,18 @@ function init() {
     // https://node.green/#ES2017-annex-b
     const object = {
       __proto__: {
-        // eslint-disable-next-line getter-return
+        // biome-ignore lint/suspicious/useGetterReturn: Validates support for empty getters.
         get a() {},
         set a(v) {}
       },
       a: 1
     }
 
-    return object.__lookupGetter__("a") === void 0 &&
-           object.__lookupSetter__("a") === void 0
+    return object.__lookupGetter__("a") === void 0 && object.__lookupSetter__("a") === void 0
   })
 
   setDeferred(support, "nativeProxyReceiver", () => {
-    const {
-      SafeBuffer,
-      utilGet,
-      utilToString
-    } = shared.module
+    const { SafeBuffer, utilGet, utilToString } = shared.module
 
     // Detect support for invoking native functions with a proxy receiver.
     // https://bugs.chromium.org/p/v8/issues/detail?id=5773
@@ -249,43 +223,30 @@ function init() {
       // https://github.com/terser-js/terser#the-unsafe-compress-option
       return typeof proxy.toString() === "string"
     } catch (e) {
-      return ! /Illegal/.test(utilToString(utilGet(e, "message")))
+      return !/Illegal/.test(utilToString(utilGet(e, "message")))
     }
   })
 
   setDeferred(support, "realpathNative", () => {
-    const {
-      safeProcess,
-      utilSatisfies
-    } = shared.module
+    const { safeProcess, utilSatisfies } = shared.module
 
     return utilSatisfies(safeProcess.version, ">=9.2")
   })
 
   setDeferred(support, "replShowProxy", () => {
-    const {
-      safeProcess,
-      utilSatisfies
-    } = shared.module
+    const { safeProcess, utilSatisfies } = shared.module
 
     return utilSatisfies(safeProcess.version, ">=10")
   })
 
   setDeferred(support, "vmCompileFunction", () => {
-    const {
-      safeProcess,
-      utilSatisfies
-    } = shared.module
+    const { safeProcess, utilSatisfies } = shared.module
 
     return utilSatisfies(safeProcess.version, ">=10.10")
   })
 
   setDeferred(utilBinding, "errorDecoratedSymbol", () => {
-    const {
-      binding,
-      safeProcess,
-      utilSatisfies
-    } = shared.module
+    const { binding, safeProcess, utilSatisfies } = shared.module
 
     return utilSatisfies(safeProcess.version, "<7")
       ? "node:decorated"
@@ -296,8 +257,7 @@ function init() {
     return typeof utilBinding.errorDecoratedSymbol
   })
 
-  // eslint-disable-next-line no-global-assign
-  return __shared__ = shared
+  return (__shared__ = shared)
 }
 
 export default getShared()

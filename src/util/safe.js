@@ -12,9 +12,7 @@ function init() {
         return Array.from(value)
       }
 
-      return isObject(value)
-        ? safeAssignPropertiesIn({}, value)
-        : value
+      return isObject(value) ? safeAssignPropertiesIn({}, value) : value
     }
 
     const Super = value
@@ -46,6 +44,4 @@ function init() {
   return safe
 }
 
-export default shared.inited
-  ? shared.module.utilSafe
-  : shared.module.utilSafe = init()
+export default shared.inited ? shared.module.utilSafe : (shared.module.utilSafe = init())

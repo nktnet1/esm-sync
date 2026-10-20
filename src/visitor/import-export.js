@@ -48,8 +48,7 @@ function init() {
 
       if (importedBindings.size !== 0) {
         code +=
-          (this.generateVarDeclarations ? "var " : "let ") +
-          [...importedBindings].join(",") + ";"
+          (this.generateVarDeclarations ? "var " : "let ") + [...importedBindings].join(",") + ";"
       }
 
       code += toModuleExport(this, this.hoistedExports)
@@ -65,43 +64,40 @@ function init() {
           const valueParam = safeName("v", localNames)
 
           setterArgsList +=
-            (setterArgsList === ""
-              ? ""
-              : ","
-            ) +
+            (setterArgsList === "" ? "" : ",") +
             '["' +
-            name + '",' +
-            (name === "*"
-              ? "null"
-              : '["' + localNames.join('","') + '"]'
-            ) +
-            ",function(" + valueParam + "){" +
+            name +
+            '",' +
+            (name === "*" ? "null" : '["' + localNames.join('","') + '"]') +
+            ",function(" +
+            valueParam +
+            "){" +
             // Multiple local variables become a compound assignment.
-            localNames.join("=") + "=" + valueParam +
+            localNames.join("=") +
+            "=" +
+            valueParam +
             "}]"
         })
 
         map.reExports.forEach((localNames, name) => {
           for (const localName of localNames) {
             setterArgsList +=
-              (setterArgsList === ""
-                ? ""
-                : ","
-              ) +
+              (setterArgsList === "" ? "" : ",") +
               '["' +
-              localName + '",null,' +
-              runtimeName + '.f("' + localName + '","' + name +
+              localName +
+              '",null,' +
+              runtimeName +
+              '.f("' +
+              localName +
+              '","' +
+              name +
               '")]'
           }
         })
 
         if (map.star) {
           setterArgsList +=
-            (setterArgsList === ""
-              ? ""
-              : ","
-            ) +
-            '["*",null,' + runtimeName + ".n()]"
+            (setterArgsList === "" ? "" : ",") + '["*",null,' + runtimeName + ".n()]"
         }
 
         if (setterArgsList !== "") {
@@ -134,16 +130,16 @@ function init() {
       if (options !== void 0) {
         const { magicString } = options
 
-        this.assignableBindings = new Set
+        this.assignableBindings = new Set()
         this.firstLineBreakPos = magicString.original.search(lineBreakRegExp)
         this.generateVarDeclarations = options.generateVarDeclarations
         this.hoistedExports = []
-        this.importSpecifierMap = new Map
+        this.importSpecifierMap = new Map()
         this.magicString = magicString
         this.possibleIndexes = options.possibleIndexes
         this.runtimeName = options.runtimeName
         this.sourceType = options.sourceType
-        this.temporalBindings = new Set
+        this.temporalBindings = new Set()
         this.top = options.top
         this.yieldIndex = options.yieldIndex
       }
@@ -273,13 +269,9 @@ function init() {
         id = null
       }
 
-      const name = id === null
-        ? runtimeName + "anonymous"
-        : id.name
+      const name = id === null ? runtimeName + "anonymous" : id.name
 
-      if ((id !== null &&
-           type === "ClassDeclaration") ||
-          type === "FunctionDeclaration") {
+      if ((id !== null && type === "ClassDeclaration") || type === "FunctionDeclaration") {
         // Support exporting default function declarations:
         // export default function named() {}
         if (id === null) {
@@ -294,11 +286,13 @@ function init() {
         let prefix = runtimeName + ".d("
         let suffix = ");"
 
-        if (id === null &&
-            (type === "ArrowFunctionExpression" ||
-             type === "ClassDeclaration" ||
-             type === "ClassExpression" ||
-             type === "FunctionExpression")) {
+        if (
+          id === null &&
+          (type === "ArrowFunctionExpression" ||
+            type === "ClassDeclaration" ||
+            type === "ClassExpression" ||
+            type === "FunctionExpression")
+        ) {
           // Assign anonymous functions to a variable so they're given a
           // temporary name, which we'll rename later to "default".
           // https://tc39.github.io/ecma262/#sec-exports-runtime-semantics-evaluation
@@ -316,18 +310,14 @@ function init() {
           suffix = ")" + suffix
         }
 
-        const localName = id === null
-          ? runtimeName + ".o"
-          : name
+        const localName = id === null ? runtimeName + ".o" : name
 
         this.hoistedExports.push(["default", localName])
 
         overwrite(this, node.start, declaration.start, "")
         overwrite(this, declaration.end, node.end, "")
 
-        magicString
-          .prependLeft(declaration.start, prefix)
-          .prependRight(declaration.end, suffix)
+        magicString.prependLeft(declaration.start, prefix).prependRight(declaration.end, suffix)
       }
 
       if (id !== null) {
@@ -347,18 +337,13 @@ function init() {
       const { assignableBindings, magicString } = this
       const node = path.getValue()
 
-      const {
-        declaration,
-        source,
-        specifiers
-      } = node
+      const { declaration, source, specifiers } = node
 
       if (declaration !== null) {
         const pairs = []
         const { type } = declaration
 
-        if (type === "ClassDeclaration" ||
-            type === "FunctionDeclaration") {
+        if (type === "ClassDeclaration" || type === "FunctionDeclaration") {
           // Support exporting named class and function declarations:
           // export function named() {}
           const { name } = declaration.id
@@ -398,7 +383,7 @@ function init() {
           const exportedName = getExportedName(specifier)
           const localName = specifier.local.name
 
-          if (! topIdentifiers.has(localName)) {
+          if (!topIdentifiers.has(localName)) {
             throw new errors.SyntaxError(
               {
                 inModule: true,
@@ -439,9 +424,8 @@ function init() {
             reExports.set(exportedName, localNames)
           }
 
-          const localName = specifier.type === "ExportNamespaceSpecifier"
-            ? "*"
-            : specifier.local.name
+          const localName =
+            specifier.type === "ExportNamespaceSpecifier" ? "*" : specifier.local.name
 
           localNames.push(localName)
         }
@@ -468,8 +452,8 @@ function init() {
 
   function createImportSpecifierMap() {
     return {
-      imports: new Map,
-      reExports: new Map,
+      imports: new Map(),
+      reExports: new Map(),
       star: false
     }
   }
@@ -492,14 +476,15 @@ function init() {
     if (type === "ExportDefaultDeclaration") {
       const declType = declaration.type
 
-      return declType === "FunctionDeclaration" ||
-             declType === "ClassDeclaration"
+      return declType === "FunctionDeclaration" || declType === "ClassDeclaration"
     }
 
-    if (type === "ExportNamedDeclaration" &&
-        declaration !== null &&
-        declaration.type === "VariableDeclaration" &&
-        declaration.kind === "const") {
+    if (
+      type === "ExportNamedDeclaration" &&
+      declaration !== null &&
+      declaration.type === "VariableDeclaration" &&
+      declaration.kind === "const"
+    ) {
       return false
     }
 
@@ -507,9 +492,7 @@ function init() {
   }
 
   function safeName(name, localNames) {
-    return localNames.indexOf(name) === -1
-      ? name
-      : safeName(encodeId(name), localNames)
+    return localNames.indexOf(name) === -1 ? name : safeName(encodeId(name), localNames)
   }
 
   function toModuleExport(visitor, pairs) {
@@ -528,14 +511,7 @@ function init() {
     code += visitor.runtimeName + ".x(["
 
     for (const [exportedName, localName] of pairs) {
-      code +=
-        '["' + exportedName + '",()=>' +
-        localName +
-        "]" +
-        (++i === lastIndex
-          ? ""
-          : ","
-        )
+      code += '["' + exportedName + '",()=>' + localName + "]" + (++i === lastIndex ? "" : ",")
     }
 
     code += "]);"
@@ -543,9 +519,9 @@ function init() {
     return code
   }
 
-  return new ImportExportVisitor
+  return new ImportExportVisitor()
 }
 
 export default shared.inited
   ? shared.module.visitorImportExport
-  : shared.module.visitorImportExport = init()
+  : (shared.module.visitorImportExport = init())

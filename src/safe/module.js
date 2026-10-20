@@ -5,4 +5,4 @@ import shared from "../shared.js"
 
 export default shared.inited
   ? shared.module.SafeModule
-  : shared.module.SafeModule = safe(RealModule)
+  : (shared.module.SafeModule = safe(RealModule))

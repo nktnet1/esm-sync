@@ -23,6 +23,4 @@ function init() {
   return safeRequire
 }
 
-export default shared.inited
-  ? shared.module.safeRequire
-  : shared.module.safeRequire = init()
+export default shared.inited ? shared.module.safeRequire : (shared.module.safeRequire = init())

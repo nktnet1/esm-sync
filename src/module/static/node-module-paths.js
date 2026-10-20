@@ -15,19 +15,11 @@ import isSep from "../../path/is-sep.js"
 import maskFunction from "../../util/mask-function.js"
 import validateString from "../../util/validate-string.js"
 
-const {
-  BACKWARD_SLASH,
-  COLON
-} = CHAR_CODE
+const { BACKWARD_SLASH, COLON } = CHAR_CODE
 
-const {
-  ELECTRON,
-  WIN32
-} = ENV
+const { ELECTRON, WIN32 } = ENV
 
-const nmChars = Array.prototype
-  .map.call("node_modules", (char) => char.charCodeAt(0))
-  .reverse()
+const nmChars = Array.prototype.map.call("node_modules", (char) => char.charCodeAt(0)).reverse()
 
 const nmLength = nmChars.length
 
@@ -47,9 +39,11 @@ const nodeModulePaths = maskFunction(function (from) {
   // an array of two items for a root path.
   if (WIN32) {
     // Return root node_modules when path is "D:\\".
-    if (from.length > 1 &&
-        from.charCodeAt(from.length - 1) === BACKWARD_SLASH &&
-        from.charCodeAt(from.length - 2) === COLON) {
+    if (
+      from.length > 1 &&
+      from.charCodeAt(from.length - 1) === BACKWARD_SLASH &&
+      from.charCodeAt(from.length - 2) === COLON
+    ) {
       return GenericArray.of(from + "node_modules")
     }
   } else if (from === "/") {
@@ -86,7 +80,7 @@ const nodeModulePaths = maskFunction(function (from) {
     }
   }
 
-  if (! WIN32) {
+  if (!WIN32) {
     // Append "/node_modules" to handle root paths.
     GenericArray.push(paths, "/node_modules")
   }

@@ -4,9 +4,7 @@ import shared from "../shared.js"
 import untransformRuntime from "../util/untransform-runtime.js"
 
 function init() {
-  const {
-    PACKAGE_FILENAMES
-  } = ESM
+  const { PACKAGE_FILENAMES } = ESM
 
   const columnInfoRegExp = /:1:\d+(?=\)?$)/gm
   const traceRegExp = /(\n +at .+)+$/
@@ -48,4 +46,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.errorScrubStackTrace
-  : shared.module.errorScrubStackTrace = init()
+  : (shared.module.errorScrubStackTrace = init())

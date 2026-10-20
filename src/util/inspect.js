@@ -12,14 +12,12 @@ import proxyInspectable from "./proxy-inspectable.js"
 import { inspect as safeInspect } from "../safe/util.js"
 import shared from "../shared.js"
 
-const {
-  PROXY_PREFIX
-} = INSPECT
+const { PROXY_PREFIX } = INSPECT
 
 function inspect(...args) {
   let [value, options, depth] = args
 
-  if (! isObjectLike(value)) {
+  if (!isObjectLike(value)) {
     return Reflect.apply(safeInspect, this, args)
   }
 
@@ -43,8 +41,7 @@ function inspect(...args) {
     ? customOptions.showProxy
     : defaultInspectOptions.showProxy
 
-  if (depth !== void 0 &&
-      ! has(customOptions, "depth")) {
+  if (depth !== void 0 && !has(customOptions, "depth")) {
     customOptions.depth = depth
   }
 
@@ -53,9 +50,10 @@ function inspect(...args) {
 
   const result = Reflect.apply(tryInspect, this, args)
 
-  if (! isProxyInspectable(value) ||
-      (result.indexOf(PROXY_PREFIX) === -1 &&
-       ! isModuleNamespaceObjectLike(value))) {
+  if (
+    !isProxyInspectable(value) ||
+    (result.indexOf(PROXY_PREFIX) === -1 && !isModuleNamespaceObjectLike(value))
+  ) {
     return result
   }
 

@@ -1,4 +1,3 @@
-/* eslint strict: off, node/no-unsupported-features: ["error", { version: 6 }] */
 require("module").Module._extensions[".js"] = function (module, filename) {
   module._compile(require("fs").readFileSync(filename, "utf8"), filename)
 }
@@ -6,44 +5,31 @@ require("module").Module._extensions[".js"] = function (module, filename) {
 const globalThis = (function () {
   // Reference `this` before `Function()` to prevent CSP errors for unsafe-eval.
   // Fallback to `Function()` when Node is invoked with `--strict`.
-  return this ||
-         Function("return this")()
+  return this || Function("return this")()
 })()
 
-const {
-  apply,
-  defineProperty
-} = Reflect
+const { apply, defineProperty } = Reflect
 
 const { freeze } = Object
 const { hasOwnProperty } = Object.prototype
 const symbolFor = Symbol.for
 const { type, versions } = process
 
-const {
-  filename,
-  id,
-  parent
-} = module
+const { filename, id, parent } = module
 
 const isElectron = has(versions, "electron")
 const isElectronRenderer = isElectron && type === "renderer"
 
 let nativeContent = ""
 
-if (typeof id === "string" &&
-    id.startsWith("internal/")) {
+if (typeof id === "string" && id.startsWith("internal/")) {
   nativeContent = getNativeSource("internal/esm/loader")
 }
 
 const Module = require("module")
 const { Script } = require("vm")
 
-const {
-  createCachedData,
-  runInNewContext,
-  runInThisContext
-} = Script.prototype
+const { createCachedData, runInNewContext, runInThisContext } = Script.prototype
 
 const { sep } = require("path")
 const { readFileSync } = require("fs")
@@ -65,14 +51,11 @@ function getNativeSource(thePath) {
     }
   } catch (e) {}
 
-  return typeof result === "string"
-    ? result
-    : ""
+  return typeof result === "string" ? result : ""
 }
 
 function has(object, name) {
-  return object != null &&
-    apply(hasOwnProperty, object, [name])
+  return object != null && apply(hasOwnProperty, object, [name])
 }
 
 function loadESM() {
@@ -126,28 +109,30 @@ if (nativeContent !== "") {
 }
 
 const script = new Script(
-  "const __global__ = this;" +
-  "(function (require, module, __shared__) { " +
-  content +
-  "\n});",
+  "const __global__ = this;" + "(function (require, module, __shared__) { " + content + "\n});",
   scriptOptions
 )
 
 let compiledESM
 
 if (isElectronRenderer) {
-  compiledESM = apply(runInThisContext, script, [{
-    __proto__: null,
-    filename
-  }])
+  compiledESM = apply(runInThisContext, script, [
+    {
+      __proto__: null,
+      filename
+    }
+  ])
 } else {
-  compiledESM = apply(runInNewContext, script, [{
-    __proto__: null,
-    global: globalThis
-  }, {
-    __proto__: null,
-    filename
-  }])
+  compiledESM = apply(runInNewContext, script, [
+    {
+      __proto__: null,
+      global: globalThis
+    },
+    {
+      __proto__: null,
+      filename
+    }
+  ])
 }
 
 // Declare `shared` before assignment to avoid the TDZ.
@@ -170,21 +155,24 @@ if (cachePath !== "") {
     cache = {
       buffer: cachedData,
       compile: new Map([
-        ["esm", {
-          circular: 0,
-          code: null,
-          codeWithTDZ: null,
-          filename: null,
-          firstAwaitOutsideFunction: null,
-          firstReturnOutsideFunction: null,
-          mtime: -1,
-          scriptData,
-          sourceType: 1,
-          transforms: 0,
-          yieldIndex: -1
-        }]
+        [
+          "esm",
+          {
+            circular: 0,
+            code: null,
+            codeWithTDZ: null,
+            filename: null,
+            firstAwaitOutsideFunction: null,
+            firstReturnOutsideFunction: null,
+            mtime: -1,
+            scriptData,
+            sourceType: 1,
+            transforms: 0,
+            yieldIndex: -1
+          }
+        ]
       ]),
-      meta: new Map
+      meta: new Map()
     }
 
     dir.set(cachePath, cache)
@@ -195,7 +183,7 @@ if (cachePath !== "") {
   let scripts = pendingScripts.get(cachePath)
 
   if (scripts === void 0) {
-    scripts = new Map
+    scripts = new Map()
     pendingScripts.set(cachePath, scripts)
   }
 

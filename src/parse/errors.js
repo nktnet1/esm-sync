@@ -29,6 +29,4 @@ function init() {
   }
 }
 
-export default shared.inited
-  ? shared.module.parseErrors
-  : shared.module.parseErrors = init()
+export default shared.inited ? shared.module.parseErrors : (shared.module.parseErrors = init())

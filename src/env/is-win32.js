@@ -9,6 +9,4 @@ function init() {
   return isWin32
 }
 
-export default shared.inited
-  ? shared.module.envIsWin32
-  : shared.module.envIsWin32 = init()
+export default shared.inited ? shared.module.envIsWin32 : (shared.module.envIsWin32 = init())

@@ -25,4 +25,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSafeGetEnv
-  : shared.module.utilSafeGetEnv = init()
+  : (shared.module.utilSafeGetEnv = init())

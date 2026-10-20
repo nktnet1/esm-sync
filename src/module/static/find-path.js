@@ -11,15 +11,13 @@ import validateString from "../../util/validate-string.js"
 const findPath = maskFunction(function (request, paths, isMain) {
   validateString(request, "request")
 
-  if (! Array.isArray(paths)) {
+  if (!Array.isArray(paths)) {
     paths = []
   }
 
   const result = _findPath(request, paths, isMain)
 
-  return result === ""
-    ? false
-    : result
+  return result === "" ? false : result
 }, RealModule._findPath)
 
 export default findPath

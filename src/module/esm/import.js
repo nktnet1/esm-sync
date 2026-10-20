@@ -13,16 +13,9 @@ import shared from "../../shared.js"
 import validateDeep from "./validate-deep.js"
 import validateShallow from "./validate-shallow.js"
 
-const {
-  ERR_INVALID_ESM_FILE_EXTENSION
-} = errors
+const { ERR_INVALID_ESM_FILE_EXTENSION } = errors
 
-const {
-  TYPE_CJS,
-  TYPE_ESM,
-  STATE_PARSING_COMPLETED,
-  UPDATE_TYPE_INIT
-} = ENTRY
+const { TYPE_CJS, TYPE_ESM, STATE_PARSING_COMPLETED, UPDATE_TYPE_INIT } = ENTRY
 
 function esmImport(request, parentEntry, setterArgsList, isDynamic = false) {
   const { moduleState } = shared
@@ -48,7 +41,7 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false) {
     if (entry === null) {
       entry = getEntryFrom(request, exported, parentEntry)
       addChild(parentEntry, entry)
-    } else if (! Object.is(entry.module.exports, exported)) {
+    } else if (!Object.is(entry.module.exports, exported)) {
       const { name } = entry
 
       entry = getEntryFrom(request, exported, parentEntry)
@@ -63,8 +56,7 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false) {
 
   const preload = (entry) => addChild(parentEntry, entry)
 
-  if (isDynamic ||
-      parsing) {
+  if (isDynamic || parsing) {
     if (isDynamic) {
       moduleState.parsing = true
     }
@@ -80,9 +72,7 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false) {
     if (entry !== null) {
       entry.updateBindings()
 
-      if (isDynamic &&
-          entry.state === STATE_PARSING_COMPLETED &&
-          entry.type !== TYPE_CJS) {
+      if (isDynamic && entry.state === STATE_PARSING_COMPLETED && entry.type !== TYPE_CJS) {
         validateDeep(entry)
       }
     }
@@ -101,14 +91,16 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false) {
     entry._finalize = finalize
   }
 
-  if (parentEntry.extname === ".mjs" &&
-      entry !== null &&
-      entry.type === TYPE_ESM &&
-      entry.extname !== ".mjs") {
+  if (
+    parentEntry.extname === ".mjs" &&
+    entry !== null &&
+    entry.type === TYPE_ESM &&
+    entry.extname !== ".mjs"
+  ) {
     throw ERR_INVALID_ESM_FILE_EXTENSION(entry.module)
   }
 
-  if (! parsing) {
+  if (!parsing) {
     finalize()
   }
 }
@@ -116,8 +108,7 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false) {
 function getEntryFrom(request, exported, parentEntry) {
   const { _lastChild } = parentEntry
 
-  if (_lastChild !== null &&
-      Object.is(_lastChild.module.exports, exported)) {
+  if (_lastChild !== null && Object.is(_lastChild.module.exports, exported)) {
     return _lastChild
   }
 
@@ -142,9 +133,7 @@ function tryDualResolveFilename(request, parent, isMain) {
   if (isPath(request)) {
     const parentFilename = parent.filename
 
-    return typeof parentFilename === "string"
-      ? resolve(parentFilename, request)
-      : resolve(request)
+    return typeof parentFilename === "string" ? resolve(parentFilename, request) : resolve(request)
   }
 
   return request
@@ -168,19 +157,17 @@ function tryLoad(request, parentEntry, preload) {
 
   moduleState.requireDepth -= 1
 
-  if (! threw) {
+  if (!threw) {
     return entry
   }
 
-  if (parentEntry.extname === ".mjs" ||
-      ! isError(error)) {
+  if (parentEntry.extname === ".mjs" || !isError(error)) {
     throw error
   }
 
   const { code } = error
 
-  if (code !== "ERR_INVALID_PROTOCOL" &&
-      code !== "MODULE_NOT_FOUND") {
+  if (code !== "ERR_INVALID_PROTOCOL" && code !== "MODULE_NOT_FOUND") {
     throw error
   }
 

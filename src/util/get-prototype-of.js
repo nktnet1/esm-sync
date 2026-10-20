@@ -3,9 +3,7 @@ import shared from "../shared.js"
 
 function init() {
   function getPrototypeOf(object) {
-    return isObjectLike(object)
-      ? Reflect.getPrototypeOf(object)
-      : null
+    return isObjectLike(object) ? Reflect.getPrototypeOf(object) : null
   }
 
   return getPrototypeOf
@@ -13,4 +11,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetPrototypeOf
-  : shared.module.utilGetPrototypeOf = init()
+  : (shared.module.utilGetPrototypeOf = init())

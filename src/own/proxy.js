@@ -12,9 +12,7 @@ function init() {
   }
 
   class OwnProxy {
-    // TODO: Remove this eslint comment when the false positive is resolved.
-    // eslint-disable-next-line no-undef
-    static instances = new WeakMap
+    static instances = new WeakMap()
 
     constructor(target, handler) {
       const maskedHandler = { __proto__: handler }
@@ -47,6 +45,4 @@ function init() {
   return OwnProxy
 }
 
-export default shared.inited
-  ? shared.module.OwnProxy
-  : shared.module.OwnProxy = init()
+export default shared.inited ? shared.module.OwnProxy : (shared.module.OwnProxy = init())

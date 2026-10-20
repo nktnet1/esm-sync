@@ -26,11 +26,7 @@ import shared from "../shared.js"
 import toExternalFunction from "../util/to-external-function.js"
 import toString from "../util/to-string.js"
 
-const {
-  ELECTRON_RENDERER,
-  FLAGS,
-  HAS_INSPECTOR
-} = ENV
+const { ELECTRON_RENDERER, FLAGS, HAS_INSPECTOR } = ENV
 
 const SafeConsole = safeConsole.Console
 const SafeProto = SafeConsole.prototype
@@ -56,20 +52,17 @@ function createBuiltinConsole() {
     return realConsole
   }
 
-  if (HAS_INSPECTOR &&
-      FLAGS.inspect) {
+  if (HAS_INSPECTOR && FLAGS.inspect) {
     const { consoleCall } = binding.inspector
     const { originalConsole } = shared
     const useConsoleCall = typeof consoleCall === "function"
 
-    const emptyConfig = useConsoleCall
-      ? {}
-      : null
+    const emptyConfig = useConsoleCall ? {} : null
 
     const originalNames = keys(originalConsole)
 
     for (const name of originalNames) {
-      if (! isKeyAssignable(name)) {
+      if (!isKeyAssignable(name)) {
         continue
       }
 
@@ -78,18 +71,14 @@ function createBuiltinConsole() {
       if (typeof originalFunc === "function") {
         const builtinFunc = newBuiltinConsole[name]
 
-        if (useConsoleCall &&
-            typeof builtinFunc === "function" &&
-            has(newBuiltinConsole, name)) {
+        if (useConsoleCall && typeof builtinFunc === "function" && has(newBuiltinConsole, name)) {
           // Use `consoleCall()` to combine `builtinFunc()` and
           // `originalFunc()` without adding to the call stack.
-          setProperty(newBuiltinConsole, name, GenericFunction.bind(
-            consoleCall,
-            void 0,
-            originalFunc,
-            builtinFunc,
-            emptyConfig
-          ))
+          setProperty(
+            newBuiltinConsole,
+            name,
+            GenericFunction.bind(consoleCall, void 0, originalFunc, builtinFunc, emptyConfig)
+          )
         } else {
           setProperty(newBuiltinConsole, name, originalFunc)
         }
@@ -99,7 +88,7 @@ function createBuiltinConsole() {
     const globalNames = keys(safeGlobalConsole)
 
     for (const name of globalNames) {
-      if (! isKeyAssignable(name)) {
+      if (!isKeyAssignable(name)) {
         continue
       }
 
@@ -114,8 +103,7 @@ function createBuiltinConsole() {
   const safeNames = ownKeys(safeConsole)
 
   for (const name of safeNames) {
-    if (isKeyAssignable(name) &&
-        ! has(newBuiltinConsole, name)) {
+    if (isKeyAssignable(name) && !has(newBuiltinConsole, name)) {
       copyProperty(newBuiltinConsole, safeConsole, name)
     }
   }
@@ -127,16 +115,17 @@ function createBuiltinConsole() {
 
 function createBuiltinMethodMap(consoleObject) {
   const names = keys(consoleObject)
-  const newBuiltinMethodMap = new Map
+  const newBuiltinMethodMap = new Map()
 
   for (const name of names) {
     const func = consoleObject[name]
     const globalFunc = safeGlobalConsole[name]
 
-    if (typeof func === "function" &&
-        typeof globalFunc === "function" &&
-        (! isKeyAssignable(name) ||
-         isNativeLikeFunction(globalFunc))) {
+    if (
+      typeof func === "function" &&
+      typeof globalFunc === "function" &&
+      (!isKeyAssignable(name) || isNativeLikeFunction(globalFunc))
+    ) {
       newBuiltinMethodMap.set(globalFunc, func)
     }
   }
@@ -147,17 +136,15 @@ function createBuiltinMethodMap(consoleObject) {
 function createConsole({ stderr, stdout }) {
   const ConsoleProto = Console.prototype
 
-  const newConsole = Reflect.construct(Console,
-    shared.support.consoleOptions
-      ? [{ stderr, stdout }]
-      : [stdout, stderr]
+  const newConsole = Reflect.construct(
+    Console,
+    shared.support.consoleOptions ? [{ stderr, stdout }] : [stdout, stderr]
   )
 
   setPrototypeOf(newConsole, GenericObject.create())
 
   for (const name of SafeProtoNames) {
-    if (isKeyAssignable(name) &&
-        ! has(newConsole, name)) {
+    if (isKeyAssignable(name) && !has(newConsole, name)) {
       copyProperty(newConsole, ConsoleProto, name)
     }
   }
@@ -182,8 +169,7 @@ function createWrapperMap(consoleObject) {
   const names = keys(consoleObject)
 
   for (const name of names) {
-    if (isKeyAssignable(name) &&
-        ! newWrapperMap.has(name)) {
+    if (isKeyAssignable(name) && !newWrapperMap.has(name)) {
       const func = consoleObject[name]
 
       if (typeof func === "function") {
@@ -200,19 +186,22 @@ function defaultWrapper(func, args) {
 }
 
 function dirWrapper(func, [object, options]) {
-  return Reflect.apply(func, this, [{
-    [shared.customInspectKey](recurseTimes, context) {
-      const contextAsOptions = assign({}, context, options)
+  return Reflect.apply(func, this, [
+    {
+      [shared.customInspectKey](recurseTimes, context) {
+        const contextAsOptions = assign({}, context, options)
 
-      contextAsOptions.customInspect = has(options, "customInspect")
-        ? options.customInspect
-        : false
+        contextAsOptions.customInspect = has(options, "customInspect")
+          ? options.customInspect
+          : false
 
-      contextAsOptions.depth = recurseTimes
+        contextAsOptions.depth = recurseTimes
 
-      return builtinUtil.inspect(object, contextAsOptions)
-    }
-  }, dirOptions])
+        return builtinUtil.inspect(object, contextAsOptions)
+      }
+    },
+    dirOptions
+  ])
 }
 
 function findByRegExp(array, regexp) {
@@ -224,8 +213,7 @@ function findByRegExp(array, regexp) {
 }
 
 function isKeyAssignable(name) {
-  return name !== "Console" &&
-         name !== "constructor"
+  return name !== "Console" && name !== "constructor"
 }
 
 function logWrapper(func, args) {
@@ -233,7 +221,7 @@ function logWrapper(func, args) {
 }
 
 function toCustomInspectable(value) {
-  if (! isObjectLike(value)) {
+  if (!isObjectLike(value)) {
     return value
   }
 
@@ -315,8 +303,7 @@ const Console = maskFunction(function (...args) {
   const newSafeNames = ownKeys(newSafeConsole)
 
   for (const name of newSafeNames) {
-    if (isKeyAssignable(name) &&
-        ! has(this, name)) {
+    if (isKeyAssignable(name) && !has(this, name)) {
       copyProperty(this, newSafeConsole, name)
     }
   }
@@ -325,7 +312,7 @@ const Console = maskFunction(function (...args) {
 const ConsoleProto = Console.prototype
 
 for (const name of SafeProtoNames) {
-  if (! isKeyAssignable(name)) {
+  if (!isKeyAssignable(name)) {
     continue
   }
 
@@ -340,9 +327,7 @@ for (const name of SafeProtoNames) {
       configurable: descriptor.configurable,
       enumerable: descriptor.enumerable,
       value: wrapped,
-      writable:
-        descriptor.writable === true ||
-        typeof descriptor.set === "function"
+      writable: descriptor.writable === true || typeof descriptor.set === "function"
     })
   }
 }

@@ -10,6 +10,4 @@ function init() {
   return isBrave
 }
 
-export default shared.inited
-  ? shared.module.envIsBrave
-  : shared.module.envIsBrave = init()
+export default shared.inited ? shared.module.envIsBrave : (shared.module.envIsBrave = init())

@@ -3,9 +3,7 @@ import CHAR_CODE from "../constant/char-code.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    CARRIAGE_RETURN
-  } = CHAR_CODE
+  const { CARRIAGE_RETURN } = CHAR_CODE
 
   function pad(code, newCode, oldStart, oldEnd) {
     const oldCode = code.slice(oldStart, oldEnd)
@@ -35,6 +33,4 @@ function init() {
   return pad
 }
 
-export default shared.inited
-  ? shared.module.parsePad
-  : shared.module.parsePad = init()
+export default shared.inited ? shared.module.parsePad : (shared.module.parsePad = init())

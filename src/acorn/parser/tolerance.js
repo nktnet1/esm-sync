@@ -4,7 +4,7 @@ import noop from "../../util/noop.js"
 import shared from "../../shared.js"
 
 function init() {
-  const scopes = new Map
+  const scopes = new Map()
 
   const Plugin = {
     enable(parser) {
@@ -64,4 +64,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserTolerance
-  : shared.module.acornParserTolerance = init()
+  : (shared.module.acornParserTolerance = init())

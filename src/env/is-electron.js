@@ -5,13 +5,10 @@ import { versions } from "../safe/process.js"
 
 function init() {
   function isElectron() {
-    return has(versions, "electron") ||
-           isBrave()
+    return has(versions, "electron") || isBrave()
   }
 
   return isElectron
 }
 
-export default shared.inited
-  ? shared.module.envIsElectron
-  : shared.module.envIsElectron = init()
+export default shared.inited ? shared.module.envIsElectron : (shared.module.envIsElectron = init())

@@ -8,16 +8,12 @@ function init() {
   function readPackage(dirPath, fields) {
     const cache = shared.memoize.moduleInternalReadPackage
 
-    const fieldsLength = fields === void 0
-      ? 0
-      : fields.length
+    const fieldsLength = fields === void 0 ? 0 : fields.length
 
     let cacheKey = dirPath + "\0"
 
     if (fieldsLength > 0) {
-      cacheKey += fieldsLength === 1
-        ? fields[0]
-        : fields.join()
+      cacheKey += fieldsLength === 1 ? fields[0] : fields.join()
     }
 
     let cached = cache.get(cacheKey)
@@ -29,8 +25,7 @@ function init() {
     const jsonPath = dirPath + sep + "package.json"
     const jsonContent = readFile(jsonPath, "utf8")
 
-    if (jsonContent === null ||
-        jsonContent === "") {
+    if (jsonContent === null || jsonContent === "") {
       return null
     }
 
@@ -61,4 +56,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.moduleInternalReadPackage
-  : shared.module.moduleInternalReadPackage = init()
+  : (shared.module.moduleInternalReadPackage = init())

@@ -20,10 +20,7 @@ import setProperty from "../../util/set-property.js"
 import shared from "../../shared.js"
 import toExternalFunction from "../../util/to-external-function.js"
 
-const {
-  TYPE_CJS,
-  TYPE_PSEUDO
-} = ENTRY
+const { TYPE_CJS, TYPE_PSEUDO } = ENTRY
 
 function load(request, parent, isMain = false, preload) {
   const { parsing } = shared.moduleState
@@ -34,9 +31,7 @@ function load(request, parent, isMain = false, preload) {
 
   let filename
 
-  if (parentEntry !== null &&
-      parentCJS.paths &&
-      ! parentIsMJS) {
+  if (parentEntry !== null && parentCJS.paths && !parentIsMJS) {
     filename = dualResolveFilename(request, parent, isMain)
   } else {
     filename = resolveFilename(request, parent, isMain)
@@ -44,8 +39,7 @@ function load(request, parent, isMain = false, preload) {
 
   const fromPath = dirname(filename)
 
-  if (fromPath === "." &&
-      builtinLookup.has(filename)) {
+  if (fromPath === "." && builtinLookup.has(filename)) {
     request = filename
   }
 
@@ -55,22 +49,18 @@ function load(request, parent, isMain = false, preload) {
   const { moduleCache, scratchCache } = Loader.state.module
 
   let cache = Module._cache
-  let isUnexposed = ! cjs.cache
+  let isUnexposed = !cjs.cache
 
-  request = queryFragment === ""
-    ? filename
-    : getURLFromFilePath(filename) + queryFragment
+  request = queryFragment === "" ? filename : getURLFromFilePath(filename) + queryFragment
 
-  if (isExtMJS(filename) ||
-      has(moduleCache, request)) {
+  if (isExtMJS(filename) || has(moduleCache, request)) {
     cache = moduleCache
   } else if (parsing) {
     cache = scratchCache
   } else if (has(scratchCache, request)) {
     const mod = scratchCache[request]
 
-    if (isUnexposed &&
-        Entry.get(mod).type !== TYPE_CJS) {
+    if (isUnexposed && Entry.get(mod).type !== TYPE_CJS) {
       cache = moduleCache
     }
 
@@ -87,21 +77,20 @@ function load(request, parent, isMain = false, preload) {
       isUnexposed = false
     }
 
-    if (isMain &&
-        isUnexposed) {
+    if (isMain && isUnexposed) {
       Reflect.deleteProperty(realProcess, "mainModule")
     }
 
-    if (isCJS &&
-        parentEntry !== null &&
-        (parentIsMJS ||
-         (parentType !== TYPE_CJS &&
-          parentType !== TYPE_PSEUDO &&
-          ! parentCJS.cache))) {
-
+    if (
+      isCJS &&
+      parentEntry !== null &&
+      (parentIsMJS || (parentType !== TYPE_CJS && parentType !== TYPE_PSEUDO && !parentCJS.cache))
+    ) {
       try {
-      entry.module.parent = void 0
-      } catch {/* jest freezes module */}
+        entry.module.parent = void 0
+      } catch {
+        /* jest freezes module */
+      }
     }
   }
 
@@ -114,7 +103,7 @@ function load(request, parent, isMain = false, preload) {
       parentEntry.children[entry.name] = entry
     }
 
-    if (! parsing) {
+    if (!parsing) {
       sanitize(entry)
     }
 
@@ -129,8 +118,7 @@ function load(request, parent, isMain = false, preload) {
     sanitize(entry)
   }
 
-  if (! loaderCalled &&
-      typeof preload === "function") {
+  if (!loaderCalled && typeof preload === "function") {
     preload(entry)
   }
 
