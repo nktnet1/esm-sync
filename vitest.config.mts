@@ -6,6 +6,8 @@ export default defineConfig(({ mode }) => ({
   test: {
     include: ["test/vitest/**/*.test.mjs"],
     environment: "node",
+    fsModuleCache: true,
+    isolate: false,
     env: {
       ESM_SYNC_NODE_ENV: mode === "production" ? "production" : "development"
     },

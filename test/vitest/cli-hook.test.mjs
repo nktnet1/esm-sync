@@ -89,8 +89,8 @@ for (const esmEnv of testEnvironments) {
           esmEnv
         )
 
-        assert.notEqual(exitCode, 0)
-        assert.ok(stderr.includes("[ERR_REQUIRE_ESM]"), stderr)
+        assert.equal(exitCode, 1, stderr)
+        assert.match(stderr, /(?:^|\n)cli-hook-fail:ERR_REQUIRE_ESM(?:\n|$)/)
       })
     }
   })
