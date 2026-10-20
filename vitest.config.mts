@@ -8,6 +8,8 @@ export default defineConfig(({ mode }) => ({
     environment: "node",
     fsModuleCache: true,
     isolate: false,
+    // Native loader processes share a disk cache; keep test files sequential.
+    fileParallelism: false,
     env: {
       ESM_SYNC_NODE_ENV: mode === "production" ? "production" : "development"
     },

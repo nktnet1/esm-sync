@@ -51,7 +51,7 @@ jobs:
       - name: Build test bundles
         run: pnpm build --test
 
-      - name: Run Vitest CLI integration tests
+      - name: Run Vitest unit and CLI integration tests
         run: pnpm test:vitest
 
       - name: Run remaining real-Node integration tests

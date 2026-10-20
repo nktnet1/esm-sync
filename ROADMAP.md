@@ -149,6 +149,9 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
 - [x] Run both Vitest and the remaining Mocha suite in CI and in the local
       development/production test commands; do not rebuild twice in CI.
 - [ ] Migrate ordinary assertions, hooks, mocks, and test files to Vitest.
+- [x] Move the native-Node eval/print hook matrix and built-in module checks to
+      Vitest, sharing a subprocess harness with the existing CLI-hook tests.
+      Preserve cached/uncached scenarios and skip historical Node-only cases.
 - [x] Preserve process-isolated tests for `require()` hooks, Node internals,
       module caches, CLI execution, and environment-dependent behaviours.
       Only move tests when their native-Node execution boundary is preserved.
