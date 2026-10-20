@@ -64,6 +64,9 @@ should be a separate, reviewable patch and remove its superseded tooling.
 - [x] Keep the JavaScript loader in JavaScript; a source-wide TypeScript rewrite is not required.
 - [x] Retain the `ts-node` compatibility scenario and dependency: TypeScript 6
       maintains the compiler API required by compiler-API-based tooling.
+- [x] Detect stale installed compiler versions before type-checking: the supplied
+      dependency archive still contains TypeScript 4.9, which cannot parse the
+      current Node 26 type declarations and is not the declared TypeScript 6.
 - [ ] Verify `pnpm typecheck` and `ts-node` integration using installed TypeScript 6;
       the supplied dependencies still contain TypeScript 4.9.
 - [ ] Keep TypeScript constrained to the 6.x line in `.ncurc.mjs` until TypeScript
@@ -72,14 +75,26 @@ should be a separate, reviewable patch and remove its superseded tooling.
 ### 4. Update dependencies and CI hygiene
 
 - [ ] Update maintained runtime and development packages in small, tested groups.
-- [ ] Audit the single runtime dependency, `punycode`, for actual necessity.
-- [ ] Update GitHub Actions and use pinned, reproducible Node/pnpm setup.
-- [ ] Separate `lint`, `typecheck`, `build`, and `test` tasks; remove implicit
-      `prelint`/`pretest` rebuilds and avoid network downloads during normal tests.
+- [x] Audit the single runtime dependency, `punycode`: retain it because
+      `src/real/punycode.js` explicitly loads the userland `punycode/` entry.
+- [x] Keep CI on explicit Node/pnpm versions, cache the pnpm store, and surface
+      failures for every Node version rather than cancelling the matrix early.
+- [x] Separate `lint`, `typecheck`, `build`, and `test`; remove implicit
+      `prelint`/`pretest` rebuilds and mutating CI lint.
+- [x] Make vendor fixture downloads an explicit `pnpm fixtures:prepare` step;
+      fail fast when Acorn, Test262, or generated test bundles are unavailable.
+- [x] Propagate cleanup and child-process errors rather than silently passing
+      builds or tests after a failed operation.
+- [ ] Pin the Test262 source revision for reproducible fixture preparation.
 - [ ] Review security overrides and unused dependencies; keep overrides only
       where they remain necessary and document intentional pins.
 - [ ] Defer removal of ESLint, Mocha, Rspack, and Babel packages until their
       replacement phases, so this phase does not break the existing toolchain.
+
+For local verification, prepare fixtures once with `pnpm fixtures:prepare`,
+then run `pnpm build --test` followed by `pnpm test`. For production checks,
+use `pnpm verify:prod` after preparing fixtures. `pnpm lint` is read-only;
+`pnpm lint:fix` explicitly applies ESLint fixes.
 
 ### 5. Replace ESLint with Biome
 

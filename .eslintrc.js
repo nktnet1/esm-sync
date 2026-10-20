@@ -33,6 +33,8 @@ module.exports = {
     eqeqeq: ["error", "always", { null: "ignore" }],
     "import/no-duplicates": "error",
     "import/no-extraneous-dependencies": ["error", { packageDir: "./" }],
+    // Acorn sources are downloaded during explicit fixture preparation.
+    "import/no-unresolved": ["error", { ignore: ["^\\./vendor/acorn/acorn/src/"] }],
     "import/prefer-default-export": "error",
     "keyword-spacing": "error",
     "no-console": ["error", { allow: ["error"] }],

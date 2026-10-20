@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         node-version: [22, 24]
-      fail-fast: true
+      fail-fast: false
 
     steps:
       - name: Checkout code
@@ -31,17 +31,25 @@ jobs:
         with:
           runtime: node@${{ matrix.node-version }}
           install: false
+          cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       # The lockfile must be refreshed after the Lefthook migration before
       # frozen installs can be re-enabled. Lockfile changes are kept out of patches.
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Run ESLint
+      - name: Lint without modifying files
         run: pnpm lint
 
       - name: Type-check declarations and fixtures
         run: pnpm typecheck
+
+      - name: Prepare vendor fixtures
+        run: pnpm fixtures:prepare
+
+      - name: Build test bundles
+        run: pnpm build --test
 
       - name: Run tests
         run: pnpm test

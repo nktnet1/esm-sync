@@ -23,14 +23,14 @@ const testDirs = [
 ]
 
 function git(cwd, args) {
-  return execa("git", args, {
-    cwd,
-    reject: false
-  })
+  return execa("git", args, { cwd })
 }
 
 function setupTest262() {
-  if (fs.existsSync(test262Path)) {
+  const harnessPath = path.resolve(test262Path, "harness/assert.js")
+  const hasAllTestDirs = testDirs.every((dir) => fs.existsSync(path.resolve(test262Path, dir)))
+
+  if (fs.existsSync(harnessPath) && hasAllTestDirs) {
     return Promise.resolve()
   }
 

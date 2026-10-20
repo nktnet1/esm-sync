@@ -10,48 +10,20 @@ const options = {
 let _trash
 
 function trash(iterable) {
-  return new Promise((resolvePromise) => {
-    const paths = Array
-      .from(
-        typeof iterable === "string"
-          ? [iterable]
-          : iterable
-      )
-      .map((thePath) => path.resolve(String(thePath)))
-      .filter(fs.existsSync)
+  const paths = Array.from(typeof iterable === "string" ? [iterable] : iterable)
+    .map((thePath) => path.resolve(String(thePath)))
+    .filter(fs.existsSync)
 
-    const _emit = process.emit
+  if (!paths.length) {
+    return Promise.resolve()
+  }
 
-    process.emit = function (...args) {
-      const [name] = args
+  if (_trash === void 0) {
+    _trash = require("trash")
+  }
 
-      if (name !== "warning") {
-        return Reflect.apply(_emit, this, args)
-      }
-    }
-
-    process.noDeprecation = true
-
-    return Promise
-      .all(paths.map((thePath) => {
-        if (_trash === void 0) {
-          _trash = require("trash")
-        }
-
-        return _trash([thePath], options)
-          .catch((e) => {
-            if (e &&
-                e.code === "EACCES") {
-              process.exitCode = e.code
-            }
-          })
-      }))
-      .then(() => {
-        process.emit = _emit
-        Reflect.deleteProperty(process, "noDeprecation")
-        resolvePromise()
-      })
-  })
+  // Propagate failures so a failed cleanup cannot report a successful build/test.
+  return _trash(paths, options)
 }
 
 module.exports = trash

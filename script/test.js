@@ -7,7 +7,6 @@ const semver = require("semver")
 const fs = require("fs-extra")
 const ignorePaths = require("./ignore-paths.js")
 const path = require("path")
-const setupTest262 = require("./setup-test262.js")
 const terser = require("terser").minify
 const trash = require("./trash.js")
 
@@ -29,6 +28,9 @@ const fixturePath = path.resolve(testPath, "fixture")
 const indexPath = path.resolve(rootPath, "index.js")
 const mochaPath = path.resolve(rootPath, "node_modules/mocha/bin/_mocha")
 const nodePath = path.resolve(envPath, "prefix", isWin ? "node.exe" : "bin/node")
+const test262HarnessPath = path.resolve(testPath, "vendor/test262/harness/assert.js")
+const testBundlePath = path.resolve(rootPath, "build/compiler.js")
+const loaderPath = path.resolve(rootPath, "esm/loader.js")
 
 const NODE_ENV = argv.prod ? "production" : "development"
 const ESM_ENV = NODE_ENV + "-test"
@@ -63,6 +65,16 @@ nodeArgs.push(mochaPath, "--full-trace", "--require", "../index.js", "tests.js")
 
 const terserOptions = fs.readJSONSync(path.resolve(rootPath, ".terserrc"))
 const trashPaths = ignorePaths.filter(isKept)
+
+function assertFixturesReady() {
+  if (!fs.existsSync(test262HarnessPath)) {
+    throw new Error("Test262 fixture is missing. Run `pnpm fixtures:prepare` before testing.")
+  }
+
+  if (!fs.existsSync(testBundlePath) || !fs.existsSync(loaderPath)) {
+    throw new Error("Test bundles are missing. Run `pnpm build --test` before testing.")
+  }
+}
 
 async function cleanJS() {
   for (const filename of jsPaths) {
@@ -111,9 +123,6 @@ function runTests(cached) {
       USERPROFILE: HOME
     },
     stdio: "inherit"
-  }).catch((e) => {
-    console.error("Error running tests", e, { errorCode: e.code, errorNo: e.errno })
-    process.exit(e.errno ?? 1)
   })
 }
 
@@ -136,10 +145,16 @@ function setupRepo() {
   })
 }
 
-Promise.all([argv.prod && cleanJS(), setupRepo(), setupNode(), setupTest262()])
+Promise.resolve()
+  .then(assertFixturesReady)
+  .then(() => Promise.all([argv.prod && cleanJS(), setupRepo(), setupNode()]))
   .then(() => {
     // eslint-disable-next-line no-console
     console.log("Running tests...")
   })
   .then(() => runTests())
   .then(() => runTests(true))
+  .catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
