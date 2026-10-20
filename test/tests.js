@@ -4,7 +4,6 @@ import resetState from "./reset-state.js"
 
 import "./builtin-modules.mjs"
 import "./cache-tests.js"
-import "./cli-hook-tests.mjs"
 import "./compiler-tests.mjs"
 import "./dynamic-import-tests.mjs"
 import "./eval-hook-tests.mjs"

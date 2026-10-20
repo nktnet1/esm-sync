@@ -18,9 +18,13 @@
     "pub": "node script/publish.js",
     "test": "pnpm fixtures:prepare && pnpm build --test && pnpm test:run",
     "test:prod": "pnpm fixtures:prepare && pnpm build --prod --test && pnpm test:run:prod",
-    "test:run": "node script/test.js",
-    "test:run:prod": "node script/test.js --prod",
+    "test:node": "node script/test.js",
+    "test:node:prod": "node script/test.js --prod",
+    "test:run": "pnpm test:vitest && pnpm test:node",
+    "test:run:prod": "pnpm test:vitest:prod && pnpm test:node:prod",
     "test:packed": "node script/test-packed.js",
+    "test:vitest": "vitest run",
+    "test:vitest:prod": "vitest run --mode production",
     "typecheck": "node script/check-typescript.js && pnpm typecheck:tsc",
     "typecheck:tsc": "tsc --noEmit && tsc --noEmit -p test/fixture/scenario/ava-nyc-tsc",
     "verify:prod": "pnpm build:prod --test && pnpm test:run:prod"
@@ -125,6 +129,7 @@
     "typescript": "^6.0.3",
     "unexpected": "^13.2.1",
     "unused-webpack-plugin": "^2.4.0",
+    "vitest": "^5.0.5",
     "webpack": "^4.47.0",
     "webpack-bundle-analyzer": "^5.3.1",
     "webpack-cli": "^3.3.12"

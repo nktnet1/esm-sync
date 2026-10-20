@@ -51,8 +51,11 @@ jobs:
       - name: Build test bundles
         run: pnpm build --test
 
-      - name: Run tests
-        run: pnpm test:run
+      - name: Run Vitest CLI integration tests
+        run: pnpm test:vitest
+
+      - name: Run remaining real-Node integration tests
+        run: pnpm test:node
 
       - name: Verify production build and tests on Node 26
         if: matrix.node-version == 26

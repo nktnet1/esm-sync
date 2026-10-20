@@ -121,6 +121,12 @@
           }
         }
       }
+    },
+    {
+      "includes": ["test/vitest/**"],
+      "formatter": {
+        "enabled": true
+      }
     }
   ]
 }
