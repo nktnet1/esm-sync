@@ -5,13 +5,9 @@ import safeCopyProperty from "./safe-copy-property.js"
 import shared from "../shared.js"
 
 function init() {
-  function safeDefaultProperties(object) {
-    const { length } = arguments
-
-    let i = 0
-
-    while (++i < length) {
-      const source = arguments[i]
+  function safeDefaultProperties(object, ...sources) {
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i]
       const names = ownKeys(source)
 
       for (const name of names) {

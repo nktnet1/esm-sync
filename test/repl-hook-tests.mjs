@@ -146,6 +146,11 @@ describe("REPL hook tests", () => {
 
     r.context = context
     r.eval(code, context, "repl", (err) => {
+      if (err) {
+        done(err)
+        return
+      }
+
       context.dynamic
         .then((dynamic) => {
           const pkgNs = createNamespace(Object.assign({

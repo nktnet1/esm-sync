@@ -107,7 +107,7 @@ const resolveFilename = maskFunction(function (request, parent, isMain = false, 
     // resolution, which better covers some other cases (e.g. export maps).
     try {
       foundPath = realRequire.resolve(request, { paths })
-    } catch (e) {}
+    } catch (_e) {}
   }
 
   if (foundPath !== "") {

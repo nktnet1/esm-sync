@@ -102,7 +102,7 @@ describe("dynamic import tests", () => {
   it("should support `import()` in a catch block", () => {
     try {
       throw new Error
-    } catch (e) {
+    } catch (_e) {
       return import("./fixture/export/abc.mjs")
         .then(assertAbcNs)
     }

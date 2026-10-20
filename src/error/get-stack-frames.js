@@ -7,7 +7,7 @@ import toExternalFunction from "../util/to-external-function.js"
 function init() {
   "use sloppy"
 
-  const getStructuredStackTrace = toExternalFunction((error, trace) => trace)
+  const getStructuredStackTrace = toExternalFunction((_error, trace) => trace)
 
   function getStackFrames(error) {
     if (!isError(error)) {

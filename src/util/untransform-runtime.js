@@ -22,7 +22,7 @@ function init() {
       .replace(runtimeRegExp, replaceRuntime)
   }
 
-  function replaceAssert(match, name) {
+  function replaceAssert(_match, name) {
     return name
   }
 
@@ -34,7 +34,7 @@ function init() {
     return "eval"
   }
 
-  function replaceRuntime(match, name, dot = "") {
+  function replaceRuntime(_match, name, dot = "") {
     if (name === "e") {
       return "eval" + dot
     }
@@ -50,7 +50,7 @@ function init() {
     return ""
   }
 
-  function replaceThrowConstAssignment(match, left, operator) {
+  function replaceThrowConstAssignment(_match, left, operator) {
     return "(" + left + operator
   }
 

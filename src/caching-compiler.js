@@ -183,7 +183,7 @@ function init() {
         removeFile(cachePath + sep + ".data.blob")
         removeFile(cachePath + sep + ".data.json")
 
-        cache.compile.forEach((compileData, cacheName) => {
+        cache.compile.forEach((_compileData, cacheName) => {
           removeFile(cachePath + sep + cacheName)
         })
       }
@@ -265,7 +265,7 @@ function init() {
       const compileDatas = cache.compile
       const metas = cache.meta
 
-      scriptDatas.forEach((scriptData, cacheName) => {
+      scriptDatas.forEach((_scriptData, cacheName) => {
         let meta = metas.get(cacheName)
 
         if (meta !== void 0) {
@@ -386,7 +386,7 @@ function init() {
     const metas = cache.meta
     const pathHash = getCachePathHash(cacheName)
 
-    compileDatas.forEach((compileData, otherCacheName) => {
+    compileDatas.forEach((_compileData, otherCacheName) => {
       if (otherCacheName !== cacheName && otherCacheName.startsWith(pathHash)) {
         compileDatas.delete(otherCacheName)
         metas.delete(otherCacheName)

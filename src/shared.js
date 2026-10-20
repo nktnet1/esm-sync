@@ -201,7 +201,7 @@ function init() {
       __proto__: {
         // biome-ignore lint/suspicious/useGetterReturn: Validates support for empty getters.
         get a() {},
-        set a(v) {}
+        set a(_value) {}
       },
       a: 1
     }

@@ -49,7 +49,7 @@ const Runtime = {
     }
   },
   addExportFromSetter(importedName, exportedName = importedName) {
-    const setter = createAccessor(SETTER_TYPE_EXPORT_FROM, (value, childEntry) => {
+    const setter = createAccessor(SETTER_TYPE_EXPORT_FROM, (_value, childEntry) => {
       const { entry } = this
 
       if (entry._loaded === LOAD_COMPLETED) {
@@ -71,7 +71,7 @@ const Runtime = {
     this.entry.addGetters(getterArgsList)
   },
   addNamespaceSetter() {
-    return createAccessor(SETTER_TYPE_NAMESPACE, (value, childEntry) => {
+    return createAccessor(SETTER_TYPE_NAMESPACE, (_value, childEntry) => {
       const { entry } = this
 
       if (entry._loaded === LOAD_COMPLETED) {

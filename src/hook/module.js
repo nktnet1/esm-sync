@@ -96,7 +96,7 @@ function hook(Mod, parent) {
         setProperty(
           mod,
           "_compile",
-          toExternalFunction(function (ignoredContent, filename) {
+          toExternalFunction(function (_ignoredContent, filename) {
             if (shouldRestore) {
               setProperty(this, "_compile", _compile)
             } else {
@@ -223,7 +223,7 @@ function hook(Mod, parent) {
   }
 }
 
-function mjsCompiler(mod, filename) {
+function mjsCompiler(_mod, filename) {
   throw new ERR_REQUIRE_ESM(filename)
 }
 

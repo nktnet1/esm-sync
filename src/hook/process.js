@@ -19,7 +19,7 @@ function hook(processObject) {
       : Reflect.apply(wrapped, this, [manager, func, args])
   }
 
-  function exceptionMethodWrapper(manager, func, args) {
+  function exceptionMethodWrapper(_manager, func, args) {
     const [error] = args
 
     if (!Loader.state.package.default.options.debug && isStackTraceMaskable(error)) {
@@ -39,7 +39,7 @@ function hook(processObject) {
       : Reflect.apply(wrapped, this, [manager, func, args])
   }
 
-  function warningMethodWrapper(manager, func, args) {
+  function warningMethodWrapper(_manager, func, args) {
     const [stack] = args
 
     if (typeof stack === "string") {

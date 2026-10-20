@@ -119,6 +119,7 @@ function formatWithOptions(options, ...args) {
               } else if (type === "symbol") {
                 segment = "NaN"
               } else {
+                // biome-ignore lint/correctness/useParseIntRadix: Match Node %i automatic radix detection.
                 segment = parseInt(value) + ""
               }
 

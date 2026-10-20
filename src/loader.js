@@ -11,6 +11,7 @@ import shared from "./shared.js"
 
 const { FLAGS } = ENV
 
+// biome-ignore lint/complexity/noStaticOnlyClass: Preserve the constructor and prototype identity used by loader hooks.
 class Loader {
   static state = null
 

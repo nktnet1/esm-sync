@@ -209,6 +209,7 @@ function init() {
   function invalidArgType(name, expected, actual) {
     let message = "The '" + name + "' argument must be " + expected
 
+    // biome-ignore lint/complexity/noArguments: Distinguish an omitted argument from explicit undefined.
     if (arguments.length > 2) {
       message += ". Received type " + (actual === null ? "null" : typeof actual)
     }

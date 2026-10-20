@@ -49,7 +49,7 @@ function getNativeSource(thePath) {
     if (has(natives, thePath)) {
       result = natives[thePath]
     }
-  } catch (e) {}
+  } catch (_e) {}
 
   return typeof result === "string" ? result : ""
 }
@@ -70,7 +70,7 @@ function makeRequireFunction(mod, options) {
 function readFile(filename, options) {
   try {
     return readFileSync(filename, options)
-  } catch (e) {}
+  } catch (_e) {}
 
   return null
 }

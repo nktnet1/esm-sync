@@ -1316,6 +1316,7 @@ describe("miscellaneous tests", () => {
       return Promise
         .all([
           eval(code),
+          // biome-ignore lint/complexity/noCommaOperator: Exercise indirect eval, not direct eval.
           (0, eval)(code)
         ].map((promise) =>
           promise
@@ -1345,6 +1346,7 @@ describe("miscellaneous tests", () => {
       `
 
       assert.strictEqual(typeof eval(code), "undefined")
+      // biome-ignore lint/complexity/noCommaOperator: Exercise indirect eval, not direct eval.
       assert.strictEqual(typeof (0, eval)(code), "undefined")
     })
 
@@ -1384,6 +1386,7 @@ describe("miscellaneous tests", () => {
     it("should not support evaled `import.meta` in ESM", () => {
       const evalers = [
         () => eval("import.meta"),
+        // biome-ignore lint/complexity/noCommaOperator: Exercise indirect eval, not direct eval.
         () => (0, eval)("import.meta")
       ]
 

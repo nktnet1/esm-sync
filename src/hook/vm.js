@@ -119,7 +119,7 @@ function hook(vm) {
     return Reflect.apply(wrapped, this, [manager, func, args])
   }
 
-  function methodWrapper(manager, createScript, [content, scriptOptions]) {
+  function methodWrapper(_manager, createScript, [content, scriptOptions]) {
     scriptOptions = assign({}, scriptOptions)
     scriptOptions.produceCachedData = true
 
@@ -219,7 +219,7 @@ function hook(vm) {
             try {
               const { code } = transpile(cmd)
               return originalEval.call(this, code, context, filename, callback)
-            } catch (e) {
+            } catch (_e) {
               return originalEval.call(this, cmd, context, filename, callback)
             }
           }

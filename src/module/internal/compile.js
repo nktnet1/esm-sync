@@ -635,7 +635,7 @@ function wasmParse(entry, filename, importObject) {
       [
         name,
         [name],
-        (value, childEntry) => {
+        (_value, childEntry) => {
           importObject[request] = childEntry.name
         }
       ]

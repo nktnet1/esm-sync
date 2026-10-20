@@ -146,7 +146,7 @@ function init() {
 
     stack = stack.replace(
       arrowRegExp,
-      (match, decoratorLine, decoratorArrow, decoratorNewline = "") => {
+      (_match, decoratorLine, decoratorArrow, decoratorNewline = "") => {
         foundArrow = true
 
         if (useDecoratorLine) {
@@ -243,11 +243,11 @@ function init() {
     return stack.replace(headerRegExp, replaceHeader).replace(atNameRegExp, replaceAtName)
   }
 
-  function replaceAtName(match, prefix, name) {
+  function replaceAtName(_match, prefix, name) {
     return prefix + getModuleURL(name)
   }
 
-  function replaceHeader(match, filename, lineNumber) {
+  function replaceHeader(_match, filename, lineNumber) {
     return getModuleURL(filename) + ":" + lineNumber
   }
 

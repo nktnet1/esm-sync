@@ -2,7 +2,7 @@ import shared from "../shared.js"
 
 function init() {
   function toWrapper(func) {
-    return function (unwrapped, args) {
+    return function (_unwrapped, args) {
       return Reflect.apply(func, this, args)
     }
   }
