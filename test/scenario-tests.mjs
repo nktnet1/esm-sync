@@ -63,11 +63,20 @@ describe("scenario tests", function () {
     node([
       "-r", pkgPath,
       "-r", "@babel/register",
-      path.resolve("fixture/scenario/babel-error/index.js")
+      path.resolve("fixture/scenario/babel-error-runner.cjs")
     ])
-    .then(assert.fail.bind("Call did not fail"), ({ stderr }) => {
-      assert.ok(stderr.includes("BABEL_ERROR"))
-    })
+    .then(
+      () => assert.fail("Babel compilation unexpectedly succeeded"),
+      ({ exitCode, stderr }) => {
+        // Preserve useful CI diagnostics without printing a massive bundled stack.
+        const diagnostic = stderr.length > 8192
+          ? `${stderr.slice(0, 4096)}\n[... truncated ...]\n${stderr.slice(-4096)}`
+          : stderr
+
+        assert.strictEqual(exitCode, 1, diagnostic)
+        assert.match(stderr, /(?:^|\n)babel-error:[^\n]*\bBABEL_ERROR\b/, diagnostic)
+      }
+    )
   )
 
   it("should work with esmod-pmb", () =>
