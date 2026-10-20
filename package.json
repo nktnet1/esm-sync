@@ -5,7 +5,6 @@
   "license": "MIT",
   "author": "Khiet Tam Nguyen",
   "scripts": {
-    "prepare": "lefthook install",
     "prepub": "pnpm fixtures:prepare && pnpm verify:prod && pnpm build:prod",
     "prepublishOnly": "pnpm fixtures:acorn && pnpm build:prod",
     "build": "node script/build.js",
