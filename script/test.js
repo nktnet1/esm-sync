@@ -27,6 +27,8 @@ const esmPath = path.resolve(rootPath, "esm.js")
 const fixturePath = path.resolve(testPath, "fixture")
 const indexPath = path.resolve(rootPath, "index.js")
 const mochaPath = path.resolve(rootPath, "node_modules/mocha/bin/_mocha")
+const nodeModulesPath = path.resolve(rootPath, "node_modules")
+const sharedCachePath = path.resolve(nodeModulesPath, ".cache")
 const nodePath = path.resolve(envPath, "prefix", isWin ? "node.exe" : "bin/node")
 const test262HarnessPath = path.resolve(testPath, "vendor/test262/harness/assert.js")
 const testBundlePath = path.resolve(rootPath, "build/compiler.js")
@@ -88,6 +90,11 @@ async function cleanJS() {
 }
 
 function isKept(thePath) {
+  // Only the shared cache should be cleared under node_modules, not dependency caches.
+  if (thePath.startsWith(nodeModulesPath + path.sep)) {
+    return thePath === sharedCachePath
+  }
+
   return thePath.endsWith(".cache") || keptPaths.every((dirname) => !thePath.startsWith(dirname))
 }
 
@@ -132,22 +139,28 @@ function setupNode() {
   return trash(basePath).then(() => fs.ensureLink(process.execPath, nodePath))
 }
 
-function setupRepo() {
-  return Promise.all(trashPaths.map(trash)).then(() => {
-    if (!isWin) {
-      const safeCharactersPath = path.resolve(fixturePath, "safe-characters[#%&;=].mjs")
-      const unsafeCharactersPath = path.resolve(fixturePath, "unsafe-characters[\b\t\n\r:?].mjs")
+async function setupRepo() {
+  // Preserve recoverable cleanup for ignored files while removing caches idempotently.
+  await trash(trashPaths.filter((thePath) => !thePath.endsWith(".cache")))
 
-      if (!fs.existsSync(unsafeCharactersPath)) {
-        fs.copySync(safeCharactersPath, unsafeCharactersPath)
-      }
+  for (const cachePath of trashPaths.filter((thePath) => thePath.endsWith(".cache"))) {
+    await fs.remove(cachePath)
+  }
+
+  if (!isWin) {
+    const safeCharactersPath = path.resolve(fixturePath, "safe-characters[#%&;=].mjs")
+    const unsafeCharactersPath = path.resolve(fixturePath, "unsafe-characters[\b\t\n\r:?].mjs")
+
+    if (!fs.existsSync(unsafeCharactersPath)) {
+      fs.copySync(safeCharactersPath, unsafeCharactersPath)
     }
-  })
+  }
 }
 
 Promise.resolve()
   .then(assertFixturesReady)
-  .then(() => Promise.all([argv.prod && cleanJS(), setupRepo(), setupNode()]))
+  .then(() => Promise.all([argv.prod && cleanJS(), setupRepo()]))
+  .then(setupNode)
   .then(() => {
     console.log("Running tests...")
   })
