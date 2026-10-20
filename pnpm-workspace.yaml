@@ -41,4 +41,8 @@ overrides:
   uuid@^4.0.0 <14.0.0: '^14.0.0'
   ws@^7.0.0 <7.5.10: '^7.5.10'
   ws@^8.0.0 <8.20.1: ^8.20.1
+  # Node 26 treats extensionless files in ESM packages as ESM; yargs 16/17
+  # require patched CommonJS entry points with explicit .cjs extensions.
+  yargs@^16.0.0: 16.2.2
+  yargs@^17.0.0: 17.7.3
   yargs-parser@>=6.0.0 <13.1.2: '>=13.1.2'

@@ -18,6 +18,7 @@
     "pub": "node script/publish.js",
     "test": "node script/test.js",
     "test:prod": "node script/test.js --prod",
+    "test:packed": "node script/test-packed.js",
     "typecheck": "node script/check-typescript.js && pnpm typecheck:tsc",
     "typecheck:tsc": "tsc --noEmit && tsc --noEmit -p test/fixture/scenario/ava-nyc-tsc",
     "verify:prod": "pnpm build:prod --test && pnpm test:prod"

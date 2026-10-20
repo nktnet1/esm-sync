@@ -117,13 +117,19 @@ use `pnpm verify:prod` after preparing fixtures. `pnpm lint` is read-only;
 
 ### 6. Validate and adopt Node.js 26
 
-- [ ] Add Node 26 to CI before changing runtime compatibility claims.
+- [x] Add Node 26 to CI alongside Node 22/24, without changing runtime compatibility claims.
 - [ ] Exercise the loader against changes to `Module._load`, `_compile`,
       `_extensions`, `_resolveFilename`, the module cache, and `require(esm)`.
 - [ ] Test ESM/CJS interoperability, dynamic imports, hooks, cycles, errors,
       cached/uncached execution, and production/minified builds.
-- [ ] Test installation and usage of the **packed** npm artefact, not only the repository.
-- [ ] Identify Node 6-era runtime shims for removal and defer Babel-specific
+- [x] Add an isolated consumer smoke test that packs and installs the npm artefact,
+      then checks the CommonJS API, ESM live bindings, and CLI preload.
+- [ ] Confirm that Node 26 passes the full suite, production tests, and packed-package
+      smoke test in CI before claiming support.
+- [x] Stop passing `--experimental-worker` on Node 11.7+, where it is unnecessary.
+- [x] Override transitive yargs 16/17 to the Node 26-compatible patch releases,
+      so the legacy Mocha runner does not load extensionless CommonJS as ESM.
+- [ ] Identify remaining Node 6-era runtime shims for removal and defer Babel-specific
       changes until the tsdown phase validates output parity.
 - [ ] Explicitly decide whether Node 24 remains supported. If Node 26 becomes
       the minimum, set `engines.node` accordingly and release it as a breaking major.

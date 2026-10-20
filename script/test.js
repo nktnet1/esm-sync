@@ -55,7 +55,8 @@ const keptPaths = [
 
 const nodeArgs = []
 
-if (SemVer.satisfies(process.version, ">=10.5")) {
+// Worker threads have not required this flag since Node 11.7.
+if (SemVer.satisfies(process.version, ">=10.5 <11.7")) {
   nodeArgs.push("--experimental-worker")
 }
 
