@@ -5,7 +5,7 @@ allowBuilds:
   core-js: false
   ejs: false
   fsevents: false
-  husky: true
+  lefthook: true
   protobufjs: false
   sleep: true
   sq-native: false

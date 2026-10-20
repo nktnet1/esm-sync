@@ -39,9 +39,9 @@ should be a separate, reviewable patch and remove its superseded tooling.
 
 ### 1. Replace Husky with Lefthook
 
-- [ ] Add `lefthook.yml` with fast staged-file checks; leave full tests to CI.
-- [ ] Update `prepare` and any setup instructions for Lefthook.
-- [ ] Remove `.husky/`, `.huskyrc.js`, the `husky` dependency, and its pnpm build approval.
+- [x] Add `lefthook.yml` with fast staged-file checks; leave full tests to CI.
+- [x] Update `prepare` and any setup instructions for Lefthook.
+- [x] Remove `.husky/`, `.huskyrc.js`, the `husky` dependency, and its pnpm build approval.
 - [ ] Confirm hooks install, execute, fail on violations, and work from a clean clone.
 
 ### 2. Upgrade to pnpm 12

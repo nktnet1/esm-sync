@@ -1,0 +1,5 @@
+pre-commit:
+  jobs:
+    - name: eslint
+      glob: "*.{js,mjs}"
+      run: pnpm exec eslint --quiet {staged_files}
