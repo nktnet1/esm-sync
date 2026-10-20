@@ -3,11 +3,12 @@
     "forceConsistentCasingInFileNames": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "allowImportingTsExtensions": true,
     "rootDir": ".",
     "noEmit": true,
     "strict": true,
     "target": "ES2022",
     "types": ["node"]
   },
-  "include": ["index.d.ts", "test/typecheck/**/*.ts"]
+  "include": ["index.d.ts", "test/typecheck/**/*.ts", "test/vitest/**/*.mts"]
 }

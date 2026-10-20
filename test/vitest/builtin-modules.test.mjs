@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { fileURLToPath } from "node:url"
 import SemVer from "semver"
 import { describe, it } from "vitest"
-import { runNode, testEnvironments } from "./helpers/run-node.mjs"
+import { runNode, testEnvironments } from "./helpers/run-node.mts"
 
 const canTestFsPromises = SemVer.satisfies(process.version, ">=10 <11.14")
 const envAuto = { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }

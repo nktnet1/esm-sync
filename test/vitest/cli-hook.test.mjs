@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "vitest"
-import { runNode, testEnvironments } from "./helpers/run-node.mjs"
+import { runNode, testEnvironments } from "./helpers/run-node.mts"
 const esmPaths = ["../", "../index.js", "../esm.js"]
 
 for (const esmEnv of testEnvironments) {

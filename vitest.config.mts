@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config"
 // in the real-Node integration runner until they can be migrated safely.
 export default defineConfig(({ mode }) => ({
   test: {
-    include: ["test/vitest/**/*.test.mjs"],
+    include: ["test/vitest/**/*.test.{mjs,mts}"],
     environment: "node",
     fsModuleCache: true,
     isolate: false,

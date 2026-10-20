@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "vitest"
-import { runNode, testEnvironments } from "./helpers/run-node.mjs"
+import { runNode, testEnvironments } from "./helpers/run-node.mts"
 
 const requireFlags = ["-r", "--require"]
 const evalFlags = ["-e", "--eval"]

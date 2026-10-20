@@ -142,7 +142,7 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
 ### 7. Replace the internal Mocha runner with Vitest
 
 - [x] Introduce Vitest 5 as a second runner, initially restricted to
-      `test/vitest/**/*.test.mjs` so loader fixtures are not transformed by Vite.
+      `test/vitest/**/*.test.{mjs,mts}` so loader fixtures are not transformed by Vite.
 - [x] Migrate the CLI-hook scenarios into Vitest while retaining both cached and
       uncached environment coverage across development/production builds.
       Each test spawns a genuine Node process.
@@ -152,6 +152,9 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
 - [x] Move the native-Node eval/print hook matrix and built-in module checks to
       Vitest, sharing a subprocess harness with the existing CLI-hook tests.
       Preserve cached/uncached scenarios and skip historical Node-only cases.
+- [x] Move the main CLI-entry hook scenarios (including error and symlink cases) to
+      typed Vitest tests, retaining real Node process isolation and both cache modes.
+      Convert the subprocess helper to TypeScript and type-check new `.mts` tests.
 - [x] Preserve process-isolated tests for `require()` hooks, Node internals,
       module caches, CLI execution, and environment-dependent behaviours.
       Only move tests when their native-Node execution boundary is preserved.

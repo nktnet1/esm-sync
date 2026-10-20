@@ -1,14 +1,24 @@
 import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
+export interface NodeResult {
+  exitCode: number | null
+  stdout: string
+  stderr: string
+}
+
 export const nodeEnv = process.env.ESM_SYNC_NODE_ENV || "development"
 export const testEnvironments = [`${nodeEnv}-test`, `${nodeEnv}-test-cached`]
 export const testPath = fileURLToPath(new URL("../../", import.meta.url))
 
 // Execute loader scenarios in native Node processes, never through Vite's transformer.
-export function runNode(args, esmEnv, options = {}) {
+export function runNode(
+  args: readonly string[],
+  esmEnv: string,
+  options: NodeJS.ProcessEnv = {}
+): Promise<NodeResult> {
   return new Promise((resolve, reject) => {
-    const env = {
+    const env: NodeJS.ProcessEnv = {
       ...process.env,
       ESM_ENV: esmEnv,
       NODE_ENV: nodeEnv,
@@ -37,16 +47,16 @@ export function runNode(args, esmEnv, options = {}) {
     let stdout = ""
     let stderr = ""
 
-    child.stdout.setEncoding("utf8").on("data", (chunk) => {
+    child.stdout.setEncoding("utf8").on("data", (chunk: string) => {
       stdout += chunk
     })
-    child.stderr.setEncoding("utf8").on("data", (chunk) => {
+    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
       stderr += chunk
     })
     child.once("error", reject)
     child.once("close", (exitCode, signal) => {
       if (signal !== null) {
-        reject(new Error(`Node CLI terminated with signal ${signal}: ${stderr}`))
+        reject(new Error(`Node CLI terminated with signal ${signal}: ${stderr.slice(-4_000)}`))
         return
       }
 
