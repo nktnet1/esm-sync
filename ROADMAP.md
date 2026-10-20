@@ -46,11 +46,15 @@ should be a separate, reviewable patch and remove its superseded tooling.
 
 ### 2. Upgrade to pnpm 12
 
-- [ ] Pin a verified pnpm 12 release in `packageManager` and CI.
-- [ ] Review `pnpm-workspace.yaml`, especially `allowBuilds` and overrides.
-- [ ] Regenerate the lockfile with pnpm 12 in the migration branch.
-- [ ] Verify frozen-lockfile CI installs, lifecycle scripts, and publishing dry runs.
-- [ ] Remove pnpm 11-specific workarounds and unneeded overrides.
+- [x] Pin pnpm 12.14.0 in `packageManager` and use `pnpm/setup` in CI.
+- [x] Review `pnpm-workspace.yaml`: existing `allowBuilds` entries work with
+      pnpm 12; keep security overrides pending the dependency audit in phase 4.
+- [ ] Regenerate and commit `pnpm-lock.yaml` with pnpm 12. Generated lockfiles
+      are deliberately excluded from incremental patches.
+- [ ] Switch CI from temporary `--no-frozen-lockfile` to `--frozen-lockfile` once
+      the updated lockfile is committed. Verify clean installs, Lefthook's
+      lifecycle script, and package publishing dry runs.
+- [ ] Remove unnecessary overrides after the dependency audit in phase 4.
 
 ### 3. Upgrade to TypeScript 7
 

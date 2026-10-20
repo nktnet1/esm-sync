@@ -19,23 +19,23 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [22.x, 24.x]
+        node-version: [22, 24]
       fail-fast: true
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@v3
         with:
-          node-version: ${{ matrix.node-version }}
+          runtime: node@${{ matrix.node-version }}
+          install: false
 
-      - name: Install pnpm
-        run: npm install -g pnpm
-
+      # The lockfile must be refreshed after the Lefthook migration before
+      # frozen installs can be re-enabled. Lockfile changes are kept out of patches.
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Run ESLint
         run: pnpm lint
