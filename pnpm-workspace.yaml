@@ -7,7 +7,6 @@ allowBuilds:
   fsevents: false
   lefthook: true
   protobufjs: false
-  sleep: true
   sq-native: false
   unrs-resolver: false
 overrides:

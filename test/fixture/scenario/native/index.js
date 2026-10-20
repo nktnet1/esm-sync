@@ -1,7 +1,8 @@
-import sleep, { usleep } from "sleep"
+import native, { add } from "./addon.js"
 import { log } from "console"
 
-usleep(0)
-sleep.usleep(0)
+if (add(20, 22) !== 42 || native.add !== add || native.add(-3, 5) !== 2) {
+  throw new Error("Native addon interop failed")
+}
 
 log("native:true")

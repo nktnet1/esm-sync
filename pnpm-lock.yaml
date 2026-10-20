@@ -379,9 +379,6 @@ importers:
       sinon:
         specifier: ^22.1.0
         version: 22.1.0
-      sleep:
-        specifier: ^6.3.0
-        version: 6.3.0
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
@@ -5750,10 +5747,6 @@ packages:
   slash@3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
     engines: {node: '>=8'}
-
-  sleep@6.3.0:
-    resolution: {integrity: sha512-+WgYl951qdUlb1iS97UvQ01pkauoBK9ML9I/CMPg41v0Ze4EyMlTgFTDDo32iYj98IYqxIjDMRd+L71lawFfpQ==}
-    engines: {node: '>=0.8.0'}
 
   slice-ansi@1.0.0:
     resolution: {integrity: sha512-POqxBK6Lb3q6s047D/XsDVNPnF9Dl8JSaqe9h9lURl0OdNqy/ujDrOiIHtsqXMGbWWTIomRzAMaTyawAU//Reg==}
@@ -11933,7 +11926,8 @@ snapshots:
       arrify: 1.0.1
       minimatch: 3.1.5
 
-  nan@2.26.2: {}
+  nan@2.26.2:
+    optional: true
 
   nanoid@3.3.12: {}
 
@@ -13041,10 +13035,6 @@ snapshots:
   slash@2.0.0: {}
 
   slash@3.0.0: {}
-
-  sleep@6.3.0:
-    dependencies:
-      nan: 2.26.2
 
   slice-ansi@1.0.0:
     dependencies:

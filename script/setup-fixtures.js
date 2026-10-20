@@ -2,14 +2,17 @@
 
 const setupAcorn = require("./setup-acorn.js")
 const setupTest262 = require("./setup-test262.js")
+const setupNativeAddon = require("./setup-native-addon.js")
 
 const tasks = {
   acorn: setupAcorn,
-  test262: setupTest262
+  test262: setupTest262,
+  native: setupNativeAddon
 }
 
 const requested = process.argv.slice(2)
-const fixtures = requested.length ? requested : Object.keys(tasks)
+// A native compiler is required only for test runs, not for builds or publishing.
+const fixtures = requested.length ? requested : ["acorn", "test262"]
 
 Promise.all(
   fixtures.map(async (fixture) => {

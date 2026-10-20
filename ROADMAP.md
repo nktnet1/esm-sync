@@ -173,6 +173,10 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
       Otherwise remove the scenarios and dependencies together.
 - [x] Make CI run the complete Vitest suite, including isolated real-Node
       integration suites and both cached and uncached environments.
+- [x] Replace the obsolete `sleep` NAN addon in native compatibility testing
+      with a locally built Node-API fixture that imports a real `.node` binary.
+      This preserves native-addon coverage across Node 22/24/26 without depending
+      on a V8-specific ABI or changing production dependencies.
 
 ### 8. Replace Rspack and Babel with tsdown/Oxc
 

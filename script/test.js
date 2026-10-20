@@ -3,6 +3,7 @@
 const execa = require("execa")
 const fs = require("fs-extra")
 const ignorePaths = require("./ignore-paths.js")
+const setupNativeAddon = require("./setup-native-addon.js")
 const path = require("path")
 const terser = require("terser").minify
 const trash = require("./trash.js")
@@ -103,6 +104,7 @@ Promise.resolve()
   .then(assertFixturesReady)
   .then(() => Promise.all([argv.prod && cleanJS(), setupRepo()]))
   .then(setupNode)
+  .then(setupNativeAddon)
   .then(runTests)
   .catch((error) => {
     console.error(error)
