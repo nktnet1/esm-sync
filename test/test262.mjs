@@ -39,14 +39,15 @@ function readCase(filename) {
   return {
     description: attrs.description?.trim() || path.basename(filename),
     expectedError: attrs.negative?.type,
-    isAsync: Boolean(attrs.flags.async)
+    isAsync: Boolean(attrs.flags.async),
+    includes: attrs.includes || []
   }
 }
 
-async function runCase(filename, { expectedError, isAsync }) {
+async function runCase(filename, { expectedError, isAsync, includes }) {
   const { exitCode, stdout, stderr, timedOut } = await execa(
     process.execPath,
-    ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync)],
+    ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync), JSON.stringify(includes)],
     {
       cwd: fixturePath,
       reject: false,
