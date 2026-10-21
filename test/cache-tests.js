@@ -8,9 +8,7 @@ import trash from "../script/trash.js"
 
 const isAppVeyor = Reflect.has(process.env, "APPVEYOR")
 
-const canTestCache =
-  ! isAppVeyor &&
-  /cached/.test(process.env.ESM_ENV)
+const canTestCache = ! isAppVeyor
 
 const fixturePath = path.resolve("fixture/cache")
 const testPath = path.resolve(".")

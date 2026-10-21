@@ -185,7 +185,9 @@ for (const esmEnv of testEnvironments) {
       const cases = collectNativeCases(suite)
       // Scenario suites spawn PM2, Jest, AVA, and other external tools.
       const timeout = suite === "scenario-tests.mjs" ? 300_000 : 120_000
-      const skipCache = suite === "cache-tests.js" && !esmEnv.endsWith("-cached")
+      // Cache suites run sequentially, so both environments can verify disk
+      // caching without racing on the shared cache directory.
+      const skipCache = suite === "cache-tests.js" && Reflect.has(process.env, "APPVEYOR")
 
       describe(suite, () => {
         const results = new Map<string, TestRecord>()
