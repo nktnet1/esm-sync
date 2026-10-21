@@ -4,11 +4,13 @@ import shared from "../shared.js"
 
 function init() {
   function isDataPropertyDescriptor(descriptor) {
-    return isObject(descriptor) &&
+    return (
+      isObject(descriptor) &&
       descriptor.configurable === true &&
       descriptor.enumerable === true &&
       descriptor.writable === true &&
       has(descriptor, "value")
+    )
   }
 
   return isDataPropertyDescriptor
@@ -16,4 +18,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsDataPropertyDescriptor
-  : shared.module.utilIsDataPropertyDescriptor = init()
+  : (shared.module.utilIsDataPropertyDescriptor = init())

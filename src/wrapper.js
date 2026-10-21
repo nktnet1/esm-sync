@@ -14,9 +14,7 @@ import silent from "./util/silent.js"
 import toExternalFunction from "./util/to-external-function.js"
 
 function init() {
-  const {
-    PACKAGE_RANGE
-  } = ESM
+  const { PACKAGE_RANGE } = ESM
 
   const Wrapper = {
     find(object, name, range) {
@@ -58,9 +56,7 @@ function init() {
       const manager = silent(() => object[name])
       const symbol = shared.symbol.wrapper
 
-      return has(manager, symbol)
-        ? manager[symbol]
-        : manager
+      return has(manager, symbol) ? manager[symbol] : manager
     },
     wrap(object, name, wrapper) {
       const map = getOrCreateMap(object, name)
@@ -81,7 +77,7 @@ function init() {
     const map = {
       raw: Wrapper.unwrap(object, name),
       versions: [],
-      wrappers: new Map
+      wrappers: new Map()
     }
 
     store.set(name, map)
@@ -90,7 +86,7 @@ function init() {
   }
 
   function createStore(object) {
-    const value = new Map
+    const value = new Map()
 
     Reflect.defineProperty(object, shared.symbol.wrapper, {
       configurable: true,
@@ -109,38 +105,28 @@ function init() {
       map = store.get(name)
     }
 
-    return map === void 0
-      ? null
-      : map
+    return map === void 0 ? null : map
   }
 
   function getOrCreateMap(object, name) {
     const map = getMap(object, name)
 
-    return map === null
-      ? createMap(object, name)
-      : map
+    return map === null ? createMap(object, name) : map
   }
 
   function getOrCreateStore(object) {
     const store = getStore(object)
 
-    return store === null
-      ? createStore(object)
-      : store
+    return store === null ? createStore(object) : store
   }
 
   function getStore(object) {
     const symbol = shared.symbol.wrapper
 
-    return has(object, symbol)
-      ? object[symbol]
-      : null
+    return has(object, symbol) ? object[symbol] : null
   }
 
   return Wrapper
 }
 
-export default shared.inited
-  ? shared.module.Wrapper
-  : shared.module.Wrapper = init()
+export default shared.inited ? shared.module.Wrapper : (shared.module.Wrapper = init())

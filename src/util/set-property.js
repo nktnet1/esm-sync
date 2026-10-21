@@ -24,4 +24,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSetProperty
-  : shared.module.utilSetProperty = init()
+  : (shared.module.utilSetProperty = init())

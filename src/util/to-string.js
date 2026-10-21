@@ -20,6 +20,4 @@ function init() {
   return toString
 }
 
-export default shared.inited
-  ? shared.module.utilToString
-  : shared.module.utilToString = init()
+export default shared.inited ? shared.module.utilToString : (shared.module.utilToString = init())

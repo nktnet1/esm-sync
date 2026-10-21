@@ -5,8 +5,7 @@ import shared from "./shared.js"
 function init() {
   let ids = __non_webpack_module__.constructor.builtinModules
 
-  if (Array.isArray(ids) &&
-      Object.isFrozen(ids)) {
+  if (Array.isArray(ids) && Object.isFrozen(ids)) {
     ids = Array.from(ids)
   } else {
     const { exposeInternals } = getFlags()
@@ -15,11 +14,10 @@ function init() {
 
     for (const name in binding.natives) {
       if (exposeInternals) {
-        if (name !== "internal/bootstrap_loaders" &&
-            name !== "internal/bootstrap/loaders") {
+        if (name !== "internal/bootstrap_loaders" && name !== "internal/bootstrap/loaders") {
           ids.push(name)
         }
-      } else if (! name.startsWith("internal/")) {
+      } else if (!name.startsWith("internal/")) {
         ids.push(name)
       }
     }
@@ -28,6 +26,4 @@ function init() {
   return ids.sort()
 }
 
-export default shared.inited
-  ? shared.module.builtinIds
-  : shared.module.builtinIds = init()
+export default shared.inited ? shared.module.builtinIds : (shared.module.builtinIds = init())

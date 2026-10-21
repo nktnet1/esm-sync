@@ -30,7 +30,7 @@ function init() {
     let { length } = paths
 
     while (length--) {
-      if (! mkdir(paths[length])) {
+      if (!mkdir(paths[length])) {
         return false
       }
     }
@@ -41,6 +41,4 @@ function init() {
   return mkdirp
 }
 
-export default shared.inited
-  ? shared.module.fsMkdirp
-  : shared.module.fsMkdirp = init()
+export default shared.inited ? shared.module.fsMkdirp : (shared.module.fsMkdirp = init())

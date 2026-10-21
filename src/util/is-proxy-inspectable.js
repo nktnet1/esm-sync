@@ -5,15 +5,17 @@ import shared from "../shared.js"
 
 function init() {
   function isProxyInspectable(value) {
-    if (! isObjectLike(value)) {
+    if (!isObjectLike(value)) {
       return false
     }
 
-    return typeof value === "function" ||
-           Array.isArray(value) ||
-           Reflect.has(value, Symbol.toStringTag) ||
-           value === builtinEntries.process.module.exports ||
-           getObjectTag(value) === "[object Object]"
+    return (
+      typeof value === "function" ||
+      Array.isArray(value) ||
+      Reflect.has(value, Symbol.toStringTag) ||
+      value === builtinEntries.process.module.exports ||
+      getObjectTag(value) === "[object Object]"
+    )
   }
 
   return isProxyInspectable
@@ -21,4 +23,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsProxyInspectable
-  : shared.module.utilIsProxyInspectable = init()
+  : (shared.module.utilIsProxyInspectable = init())

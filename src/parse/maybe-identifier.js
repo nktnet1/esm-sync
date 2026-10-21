@@ -7,7 +7,7 @@ function init() {
 
     let parent = path.getParentNode()
 
-    if (! isBindingIdentifier(node, parent)) {
+    if (!isBindingIdentifier(node, parent)) {
       return
     }
 
@@ -33,4 +33,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseMaybeIdentifier
-  : shared.module.parseMaybeIdentifier = init()
+  : (shared.module.parseMaybeIdentifier = init())

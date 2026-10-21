@@ -10,7 +10,6 @@ const minorOnlyPackages = new Set([
   "@babel/runtime",
   "ava",
   "core-js",
-  "eslint",
   "execa",
   "globby",
   "jest",
@@ -20,11 +19,10 @@ const minorOnlyPackages = new Set([
   "trash",
   "typescript",
   "webpack",
-  "webpack-cli",
+  "webpack-cli"
 ])
 
 /** @type {import("npm-check-updates").Options} */
 export default {
-  target: (packageName) =>
-    minorOnlyPackages.has(packageName) ? "minor" : "latest",
-};
+  target: (packageName) => (minorOnlyPackages.has(packageName) ? "minor" : "latest")
+}

@@ -12,9 +12,7 @@ function init() {
     if (childStart > visitor.firstLineBreakPos) {
       const count = childStart - parentStart
 
-      indentation = count === 7
-        ? "       "
-        : " ".repeat(count)
+      indentation = count === 7 ? "       " : " ".repeat(count)
     }
 
     return overwrite(visitor, parentStart, childStart, indentation)
@@ -25,4 +23,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parsePreserveChild
-  : shared.module.parsePreserveChild = init()
+  : (shared.module.parsePreserveChild = init())

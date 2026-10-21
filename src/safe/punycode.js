@@ -4,10 +4,8 @@ import shared from "../shared.js"
 
 const safePunycode = shared.inited
   ? shared.module.safePunycode
-  : shared.module.safePunycode = safe(realPunycode)
+  : (shared.module.safePunycode = safe(realPunycode))
 
-export const toUnicode = safePunycode === void 0
-  ? void 0
-  : safePunycode.toUnicode
+export const toUnicode = safePunycode === void 0 ? void 0 : safePunycode.toUnicode
 
 export default safePunycode

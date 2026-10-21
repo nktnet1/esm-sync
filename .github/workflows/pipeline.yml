@@ -19,26 +19,50 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [22.x, 24.x]
-      fail-fast: true
+        node-version: [22, 24, 26]
+      fail-fast: false
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@v3
         with:
-          node-version: ${{ matrix.node-version }}
+          runtime: node@${{ matrix.node-version }}
+          install: false
+          cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install pnpm
-        run: npm install -g pnpm
-
+      # The lockfile must be refreshed after the Lefthook migration before
+      # frozen installs can be re-enabled. Lockfile changes are kept out of patches.
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Run ESLint
+      # Audit the published dependency graph once per matrix; development-host
+      # advisories are reviewed separately instead of auto-upgrading legacy runners.
+      - name: Audit production dependencies
+        if: matrix.node-version == 26
+        run: pnpm audit:prod
+
+      - name: Lint without modifying files
         run: pnpm lint
 
-      - name: Run tests
-        run: pnpm test
+      - name: Type-check declarations and fixtures
+        run: pnpm typecheck
+
+      - name: Prepare vendor fixtures
+        run: pnpm fixtures:prepare
+
+      - name: Build test bundles
+        run: pnpm build --test
+
+      - name: Run Vitest (unit and isolated native-Node integration tests)
+        run: pnpm test:vitest
+
+      - name: Verify production build and tests on Node 26
+        if: matrix.node-version == 26
+        run: pnpm verify:prod
+
+      - name: Test installed package from tarball
+        run: pnpm test:packed

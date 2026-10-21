@@ -1,3 +1,4 @@
+import { describe, it } from "vitest"
 import Compiler from "../build/compiler.js"
 
 import assert from "assert"
@@ -297,7 +298,7 @@ describe("compiler tests", () => {
 
     for (const line of lines) {
       for (const sourceType of sourceTypes) {
-        assert.doesNotThrow(() => Compiler.compile(lines, { sourceType }))
+        assert.doesNotThrow(() => Compiler.compile(line, { sourceType }))
       }
     }
   })

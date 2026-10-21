@@ -16,6 +16,4 @@ function init() {
   }
 }
 
-export default shared.inited
-  ? shared.module.realPunycode
-  : shared.module.realPunycode = init()
+export default shared.inited ? shared.module.realPunycode : (shared.module.realPunycode = init())

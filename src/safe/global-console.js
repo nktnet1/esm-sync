@@ -3,4 +3,4 @@ import shared from "../shared.js"
 
 export default shared.inited
   ? shared.module.safeGlobalConsole
-  : shared.module.safeGlobalConsole = safe(console)
+  : (shared.module.safeGlobalConsole = safe(console))

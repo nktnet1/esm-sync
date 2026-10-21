@@ -3,13 +3,9 @@ import safeCopyProperty from "./safe-copy-property.js"
 import shared from "../shared.js"
 
 function init() {
-  function safeAssignPropertiesIn(object) {
-    const { length } = arguments
-
-    let i = 0
-
-    while (++i < length) {
-      const source = arguments[i]
+  function safeAssignPropertiesIn(object, ...sources) {
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i]
       const names = allKeys(source)
 
       for (const name of names) {
@@ -25,4 +21,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSafeAssignPropertiesIn
-  : shared.module.utilSafeAssignPropertiesIn = init()
+  : (shared.module.utilSafeAssignPropertiesIn = init())

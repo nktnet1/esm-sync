@@ -8,20 +8,13 @@ import shared from "../shared.js"
 import toNamespacedPath from "../path/to-namespaced-path.js"
 
 function init() {
-  const {
-    ELECTRON,
-    WIN32
-  } = ENV
+  const { ELECTRON, WIN32 } = ENV
 
   const { realpathNativeSync } = shared
 
-  const useBuiltin =
-    ELECTRON ||
-    WIN32
+  const useBuiltin = ELECTRON || WIN32
 
-  const useNative =
-    ! useBuiltin &&
-    typeof realpathNativeSync === "function"
+  const useNative = !useBuiltin && typeof realpathNativeSync === "function"
 
   let useBinding
 
@@ -38,9 +31,7 @@ function init() {
       return cached
     }
 
-    cached = useNative
-      ? realpathNative(thePath)
-      : realpathFallback(thePath)
+    cached = useNative ? realpathNative(thePath) : realpathFallback(thePath)
 
     if (cached !== "") {
       cache.set(thePath, cached)
@@ -63,12 +54,11 @@ function init() {
     try {
       return realpathSync(thePath)
     } catch (e) {
-      if (isError(e) &&
-          e.code === "ENOENT") {
+      if (isError(e) && e.code === "ENOENT") {
         if (useBinding === void 0) {
           useBinding =
-            ! useBuiltin &&
-            ! shared.support.realpathNative &&
+            !useBuiltin &&
+            !shared.support.realpathNative &&
             typeof binding.fs.realpath === "function"
         }
 
@@ -92,6 +82,4 @@ function init() {
   return realpath
 }
 
-export default shared.inited
-  ? shared.module.fsRealpath
-  : shared.module.fsRealpath = init()
+export default shared.inited ? shared.module.fsRealpath : (shared.module.fsRealpath = init())

@@ -13,9 +13,7 @@ function init() {
       if (type === "WithStatement") {
         const node = path.getValue()
 
-        result = parent.object === node
-          ? null
-          : parent
+        result = parent.object === node ? null : parent
 
         return result !== null
       }
@@ -23,7 +21,7 @@ function init() {
       let cache = map.get(parent)
 
       if (cache === void 0) {
-        cache = new Map
+        cache = new Map()
         map.set(parent, cache)
       }
 
@@ -37,12 +35,9 @@ function init() {
 
       const isFuncExpr = type === "FunctionExpression"
 
-      const isNonArrowFunc =
-        isFuncExpr ||
-        type === "FunctionDeclaration"
+      const isNonArrowFunc = isFuncExpr || type === "FunctionDeclaration"
 
-      if (isArgs &&
-          isNonArrowFunc) {
+      if (isArgs && isNonArrowFunc) {
         result = parent
         cache.set(name, result)
 
@@ -71,8 +66,7 @@ function init() {
       if (type === "CatchClause") {
         const { param } = parent
 
-        if (param !== null &&
-            param.name === name) {
+        if (param !== null && param.name === name) {
           result = param
           cache.set(name, result)
 
@@ -85,8 +79,7 @@ function init() {
 
         // Exported function declarations may not have an id.
         // For example, `export default function () {}`.
-        if (id !== null &&
-            id.name === name) {
+        if (id !== null && id.name === name) {
           result = parent
           cache.set(name, result)
 
@@ -94,8 +87,7 @@ function init() {
         }
       }
 
-      if (isNonArrowFunc ||
-          type === "ArrowFunctionExpression") {
+      if (isNonArrowFunc || type === "ArrowFunctionExpression") {
         for (const param of parent.params) {
           const [paramName] = getNamesFromPattern(param)
 
@@ -119,4 +111,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseGetShadowed
-  : shared.module.parseGetShadowed = init()
+  : (shared.module.parseGetShadowed = init())

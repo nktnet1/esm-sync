@@ -18,9 +18,7 @@ import setProperty from "../../util/set-property.js"
 import shared from "../../shared.js"
 import toExternalFunction from "../../util/to-external-function.js"
 
-const {
-  STATE_PARSING_COMPLETED
-} = ENTRY
+const { STATE_PARSING_COMPLETED } = ENTRY
 
 function load(filename, parent, isMain = false, cache, loader) {
   const loaderModuleState = Loader.state.module
@@ -29,8 +27,7 @@ function load(filename, parent, isMain = false, cache, loader) {
   let entry
   let mod = cache[filename]
 
-  if (mod === void 0 &&
-      cache === loaderModuleState.scratchCache) {
+  if (mod === void 0 && cache === loaderModuleState.scratchCache) {
     mod = Module._cache[filename]
   }
 
@@ -39,16 +36,13 @@ function load(filename, parent, isMain = false, cache, loader) {
   if (foundMod) {
     const children = parent != null && parent.children
 
-    if (Array.isArray(children) &&
-        GenericArray.indexOf(children, mod) === -1) {
+    if (Array.isArray(children) && GenericArray.indexOf(children, mod) === -1) {
       GenericArray.push(children, mod)
     }
 
     entry = Entry.get(mod)
 
-    if (parsing ||
-        mod.loaded ||
-        entry.state !== STATE_PARSING_COMPLETED) {
+    if (parsing || mod.loaded || entry.state !== STATE_PARSING_COMPLETED) {
       return entry
     }
   } else if (has(builtinEntries, filename)) {
@@ -56,9 +50,7 @@ function load(filename, parent, isMain = false, cache, loader) {
   } else {
     mod = new Module(filename, parent)
 
-    mod.filename = isFileOrigin(filename)
-      ? getFilePathfromURL(filename)
-      : filename
+    mod.filename = isFileOrigin(filename) ? getFilePathfromURL(filename) : filename
 
     entry = Entry.get(mod)
 
@@ -72,11 +64,12 @@ function load(filename, parent, isMain = false, cache, loader) {
   const { compileData } = entry
   const ext = entry.extname
 
-  if (foundMod ||
-      (compileData !== null &&
-       compileData.code !== null) ||
-      ext === ".json" ||
-      ext === ".wasm") {
+  if (
+    foundMod ||
+    (compileData !== null && compileData.code !== null) ||
+    ext === ".json" ||
+    ext === ".wasm"
+  ) {
     loader(entry)
 
     return entry
@@ -85,26 +78,28 @@ function load(filename, parent, isMain = false, cache, loader) {
   const { _compile } = mod
   const shouldRestore = has(mod, "_compile")
 
-  setProperty(mod, "_compile", toExternalFunction(function (content, filename) {
-    if (shouldRestore) {
-      setProperty(this, "_compile", _compile)
-    } else {
-      Reflect.deleteProperty(this, "_compile")
-    }
+  setProperty(
+    mod,
+    "_compile",
+    toExternalFunction(function (content, filename) {
+      if (shouldRestore) {
+        setProperty(this, "_compile", _compile)
+      } else {
+        Reflect.deleteProperty(this, "_compile")
+      }
 
-    const compileWrapper = has(this, shared.symbol._compile)
-      ? this[shared.symbol._compile]
-      : null
+      const compileWrapper = has(this, shared.symbol._compile) ? this[shared.symbol._compile] : null
 
-    let compile = _compile
+      let compile = _compile
 
-    if (typeof compileWrapper === "function") {
-      compile = compileWrapper
-      Reflect.deleteProperty(this, shared.symbol._compile)
-    }
+      if (typeof compileWrapper === "function") {
+        compile = compileWrapper
+        Reflect.deleteProperty(this, shared.symbol._compile)
+      }
 
-    return Reflect.apply(compile, this, [content, filename])
-  }))
+      return Reflect.apply(compile, this, [content, filename])
+    })
+  )
 
   loader(entry)
 

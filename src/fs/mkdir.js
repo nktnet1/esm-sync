@@ -16,6 +16,4 @@ function init() {
   return mkdir
 }
 
-export default shared.inited
-  ? shared.module.fsMkdir
-  : shared.module.fsMkdir = init()
+export default shared.inited ? shared.module.fsMkdir : (shared.module.fsMkdir = init())

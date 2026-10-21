@@ -11,4 +11,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsDirectory
-  : shared.module.utilIsDirectory = init()
+  : (shared.module.utilIsDirectory = init())

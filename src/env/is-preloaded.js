@@ -9,8 +9,7 @@ function init() {
       return true
     }
 
-    return rootModule.id === "internal/preload" &&
-      hasLoaderModule(rootModule.children)
+    return rootModule.id === "internal/preload" && hasLoaderModule(rootModule.children)
   }
 
   return isPreloaded
@@ -18,4 +17,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envIsPreloaded
-  : shared.module.envIsPreloaded = init()
+  : (shared.module.envIsPreloaded = init())

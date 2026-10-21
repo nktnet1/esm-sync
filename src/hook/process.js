@@ -8,9 +8,7 @@ import maskStackTrace from "../error/mask-stack-trace.js"
 import scrubStackTrace from "../error/scrub-stack-trace.js"
 import toExternalError from "../util/to-external-error.js"
 
-const {
-  PACKAGE_RANGE
-} = ESM
+const { PACKAGE_RANGE } = ESM
 
 function hook(processObject) {
   function exceptionManagerWrapper(manager, func, args) {
@@ -21,11 +19,10 @@ function hook(processObject) {
       : Reflect.apply(wrapped, this, [manager, func, args])
   }
 
-  function exceptionMethodWrapper(manager, func, args) {
+  function exceptionMethodWrapper(_manager, func, args) {
     const [error] = args
 
-    if (! Loader.state.package.default.options.debug &&
-        isStackTraceMaskable(error)) {
+    if (!Loader.state.package.default.options.debug && isStackTraceMaskable(error)) {
       maskStackTrace(error)
     } else {
       toExternalError(error)
@@ -42,7 +39,7 @@ function hook(processObject) {
       : Reflect.apply(wrapped, this, [manager, func, args])
   }
 
-  function warningMethodWrapper(manager, func, args) {
+  function warningMethodWrapper(_manager, func, args) {
     const [stack] = args
 
     if (typeof stack === "string") {

@@ -5,7 +5,7 @@ import shared from "../shared.js"
 
 function init() {
   function getStatTimestamp(stat, type) {
-    if (! isObject(stat)) {
+    if (!isObject(stat)) {
       return -1
     }
 
@@ -23,4 +23,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.fsGetStatTimestamp
-  : shared.module.fsGetStatTimestamp = init()
+  : (shared.module.fsGetStatTimestamp = init())

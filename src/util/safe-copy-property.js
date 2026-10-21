@@ -5,8 +5,7 @@ import shared from "../shared.js"
 
 function init() {
   function safeCopyProperty(object, source, name) {
-    if (! isObjectLike(object) ||
-        ! isObjectLike(source)) {
+    if (!isObjectLike(object) || !isObjectLike(source)) {
       return object
     }
 
@@ -42,4 +41,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSafeCopyProperty
-  : shared.module.utilSafeCopyProperty = init()
+  : (shared.module.utilSafeCopyProperty = init())

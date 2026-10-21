@@ -29,12 +29,8 @@ function init() {
 
     let paths
 
-    if (homeDir &&
-        typeof homeDir === "string") {
-      paths = [
-        resolve(homeDir, ".node_modules"),
-        resolve(homeDir, ".node_libraries")
-      ]
+    if (homeDir && typeof homeDir === "string") {
+      paths = [resolve(homeDir, ".node_modules"), resolve(homeDir, ".node_libraries")]
     } else {
       paths = []
     }
@@ -45,16 +41,14 @@ function init() {
 
     paths.push(resolve(prefixDir, "lib", "node"))
 
-    if (nodePath &&
-        typeof nodePath === "string") {
+    if (nodePath && typeof nodePath === "string") {
       const nodePaths = nodePath.split(delimiter)
       const oldPaths = paths
 
       paths = []
 
       for (const thePath of nodePaths) {
-        if (typeof thePath === "string" &&
-            thePath !== "") {
+        if (typeof thePath === "string" && thePath !== "") {
           paths.push(thePath)
         }
       }
@@ -70,4 +64,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.moduleInternalInitGlobalPaths
-  : shared.module.moduleInternalInitGlobalPaths = init()
+  : (shared.module.moduleInternalInitGlobalPaths = init())

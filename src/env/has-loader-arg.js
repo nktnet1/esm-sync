@@ -6,9 +6,7 @@ import parseJSON from "../util/parse-json.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    LEFT_CURLY_BRACKET
-  } = CHAR_CODE
+  const { LEFT_CURLY_BRACKET } = CHAR_CODE
 
   function hasLoaderArg(args) {
     return matches(args, (arg) => {
@@ -23,4 +21,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envHasLoaderArg
-  : shared.module.envHasLoaderArg = init()
+  : (shared.module.envHasLoaderArg = init())

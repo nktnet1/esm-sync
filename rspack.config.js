@@ -1,4 +1,3 @@
-/* eslint strict: off, node/no-unsupported-features: ["error", { version: 6 }] */
 "use strict"
 
 const { defineConfig } = require("@rspack/cli")
@@ -6,11 +5,7 @@ const fs = require("fs-extra")
 const path = require("path")
 const { rspack } = require("@rspack/core")
 
-const {
-  BannerPlugin,
-  EnvironmentPlugin,
-  NormalModuleReplacementPlugin
-} = rspack
+const { BannerPlugin, EnvironmentPlugin, NormalModuleReplacementPlugin } = rspack
 
 const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer")
 const TerserPlugin = require("terser-webpack-plugin")
@@ -20,20 +15,27 @@ const { ESM_ENV } = process.env
 const isProd = /production/.test(ESM_ENV)
 const isTest = /test/.test(ESM_ENV)
 
-const {
-  files: PACKAGE_FILENAMES,
-  version: PACKAGE_VERSION
-} = fs.readJSONSync("./package.json")
+const { files: PACKAGE_FILENAMES, version: PACKAGE_VERSION } = fs.readJSONSync("./package.json")
 
 const externals = [
-  "Array", "Buffer", "Error", "EvalError", "Function", "JSON", "Object",
-  "Promise", "RangeError", "ReferenceError", "Reflect", "SyntaxError",
-  "TypeError", "URIError", "eval"
+  "Array",
+  "Buffer",
+  "Error",
+  "EvalError",
+  "Function",
+  "JSON",
+  "Object",
+  "Promise",
+  "RangeError",
+  "ReferenceError",
+  "Reflect",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+  "eval"
 ]
 
-const hosted = [
-  "console"
-]
+const hosted = ["console"]
 
 const babelOptions = require("./.babel.config.js")
 const terserOptions = fs.readJSONSync("./.terserrc")
@@ -86,15 +88,9 @@ const config = defineConfig({
         "var __shared__;",
         "const __non_webpack_module__ = module;",
         "const __external__ = { " +
-          externals
-            .map((name) => name + ": global." + name)
-            .join(", ") +
-        " };",
-        "const " +
-          hosted
-            .map((name) => name + " = global." + name)
-            .join(", ") +
-        ";\n"
+          externals.map((name) => name + ": global." + name).join(", ") +
+          " };",
+        "const " + hosted.map((name) => name + " = global." + name).join(", ") + ";\n"
       ].join("\n"),
       entryOnly: true,
       raw: true
@@ -116,11 +112,7 @@ const config = defineConfig({
     ),
     new UnusedPlugin({
       directories: [path.resolve("src")],
-      exclude: [
-        ".*",
-        "*.json",
-        "**/vendor/*"
-      ],
+      exclude: [".*", "*.json", "**/vendor/*"],
       root: __dirname
     })
   ],
@@ -129,9 +121,7 @@ const config = defineConfig({
 })
 
 if (isProd) {
-  config.plugins.push(
-    new EnvironmentPlugin({ NODE_DEBUG: false })
-  )
+  config.plugins.push(new EnvironmentPlugin({ NODE_DEBUG: false }))
 }
 
 if (isTest) {

@@ -6,9 +6,7 @@ import shared from "../shared.js"
 import stripQuotes from "./strip-quotes.js"
 
 function init() {
-  const {
-    QUOTE
-  } = CHAR_CODE
+  const { QUOTE } = CHAR_CODE
 
   const separatorsRegExp = /[\u2028\u2029]/g
 
@@ -26,8 +24,7 @@ function init() {
 
     string = string.replace(separatorsRegExp, replaceSeparators)
 
-    if (quoteCode === QUOTE &&
-        string.charCodeAt(0) === QUOTE) {
+    if (quoteCode === QUOTE && string.charCodeAt(0) === QUOTE) {
       return string
     }
 
@@ -46,4 +43,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilToStringLiteral
-  : shared.module.utilToStringLiteral = init()
+  : (shared.module.utilToStringLiteral = init())

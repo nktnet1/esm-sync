@@ -24,4 +24,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilParseCommand
-  : shared.module.utilParseCommand = init()
+  : (shared.module.utilParseCommand = init())

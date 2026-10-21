@@ -14,9 +14,7 @@ function init() {
     return types.isProxy
   }
 
-  const {
-    PROXY_PREFIX
-  } = INSPECT
+  const { PROXY_PREFIX } = INSPECT
 
   const liteInspectOptions = {
     breakLength: Infinity,
@@ -41,15 +39,15 @@ function init() {
     }
 
     if (useGetProxyDetails) {
-      return !! getProxyDetails(value)
+      return !!getProxyDetails(value)
     }
 
-    return shared.support.inspectProxies &&
-           isObjectLike(value) &&
-           inspect(value, liteInspectOptions).startsWith(PROXY_PREFIX)
+    return (
+      shared.support.inspectProxies &&
+      isObjectLike(value) &&
+      inspect(value, liteInspectOptions).startsWith(PROXY_PREFIX)
+    )
   }
 }
 
-export default shared.inited
-  ? shared.module.utilIsProxy
-  : shared.module.utilIsProxy = init()
+export default shared.inited ? shared.module.utilIsProxy : (shared.module.utilIsProxy = init())

@@ -6,9 +6,7 @@ import setPrototypeOf from "../util/set-prototype-of.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    ELECTRON
-  } = ENV
+  const { ELECTRON } = ENV
 
   const StatsProto = Stats.prototype
 
@@ -35,8 +33,7 @@ function init() {
       // Electron and Muon return a plain object for asar files.
       // https://github.com/electron/electron/blob/master/lib/common/asar.js
       // https://github.com/brave/muon/blob/master/lib/common/asar.js
-      if (ELECTRON &&
-          ! (cached instanceof Stats)) {
+      if (ELECTRON && !(cached instanceof Stats)) {
         setPrototypeOf(cached, StatsProto)
       }
     } catch {
@@ -53,6 +50,4 @@ function init() {
   return statSync
 }
 
-export default shared.inited
-  ? shared.module.fsStatSync
-  : shared.module.fsStatSync = init()
+export default shared.inited ? shared.module.fsStatSync : (shared.module.fsStatSync = init())

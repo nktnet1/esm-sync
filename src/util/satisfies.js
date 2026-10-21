@@ -7,8 +7,7 @@ function init() {
   }
 
   function satisfies(version, range) {
-    if (typeof version !== "string" ||
-        typeof range !== "string") {
+    if (typeof version !== "string" || typeof range !== "string") {
       return false
     }
 
@@ -28,6 +27,4 @@ function init() {
   return satisfies
 }
 
-export default shared.inited
-  ? shared.module.utilSatisfies
-  : shared.module.utilSatisfies = init()
+export default shared.inited ? shared.module.utilSatisfies : (shared.module.utilSatisfies = init())

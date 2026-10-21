@@ -6,18 +6,12 @@ import shared from "../../shared.js"
 import stripShebang from "../../util/strip-shebang.js"
 
 function init() {
-  const {
-    SEMICOLON
-  } = CHAR_CODE
+  const { SEMICOLON } = CHAR_CODE
 
-  const {
-    SOURCE_TYPE_MODULE
-  } = COMPILER
+  const { SOURCE_TYPE_MODULE } = COMPILER
 
   function compileSource(compileData, options = {}) {
-    const compile = compileData.sourceType === SOURCE_TYPE_MODULE
-      ? compileESM
-      : compileCJS
+    const compile = compileData.sourceType === SOURCE_TYPE_MODULE ? compileESM : compileCJS
 
     return compile(compileData, options)
   }
@@ -36,29 +30,22 @@ function init() {
       }
 
       content =
-        "const " + runtimeName + "=exports;" +
-        (returnRun
-          ? "return "
-          : ""
-        ) +
-        runtimeName + ".r((" +
-        (async
-          ? "async "
-          :  ""
-        ) +
+        "const " +
+        runtimeName +
+        "=exports;" +
+        (returnRun ? "return " : "") +
+        runtimeName +
+        ".r((" +
+        (async ? "async " : "") +
         "function(exports,require){" +
         content +
         "\n}))"
     } else if (async) {
       changed = true
-      content =
-        "(async () => { " +
-        stripShebang(content) +
-        "\n})();"
+      content = "(async () => { " + stripShebang(content) + "\n})();"
     }
 
-    if (changed &&
-        options.sourceMap) {
+    if (changed && options.sourceMap) {
       content += createInlineSourceMap(compileData.filename, content)
     }
 
@@ -89,36 +76,24 @@ function init() {
       } else {
         code =
           code.slice(0, yieldIndex) +
-          (code.charCodeAt(yieldIndex - 1) === SEMICOLON
-            ? ""
-            : ";"
-          ) +
+          (code.charCodeAt(yieldIndex - 1) === SEMICOLON ? "" : ";") +
           yieldCode +
           code.slice(yieldIndex)
       }
     }
 
     let content =
-      "const " + runtimeName + "=exports;" +
-      (cjsVars
-        ? ""
-        : "__dirname=__filename=arguments=exports=module=require=void 0;"
-      ) +
-      (returnRun
-        ? "return "
-        : ""
-      ) +
-      runtimeName + ".r((" +
-      (async
-        ? "async "
-        :  ""
-      ) +
+      "const " +
+      runtimeName +
+      "=exports;" +
+      (cjsVars ? "" : "__dirname=__filename=arguments=exports=module=require=void 0;") +
+      (returnRun ? "return " : "") +
+      runtimeName +
+      ".r((" +
+      (async ? "async " : "") +
       "function *" +
       "(" +
-      (cjsVars
-        ? "exports,require"
-        : ""
-      ) +
+      (cjsVars ? "exports,require" : "") +
       '){"use strict";' +
       code +
       "\n}))"
@@ -135,4 +110,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.moduleInternalCompileSource
-  : shared.module.moduleInternalCompileSource = init()
+  : (shared.module.moduleInternalCompileSource = init())

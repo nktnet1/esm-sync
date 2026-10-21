@@ -12,4 +12,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetToStringTag
-  : shared.module.utilGetToStringTag = init()
+  : (shared.module.utilGetToStringTag = init())

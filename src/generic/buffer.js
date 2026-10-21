@@ -11,6 +11,4 @@ function init() {
   }
 }
 
-export default shared.inited
-  ? shared.module.GenericBuffer
-  : shared.module.GenericBuffer = init()
+export default shared.inited ? shared.module.GenericBuffer : (shared.module.GenericBuffer = init())

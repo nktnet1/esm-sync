@@ -3,13 +3,9 @@ import ownKeys from "./own-keys.js"
 import shared from "../shared.js"
 
 function init() {
-  function assignProperties(object) {
-    const { length } = arguments
-
-    let i = 0
-
-    while (++i < length) {
-      const source = arguments[i]
+  function assignProperties(object, ...sources) {
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i]
       const names = ownKeys(source)
 
       for (const name of names) {
@@ -25,4 +21,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilAssignProperties
-  : shared.module.utilAssignProperties = init()
+  : (shared.module.utilAssignProperties = init())

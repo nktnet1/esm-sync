@@ -25,9 +25,7 @@ function init() {
   return safeFs
 }
 
-const safeFs = shared.inited
-  ? shared.module.safeFs
-  : shared.module.safeFs = init()
+const safeFs = shared.inited ? shared.module.safeFs : (shared.module.safeFs = init())
 
 export const {
   closeSync,

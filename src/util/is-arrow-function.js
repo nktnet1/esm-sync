@@ -24,4 +24,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsArrowFunction
-  : shared.module.utilIsArrowFunction = init()
+  : (shared.module.utilIsArrowFunction = init())

@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 import { Console } from "console"
 import JSON6 from "json-6"
 import Module from "module"
@@ -174,7 +175,9 @@ describe("miscellaneous tests", () => {
 
         assert.ok(sub1 instanceof Ctor)
         assert.ok(sub1 instanceof Sub1)
-        assert.ok(Reflect.has(sub1, "domain"))
+        // EventEmitter no longer creates `domain` on newer Node versions.
+        // Check that subclassing preserves the current runtime's behaviour.
+        assert.strictEqual(Reflect.has(sub1, "domain"), Reflect.has(new Ctor, "domain"))
         assert.strictEqual(sub1.sub, "sub")
 
         assert.ok(sub2 instanceof Ctor)
@@ -203,10 +206,7 @@ describe("miscellaneous tests", () => {
       }
     })
 
-    it("should support `util.formatWithOptions()`", function () {
-      if (! canTestUtilFormatWithOptions) {
-        this.skip()
-      }
+    it("should support `util.formatWithOptions()`", { skip: !canTestUtilFormatWithOptions }, () => {
 
       const { formatWithOptions } = util
 
@@ -229,10 +229,7 @@ describe("miscellaneous tests", () => {
       }
     })
 
-    it("should support `util.types.isModuleNamespaceObject()`", function () {
-      if (! canTestUtilTypes) {
-        this.skip()
-      }
+    it("should support `util.types.isModuleNamespaceObject()`", { skip: !canTestUtilTypes }, () => {
 
       const { isModuleNamespaceObject } = util.types
 
@@ -242,10 +239,7 @@ describe("miscellaneous tests", () => {
       assert.strictEqual(isModuleNamespaceObject(), false)
     })
 
-    it("should support `util.types.isProxy()`", function () {
-      if (! canTestUtilTypes) {
-        this.skip()
-      }
+    it("should support `util.types.isProxy()`", { skip: !canTestUtilTypes }, () => {
 
       const { isProxy } = util.types
 
@@ -861,17 +855,15 @@ describe("miscellaneous tests", () => {
         .catch((e) => checkError(e, "ERR_MODULE_RESOLUTION_LEGACY"))
     })
 
-    it("should support requests with trailing backslashes in Windows", function () {
-      if (! isWin) {
-        this.skip()
-      }
+    if (isWin) {
+      it("should support requests with trailing backslashes in Windows", () => {
+        const request = ".\\node_modules\\ext-priority\\"
 
-      const request = ".\\node_modules\\ext-priority\\"
+        assert.doesNotThrow(() => require2(request))
 
-      assert.doesNotThrow(() => require2(request))
-
-      return import(request)
-    })
+        return import(request)
+      })
+    }
 
     it("should support requests containing safe characters in ESM", () =>
       Promise
@@ -882,19 +874,17 @@ describe("miscellaneous tests", () => {
         .map((request) => import(request)))
     )
 
-    it("should support requests containing unsafe characters in ESM", function () {
-      if (isWin) {
-        this.skip()
-      }
-
-      return Promise
-        .all([
-          "./fixture/unsafe-characters%5B\b\t\n\r:%3F%5D.mjs",
-          "./fixture/unsafe-characters%5B%08%09%0A%0D:%3F%5D.mjs",
-          "./fixture/unsafe-characters%5b%08%09%0a%0d:%3f%5d.mjs"
-        ]
-        .map((request) => import(request)))
-    })
+    if (!isWin) {
+      it("should support requests containing unsafe characters in ESM", () =>
+        Promise
+          .all([
+            "./fixture/unsafe-characters%5B\b\t\n\r:%3F%5D.mjs",
+            "./fixture/unsafe-characters%5B%08%09%0A%0D:%3F%5D.mjs",
+            "./fixture/unsafe-characters%5b%08%09%0a%0d:%3f%5d.mjs"
+          ]
+          .map((request) => import(request)))
+      )
+    }
 
     it("should support builtin module specifiers with percent encodings", () =>
       import("%66%73")
@@ -1316,6 +1306,7 @@ describe("miscellaneous tests", () => {
       return Promise
         .all([
           eval(code),
+          // biome-ignore lint/complexity/noCommaOperator: Exercise indirect eval, not direct eval.
           (0, eval)(code)
         ].map((promise) =>
           promise
@@ -1345,6 +1336,7 @@ describe("miscellaneous tests", () => {
       `
 
       assert.strictEqual(typeof eval(code), "undefined")
+      // biome-ignore lint/complexity/noCommaOperator: Exercise indirect eval, not direct eval.
       assert.strictEqual(typeof (0, eval)(code), "undefined")
     })
 
@@ -1384,6 +1376,7 @@ describe("miscellaneous tests", () => {
     it("should not support evaled `import.meta` in ESM", () => {
       const evalers = [
         () => eval("import.meta"),
+        // biome-ignore lint/complexity/noCommaOperator: Exercise indirect eval, not direct eval.
         () => (0, eval)("import.meta")
       ]
 
@@ -1896,12 +1889,7 @@ describe("miscellaneous tests", () => {
     )
   })
 
-  describe("workers support", () => {
-    before(function () {
-      if (! canTestWorker) {
-        this.skip()
-      }
-    })
+  describe("workers support", { skip: !canTestWorker }, () => {
 
     const Worker = canTestWorker
       ? require2("worker_threads").Worker

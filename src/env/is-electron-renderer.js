@@ -4,8 +4,7 @@ import { type } from "../safe/process.js"
 
 function init() {
   function isElectronRenderer() {
-    return type === "renderer" &&
-      isElectron()
+    return type === "renderer" && isElectron()
   }
 
   return isElectronRenderer
@@ -13,4 +12,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envIsElectronRenderer
-  : shared.module.envIsElectronRenderer = init()
+  : (shared.module.envIsElectronRenderer = init())

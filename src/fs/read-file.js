@@ -10,8 +10,7 @@ function init() {
       content = readFileSync(filename, options)
     } catch {}
 
-    if (content &&
-        options === "utf8") {
+    if (content && options === "utf8") {
       return stripBOM(content)
     }
 
@@ -21,6 +20,4 @@ function init() {
   return readFile
 }
 
-export default shared.inited
-  ? shared.module.fsReadFile
-  : shared.module.fsReadFile = init()
+export default shared.inited ? shared.module.fsReadFile : (shared.module.fsReadFile = init())

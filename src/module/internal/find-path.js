@@ -2,13 +2,7 @@
 // Copyright Node.js contributors. Released under MIT license:
 // https://github.com/nodejs/node/blob/master/lib/internal/modules/cjs/loader.js
 
-import {
-  basename,
-  dirname,
-  resolve,
-  sep,
-  join
-} from "../../safe/path.js"
+import { basename, dirname, resolve, sep, join } from "../../safe/path.js"
 
 import CHAR_CODE from "../../constant/char-code.js"
 import ENV from "../../constant/env.js"
@@ -32,58 +26,34 @@ import statFast from "../../fs/stat-fast.js"
 import statSync from "../../fs/stat-sync.js"
 import toStringLiteral from "../../util/to-string-literal.js"
 
-const {
-  APOSTROPHE,
-  DOT
-} = CHAR_CODE
+const { APOSTROPHE, DOT } = CHAR_CODE
 
-const {
-  FLAGS,
-  TINK,
-  YARN_PNP
-} = ENV
+const { FLAGS, TINK, YARN_PNP } = ENV
 
-const {
-  MAIN_NOT_FOUND
-} = errors
+const { MAIN_NOT_FOUND } = errors
 
 const { isFile } = Stats.prototype
 const mainFields = ["main"]
 
-const preserveAllSymlinks =
-  TINK ||
-  YARN_PNP
+const preserveAllSymlinks = TINK || YARN_PNP
 
-const resolveSymlinks =
-  ! preserveAllSymlinks &&
-  ! FLAGS.preserveSymlinks
+const resolveSymlinks = !preserveAllSymlinks && !FLAGS.preserveSymlinks
 
-const resolveSymlinksMain =
-  ! preserveAllSymlinks &&
-  ! FLAGS.preserveSymlinksMain
+const resolveSymlinksMain = !preserveAllSymlinks && !FLAGS.preserveSymlinksMain
 
 function findPath(request, paths, isMain = false, fields, exts) {
   const pathsLength = paths.length
 
-  let cacheKey =
-    request + "\0" +
-    (pathsLength === 1
-      ? paths[0]
-      : GenericArray.join(paths)
-    ) + "\0"
+  let cacheKey = request + "\0" + (pathsLength === 1 ? paths[0] : GenericArray.join(paths)) + "\0"
 
   if (fields !== void 0) {
-    cacheKey += fields.length === 1
-      ? fields[0]
-      : fields.join()
+    cacheKey += fields.length === 1 ? fields[0] : fields.join()
   }
 
   cacheKey += "\0"
 
   if (exts !== void 0) {
-    cacheKey += exts.length === 1
-      ? exts[0]
-      : exts.join()
+    cacheKey += exts.length === 1 ? exts[0] : exts.join()
   }
 
   cacheKey += "\0"
@@ -99,14 +69,11 @@ function findPath(request, paths, isMain = false, fields, exts) {
     return cached
   }
 
-  const useRealpath = isMain
-    ? resolveSymlinksMain
-    : resolveSymlinks
+  const useRealpath = isMain ? resolveSymlinksMain : resolveSymlinks
 
   const isAbs = isAbsolute(request)
 
-  if (! isAbs &&
-      pathsLength === 0) {
+  if (!isAbs && pathsLength === 0) {
     return ""
   }
 
@@ -138,8 +105,7 @@ function findPath(request, paths, isMain = false, fields, exts) {
   }
 
   for (const curPath of paths) {
-    if (! isAbs &&
-        statFast(curPath) !== 1) {
+    if (!isAbs && statFast(curPath) !== 1) {
       continue
     }
 
@@ -164,8 +130,7 @@ function findPath(request, paths, isMain = false, fields, exts) {
     let rc = -1
     let stat = null
 
-    if (isExtJS(thePath) ||
-        isExtMJS(thePath)) {
+    if (isExtJS(thePath) || isExtMJS(thePath)) {
       stat = statSync(thePath)
 
       if (stat !== null) {
@@ -177,12 +142,10 @@ function findPath(request, paths, isMain = false, fields, exts) {
 
     let foundPath = ""
 
-    if (! trailingSlash) {
+    if (!trailingSlash) {
       // If a file.
       if (rc === 0) {
-        foundPath = useRealpath
-          ? realpath(thePath)
-          : thePath
+        foundPath = useRealpath ? realpath(thePath) : thePath
       }
 
       if (foundPath === "") {
@@ -195,8 +158,7 @@ function findPath(request, paths, isMain = false, fields, exts) {
     }
 
     // If a directory.
-    if (rc === 1 &&
-        foundPath === "") {
+    if (rc === 1 && foundPath === "") {
       if (exts === void 0) {
         exts = keys(Module._extensions)
       }
@@ -253,8 +215,7 @@ function tryField(dirPath, fieldPath, exts, isMain) {
 function tryFilename(filename, isMain) {
   let rc = -1
 
-  if (isExtJS(filename) ||
-      isExtMJS(filename)) {
+  if (isExtJS(filename) || isExtMJS(filename)) {
     let stat = statSync(filename)
 
     if (stat !== null) {
@@ -268,13 +229,9 @@ function tryFilename(filename, isMain) {
     return ""
   }
 
-  const useRealpath = isMain
-    ? resolveSymlinksMain
-    : resolveSymlinks
+  const useRealpath = isMain ? resolveSymlinksMain : resolveSymlinks
 
-  return useRealpath
-    ? realpath(filename)
-    : filename
+  return useRealpath ? realpath(filename) : filename
 }
 
 function tryPackage(request, dirPath, fields, exts, isMain) {
@@ -292,9 +249,7 @@ function tryPackage(request, dirPath, fields, exts, isMain) {
     fieldValue = json[field]
     foundPath = tryField(dirPath, fieldValue, exts, isMain)
 
-    if (foundPath !== "" &&
-        (field === "main" ||
-         ! isExtMJS(foundPath))) {
+    if (foundPath !== "" && (field === "main" || !isExtMJS(foundPath))) {
       return foundPath
     }
   }
@@ -305,7 +260,7 @@ function tryPackage(request, dirPath, fields, exts, isMain) {
   // ! https://github.com/wallabyjs/quokka/issues/928
   if (json.exports) {
     foundPath = resolveExports(json.exports, dirPath, request.substring(dirPath.length + 1))
-    if (foundPath !== "" && ! isExtMJS(foundPath)) {
+    if (foundPath !== "" && !isExtMJS(foundPath)) {
       return foundPath
     }
   }
@@ -320,9 +275,13 @@ function tryPackage(request, dirPath, fields, exts, isMain) {
 
   if (FLAGS.pendingDeprecation) {
     emitWarning(
-      "Invalid " + toStringLiteral(field, APOSTROPHE) + " field in " +
-      toStringLiteral(jsonPath, APOSTROPHE) + " of " + inspectTrunc(fieldValue) +
-      ". Please either fix or report it to the module author",
+      "Invalid " +
+        toStringLiteral(field, APOSTROPHE) +
+        " field in " +
+        toStringLiteral(jsonPath, APOSTROPHE) +
+        " of " +
+        inspectTrunc(fieldValue) +
+        ". Please either fix or report it to the module author",
       "DeprecationWarning",
       "DEP0128"
     )
@@ -331,19 +290,13 @@ function tryPackage(request, dirPath, fields, exts, isMain) {
   return foundPath
 }
 
-function resolveExports(
-  exports,
-  packagePath,
-  subpath
-) {
+function resolveExports(exports, packagePath, subpath) {
   if (typeof exports === "string") {
     return join(packagePath, exports)
   }
 
   if (Array.isArray(exports)) {
-    const availableExport = exports.find((exportPath) =>
-      existsSync(join(packagePath, exportPath))
-    )
+    const availableExport = exports.find((exportPath) => existsSync(join(packagePath, exportPath)))
     if (availableExport) {
       return join(packagePath, availableExport)
     }
@@ -375,7 +328,7 @@ function resolveExports(
     })
 
   if (subpath) {
-     // Ensure the subpath format is correct
+    // Ensure the subpath format is correct
     const normalizedSubpath = `./${subpath}`
 
     const matchedCondition = conditions.find(
@@ -385,7 +338,10 @@ function resolveExports(
     )
     if (matchedCondition) {
       if (matchedCondition.endsWith && typeof matchedCondition.exports === "string") {
-        const pathToReplace = normalizedSubpath.substring(matchedCondition.startsWith.length, normalizedSubpath.length - matchedCondition.endsWith.length)
+        const pathToReplace = normalizedSubpath.substring(
+          matchedCondition.startsWith.length,
+          normalizedSubpath.length - matchedCondition.endsWith.length
+        )
         return join(packagePath, matchedCondition.exports.replace("*", pathToReplace))
       }
       return resolveExports(matchedCondition.exports, packagePath, subpath)

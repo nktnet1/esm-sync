@@ -22,11 +22,8 @@ function init() {
 
       let { filename } = mod
 
-      if (filename === null &&
-          typeof id === "string") {
-        filename = isFileOrigin(id)
-          ? getFilePathfromURL(id)
-          : id
+      if (filename === null && typeof id === "string") {
+        filename = isFileOrigin(id) ? getFilePathfromURL(id) : id
       }
 
       if (typeof filename === "string") {
@@ -42,4 +39,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetModuleDirname
-  : shared.module.utilGetModuleDirname = init()
+  : (shared.module.utilGetModuleDirname = init())

@@ -9,11 +9,8 @@ function init() {
   }
 
   return function isRegExp(value) {
-    return isObject(value) &&
-           getObjectTag(value) === "[object RegExp]"
+    return isObject(value) && getObjectTag(value) === "[object RegExp]"
   }
 }
 
-export default shared.inited
-  ? shared.module.utilIsRegExp
-  : shared.module.utilIsRegExp = init()
+export default shared.inited ? shared.module.utilIsRegExp : (shared.module.utilIsRegExp = init())

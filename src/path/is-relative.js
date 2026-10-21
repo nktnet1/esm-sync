@@ -4,9 +4,7 @@ import isSep from "./is-sep.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    DOT
-  } = CHAR_CODE
+  const { DOT } = CHAR_CODE
 
   function isRelative(value) {
     if (typeof value !== "string") {
@@ -47,4 +45,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.pathIsRelativePath
-  : shared.module.pathIsRelativePath = init()
+  : (shared.module.pathIsRelativePath = init())

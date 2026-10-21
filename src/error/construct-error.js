@@ -7,17 +7,17 @@ import shared from "../shared.js"
 function init() {
   "use sloppy"
 
-  const {
-    STACK_TRACE_LIMIT
-  } = ESM
+  const { STACK_TRACE_LIMIT } = ESM
 
   function constructError(ErrorCtor, args, suggestedLimit = STACK_TRACE_LIMIT) {
     const BuiltinError = getBuiltinErrorConstructor(ErrorCtor.prototype)
-    const stackTraceLimitDescriptor = Reflect.getOwnPropertyDescriptor(BuiltinError, "stackTraceLimit")
+    const stackTraceLimitDescriptor = Reflect.getOwnPropertyDescriptor(
+      BuiltinError,
+      "stackTraceLimit"
+    )
 
-    const oldStackTraceLimit = stackTraceLimitDescriptor === void 0
-      ? void 0
-      : stackTraceLimitDescriptor.value
+    const oldStackTraceLimit =
+      stackTraceLimitDescriptor === void 0 ? void 0 : stackTraceLimitDescriptor.value
 
     const shouldSetStackTraceLimit =
       suggestedLimit === 0 ||
@@ -47,4 +47,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.errorConstructError
-  : shared.module.errorConstructError = init()
+  : (shared.module.errorConstructError = init())

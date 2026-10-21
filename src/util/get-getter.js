@@ -6,11 +6,8 @@ function init() {
   function getGetter(object, name) {
     const useAsDescriptor = name === void 0
 
-    if (useAsDescriptor ||
-        ! shared.support.lookupShadowed) {
-      const descriptor = useAsDescriptor
-        ? object
-        : Reflect.getOwnPropertyDescriptor(object, name)
+    if (useAsDescriptor || !shared.support.lookupShadowed) {
+      const descriptor = useAsDescriptor ? object : Reflect.getOwnPropertyDescriptor(object, name)
 
       if (descriptor !== void 0) {
         return descriptor.get
@@ -27,6 +24,4 @@ function init() {
   return getGetter
 }
 
-export default shared.inited
-  ? shared.module.utilGetGetter
-  : shared.module.utilGetGetter = init()
+export default shared.inited ? shared.module.utilGetGetter : (shared.module.utilGetGetter = init())

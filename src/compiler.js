@@ -18,7 +18,9 @@ import shared from "./shared.js"
 import stripShebang from "./util/strip-shebang.js"
 import temporalVisitor from "./visitor/temporal.js"
 import undeclaredVisitor from "./visitor/undeclared.js"
-import requireDeclarationVisitor, { getEsmRequireReplacementName } from "./visitor/require-declaration.js"
+import requireDeclarationVisitor, {
+  getEsmRequireReplacementName
+} from "./visitor/require-declaration.js"
 
 function init() {
   const {
@@ -47,7 +49,6 @@ function init() {
   const Compiler = {
     createOptions,
     defaultOptions,
-    // eslint-disable-next-line sort-keys
     compile(code, options) {
       code = stripShebang(code)
       options = Compiler.createOptions(options)
@@ -102,9 +103,10 @@ function init() {
         possibleImportExportIndexes.length !== 0 ||
         possibleRequireIndexes.length !== 0
 
-      if (! possibleChanges &&
-          (sourceType === SOURCE_TYPE_SCRIPT ||
-           sourceType === SOURCE_TYPE_UNAMBIGUOUS)) {
+      if (
+        !possibleChanges &&
+        (sourceType === SOURCE_TYPE_SCRIPT || sourceType === SOURCE_TYPE_UNAMBIGUOUS)
+      ) {
         return result
       }
 
@@ -125,8 +127,7 @@ function init() {
         error = e
       }
 
-      if (threw &&
-          sourceType === SOURCE_TYPE_UNAMBIGUOUS) {
+      if (threw && sourceType === SOURCE_TYPE_UNAMBIGUOUS) {
         sourceType = SOURCE_TYPE_SCRIPT
         parserOptions.allowReturnOutsideFunction = true
         parserOptions.sourceType = sourceType
@@ -179,21 +180,15 @@ function init() {
       const transformsImportMeta = (importExportTransforms & TRANSFORMS_IMPORT_META) !== 0
 
       if (sourceType === SOURCE_TYPE_UNAMBIGUOUS) {
-        if (transformsExport ||
-            transformsImportMeta ||
-            transformsImport) {
+        if (transformsExport || transformsImportMeta || transformsImport) {
           sourceType = SOURCE_TYPE_MODULE
         } else {
           sourceType = SOURCE_TYPE_SCRIPT
         }
       }
 
-      if (transformsDynamicImport ||
-          transformsImport) {
-        const globals = new Set([
-          "Reflect",
-          "console"
-        ])
+      if (transformsDynamicImport || transformsImport) {
+        const globals = new Set(["Reflect", "console"])
 
         const possibleGlobalsNames = []
 
@@ -217,7 +212,7 @@ function init() {
         })
       }
 
-      if (! topIdentifiers.has("eval")) {
+      if (!topIdentifiers.has("eval")) {
         evalVisitor.visit(rootPath, {
           magicString,
           possibleIndexes: possibleEvalIndexes,
@@ -229,8 +224,7 @@ function init() {
 
       let possibleAssignableBindingsIndexes
 
-      if (transformsExport ||
-          transformsImport) {
+      if (transformsExport || transformsImport) {
         const { assignableBindings } = importExportVisitor
 
         possibleAssignableBindingsIndexes = findIndexes(code, [...assignableBindings])
@@ -244,8 +238,7 @@ function init() {
         const { importedBindings } = top
 
         const transformImportBindingAssignments =
-          ! requireVisitor.found &&
-          importedBindings.size !== 0
+          !requireVisitor.found && importedBindings.size !== 0
 
         let possibleAssignmentIndexes = possibleAssignableBindingsIndexes
 
@@ -267,8 +260,7 @@ function init() {
         importExportVisitor.finalizeHoisting()
       }
 
-      if (! cjsVars &&
-          sourceType === SOURCE_TYPE_MODULE) {
+      if (!cjsVars && sourceType === SOURCE_TYPE_MODULE) {
         const possibleNames = [
           "__dirname",
           "__filename",
@@ -278,11 +270,11 @@ function init() {
           "require"
         ]
 
-        const undeclared = new Set
+        const undeclared = new Set()
         const undeclaredNames = []
 
         for (const name of possibleNames) {
-          if (! topIdentifiers.has(name)) {
+          if (!topIdentifiers.has(name)) {
             undeclared.add(name)
             undeclaredNames.push(name)
           }
@@ -297,15 +289,16 @@ function init() {
       }
 
       if (topIdentifiers.has("require") && sourceType === SOURCE_TYPE_MODULE) {
-        magicString.overwrite(0, 0, `const ${getEsmRequireReplacementName(runtimeName)} = require;\n`)
-        requireDeclarationVisitor.visit(
-          rootPath,
-          {
-            magicString,
-            possibleIndexes: possibleRequireIndexes,
-            runtimeName
-          }
+        magicString.overwrite(
+          0,
+          0,
+          `const ${getEsmRequireReplacementName(runtimeName)} = require;\n`
         )
+        requireDeclarationVisitor.visit(rootPath, {
+          magicString,
+          possibleIndexes: possibleRequireIndexes,
+          runtimeName
+        })
       }
 
       result.transforms =
@@ -351,9 +344,7 @@ function init() {
 
           result.transforms |= temporalTransforms
 
-          return (temporalTransforms & TRANSFORMS_TEMPORALS) === 0
-            ? null
-            : magicString.toString()
+          return (temporalTransforms & TRANSFORMS_TEMPORALS) === 0 ? null : magicString.toString()
         })
 
         result.circular = -1
@@ -375,6 +366,4 @@ function init() {
   return Compiler
 }
 
-export default shared.inited
-  ? shared.module.Compiler
-  : shared.module.Compiler = init()
+export default shared.inited ? shared.module.Compiler : (shared.module.Compiler = init())

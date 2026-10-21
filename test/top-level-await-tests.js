@@ -1,15 +1,11 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 import SemVer from "semver"
 
 import assert from "assert"
 
 const canTestAsyncIterators = SemVer.satisfies(process.version, ">=10")
 
-describe("top-level await tests", () => {
-  before(function () {
-    if (! canTestAsyncIterators) {
-      this.skip()
-    }
-  })
+describe("top-level await tests", { skip: !canTestAsyncIterators }, () => {
 
   it("should support `options.await`", () =>
     Promise

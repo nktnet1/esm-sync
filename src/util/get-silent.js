@@ -21,6 +21,4 @@ function init() {
   return getSilent
 }
 
-export default shared.inited
-  ? shared.module.utilGetSilent
-  : shared.module.utilGetSilent = init()
+export default shared.inited ? shared.module.utilGetSilent : (shared.module.utilGetSilent = init())

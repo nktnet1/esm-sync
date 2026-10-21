@@ -1,0 +1,132 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!!build",
+      "!!esm",
+      "!!src/vendor",
+      "!!test/vendor",
+      "!!test/node_modules",
+      "!!test/env",
+      "!!test/fixture",
+      "!!test/output",
+      "!!test/export/star-cycle.mjs",
+      "!!test/misc/namespace.mjs",
+      "!!test/misc/builtin/namespace.mjs"
+    ]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "quoteProperties": "asNeeded",
+      "semicolons": "asNeeded",
+      "trailingCommas": "none",
+      "arrowParentheses": "always"
+    },
+    "globals": [
+      "__external__",
+      "__global__",
+      "__non_webpack_module__",
+      "__non_webpack_require__",
+      "__shared__"
+    ]
+  },
+  "linter": {
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noAssignInExpressions": "off",
+        "noRedundantUseStrict": "off",
+        "noPrototypeBuiltins": "off"
+      },
+      "complexity": {
+        "useArrowFunction": "off",
+        "useOptionalChain": "off",
+        "noUselessThisAlias": "off",
+        "noUselessEscapeInRegex": "off"
+      },
+      "style": {
+        "useNodejsImportProtocol": "off",
+        "useTemplate": "off",
+        "useConst": "off"
+      }
+    }
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/**", "esm.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noShadowRestrictedNames": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/own/proxy.js", "test/dynamic-import-tests.mjs"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noConstructorReturn": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [".babel.config.js", "test/misc-tests.js", "test/misc/import-meta.mjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "useIterableCallbackReturn": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["test/**"],
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "rules": {
+          "security": {
+            "noGlobalEval": "off"
+          },
+          "suspicious": {
+            "noShadowRestrictedNames": "off",
+            "noTemplateCurlyInString": "off"
+          },
+          "complexity": {
+            "noArguments": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["test/vitest/**"],
+      "formatter": {
+        "enabled": true
+      }
+    }
+  ]
+}

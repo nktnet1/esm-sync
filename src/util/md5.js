@@ -16,6 +16,4 @@ function init() {
   return md5
 }
 
-export default shared.inited
-  ? shared.module.utilMD5
-  : shared.module.utilMD5 = init()
+export default shared.inited ? shared.module.utilMD5 : (shared.module.utilMD5 = init())

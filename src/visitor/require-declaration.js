@@ -13,11 +13,9 @@ export function getEsmRequireReplacementName(runtimeName) {
 }
 
 function init() {
-  const {
-    TRANSFORMS_REQUIRE_DECLARATION
-  } = COMPILER
+  const { TRANSFORMS_REQUIRE_DECLARATION } = COMPILER
 
-  const shadowedMap = new Map
+  const shadowedMap = new Map()
 
   class RequireDeclarationVisitor extends Visitor {
     reset(options) {
@@ -49,7 +47,12 @@ function init() {
         return
       }
 
-      overwrite(this, identifier.start, identifier.end, getEsmRequireReplacementName(this.runtimeName))
+      overwrite(
+        this,
+        identifier.start,
+        identifier.end,
+        getEsmRequireReplacementName(this.runtimeName)
+      )
       this.transforms |= TRANSFORMS_REQUIRE_DECLARATION
 
       this.visitChildren(path)
@@ -71,9 +74,9 @@ function init() {
     }
   }
 
-  return new RequireDeclarationVisitor
+  return new RequireDeclarationVisitor()
 }
 
 export default shared.inited
   ? shared.module.visitorRequireDeclaration
-  : shared.module.visitorRequireDeclaration = init()
+  : (shared.module.visitorRequireDeclaration = init())

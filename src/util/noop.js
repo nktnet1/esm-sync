@@ -8,6 +8,4 @@ function init() {
   return noop
 }
 
-export default shared.inited
-  ? shared.module.utilNoop
-  : shared.module.utilNoop = init()
+export default shared.inited ? shared.module.utilNoop : (shared.module.utilNoop = init())

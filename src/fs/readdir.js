@@ -15,6 +15,4 @@ function init() {
   return readdir
 }
 
-export default shared.inited
-  ? shared.module.fsReaddir
-  : shared.module.fsReaddir = init()
+export default shared.inited ? shared.module.fsReaddir : (shared.module.fsReaddir = init())

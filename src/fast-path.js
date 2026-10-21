@@ -64,9 +64,7 @@ function init() {
         // this fuzzy matching of object shapes.
         const value = stack[i--]
 
-        if (isObject(value) &&
-            ! Array.isArray(value) &&
-            callback(value)) {
+        if (isObject(value) && !Array.isArray(value) && callback(value)) {
           return value
         }
       }
@@ -90,6 +88,4 @@ function init() {
   return FastPath
 }
 
-export default shared.inited
-  ? shared.module.FastPath
-  : shared.module.FastPath = init()
+export default shared.inited ? shared.module.FastPath : (shared.module.FastPath = init())

@@ -4,13 +4,10 @@ import shared from "../shared.js"
 
 function init() {
   function isCLI() {
-    return argv.length > 1 &&
-      isPreloaded()
+    return argv.length > 1 && isPreloaded()
   }
 
   return isCLI
 }
 
-export default shared.inited
-  ? shared.module.envIsCLI
-  : shared.module.envIsCLI = init()
+export default shared.inited ? shared.module.envIsCLI : (shared.module.envIsCLI = init())

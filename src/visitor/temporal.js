@@ -9,11 +9,9 @@ import overwrite from "../parse/overwrite.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    TRANSFORMS_TEMPORALS
-  } = COMPILER
+  const { TRANSFORMS_TEMPORALS } = COMPILER
 
-  const shadowedMap = new Map
+  const shadowedMap = new Map()
 
   class TemporalVisitor extends Visitor {
     reset(options) {
@@ -35,8 +33,7 @@ function init() {
       const node = path.getValue()
       const { name } = node
 
-      if (! this.temporalBindings.has(name) ||
-          isShadowed(path, name, shadowedMap)) {
+      if (!this.temporalBindings.has(name) || isShadowed(path, name, shadowedMap)) {
         return
       }
 
@@ -48,11 +45,7 @@ function init() {
         const { end, start } = node
 
         if (parent.shorthand) {
-          magicString
-            .prependLeft(
-              end,
-              ":" + runtimeName + '.a("' + name + '",' + name + ")"
-            )
+          magicString.prependLeft(end, ":" + runtimeName + '.a("' + name + '",' + name + ")")
 
           return
         }
@@ -82,10 +75,7 @@ function init() {
         // Instrument for non-hoisted values.
         this.transforms |= TRANSFORMS_TEMPORALS
 
-        this.magicString.appendRight(
-          declaration.end,
-          this.runtimeName + '.j(["default"]);'
-        )
+        this.magicString.appendRight(declaration.end, this.runtimeName + '.j(["default"]);')
       }
 
       path.call(this, "visitWithoutReset", "declaration")
@@ -94,7 +84,7 @@ function init() {
     visitExportNamedDeclaration(path) {
       const node = path.getValue()
       const { declaration, specifiers } = node
-      const initees = new Set
+      const initees = new Set()
 
       if (declaration !== null) {
         const { type } = declaration
@@ -143,9 +133,9 @@ function init() {
     }
   }
 
-  return new TemporalVisitor
+  return new TemporalVisitor()
 }
 
 export default shared.inited
   ? shared.module.visitorTemporal
-  : shared.module.visitorTemporal = init()
+  : (shared.module.visitorTemporal = init())

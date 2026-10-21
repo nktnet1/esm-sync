@@ -27,18 +27,11 @@ import validateString from "../../util/validate-string.js"
 
 import realRequire from "../../real/require.js"
 
-const {
-  TYPE_CJS,
-  TYPE_PSEUDO
-} = ENTRY
+const { TYPE_CJS, TYPE_PSEUDO } = ENTRY
 
-const {
-  ELECTRON
-} = ENV
+const { ELECTRON } = ENV
 
-const {
-  MODULE_NOT_FOUND
-} = errors
+const { MODULE_NOT_FOUND } = errors
 
 const resolveFilename = maskFunction(function (request, parent, isMain = false, options) {
   validateString(request, "request")
@@ -50,8 +43,7 @@ const resolveFilename = maskFunction(function (request, parent, isMain = false, 
   // Electron and Muon patch `Module._resolveFilename()`.
   // https://github.com/electron/electron/blob/master/lib/common/reset-search-paths.js
   // https://github.com/brave/muon/blob/master/lib/common/reset-search-paths.js
-  if (ELECTRON &&
-      bundledLookup.has(request)) {
+  if (ELECTRON && bundledLookup.has(request)) {
     return SafeModule._resolveFilename(request, parent, isMain, options)
   }
 
@@ -71,21 +63,16 @@ const resolveFilename = maskFunction(function (request, parent, isMain = false, 
   if (isAbs) {
     fromPath = dirname(request)
   } else {
-    fromPath = parentEntry === null
-      ? ""
-      : parentEntry.dirname
+    fromPath = parentEntry === null ? "" : parentEntry.dirname
   }
 
   let cache
   let cacheKey
 
-  if (! isObject(options)) {
+  if (!isObject(options)) {
     cache = shared.memoize.moduleStaticResolveFilename
 
-    cacheKey =
-      request + "\0" +
-      fromPath + "\0" +
-      (isMain ? "1" : "")
+    cacheKey = request + "\0" + fromPath + "\0" + (isMain ? "1" : "")
 
     const cached = cache.get(cacheKey)
 
@@ -94,17 +81,18 @@ const resolveFilename = maskFunction(function (request, parent, isMain = false, 
     }
   }
 
-  const isRel = ! isAbs && isRelative(request)
+  const isRel = !isAbs && isRelative(request)
   const isPath = isAbs || isRel
 
   let paths
 
-  if (isPath &&
-      Module._findPath === staticFindPath &&
-      Module._resolveLookupPaths === staticResolveLookupPaths) {
+  if (
+    isPath &&
+    Module._findPath === staticFindPath &&
+    Module._resolveLookupPaths === staticResolveLookupPaths
+  ) {
     paths = [fromPath]
-  } else if (cache === void 0 &&
-             Array.isArray(options.paths)) {
+  } else if (cache === void 0 && Array.isArray(options.paths)) {
     paths = resolveLookupPathsFrom(request, options.paths)
   } else {
     paths = Module._resolveLookupPaths(request, parent, true)
@@ -119,7 +107,7 @@ const resolveFilename = maskFunction(function (request, parent, isMain = false, 
     // resolution, which better covers some other cases (e.g. export maps).
     try {
       foundPath = realRequire.resolve(request, { paths })
-    } catch (e) {}
+    } catch (_e) {}
   }
 
   if (foundPath !== "") {
@@ -132,7 +120,7 @@ const resolveFilename = maskFunction(function (request, parent, isMain = false, 
 
   const error = new MODULE_NOT_FOUND(request, parent)
 
-  if (! Loader.state.package.default.options.debug) {
+  if (!Loader.state.package.default.options.debug) {
     const maskOptions = {
       filename: null,
       inModule: false
@@ -144,8 +132,7 @@ const resolveFilename = maskFunction(function (request, parent, isMain = false, 
       maskOptions.filename = parentEntry.filename
 
       maskOptions.inModule =
-        (! parentEntry.package.options.cjs.paths ||
-         parentEntry.extname === ".mjs") &&
+        (!parentEntry.package.options.cjs.paths || parentEntry.extname === ".mjs") &&
         parentType !== TYPE_CJS &&
         parentType !== TYPE_PSEUDO
     }

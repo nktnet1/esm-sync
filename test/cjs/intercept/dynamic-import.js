@@ -31,7 +31,7 @@ try {
   mod.filename = filename
   mod.paths = Module._nodeModulePaths(__dirname)
   mod._compile(content, filename)
-} catch (e) {}
+} catch (_e) {}
 
 module.exports = () => {
   return new Promise((resolve) => setImmediate(() => {

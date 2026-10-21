@@ -8,11 +8,9 @@ import overwrite from "../parse/overwrite.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    TRANSFORMS_EVAL
-  } = COMPILER
+  const { TRANSFORMS_EVAL } = COMPILER
 
-  const shadowedMap = new Map
+  const shadowedMap = new Map()
 
   class EvalVisitor extends Visitor {
     reset(options) {
@@ -56,14 +54,10 @@ function init() {
         ? runtimeName + ".c"
         : "(eval===" + runtimeName + ".v?" + runtimeName + ".c:" + runtimeName + ".k)"
 
-      magicString
-        .prependLeft(callee.end, "(" + code)
-        .prependRight(end, ")")
+      magicString.prependLeft(callee.end, "(" + code).prependRight(end, ")")
 
       if (this.transformUpdateBindings) {
-        magicString
-          .prependLeft(node.start, runtimeName + ".u(")
-          .prependRight(end, ")")
+        magicString.prependLeft(node.start, runtimeName + ".u(").prependRight(end, ")")
       }
 
       path.call(this, "visitWithoutReset", "arguments")
@@ -79,10 +73,11 @@ function init() {
       const parent = path.getParentNode()
       const { type } = parent
 
-      if ((type === "UnaryExpression" &&
-           parent.operator === "typeof") ||
-          ! isBindingIdentifier(node, parent) ||
-          isShadowed(path, "eval", shadowedMap)) {
+      if (
+        (type === "UnaryExpression" && parent.operator === "typeof") ||
+        !isBindingIdentifier(node, parent) ||
+        isShadowed(path, "eval", shadowedMap)
+      ) {
         return
       }
 
@@ -100,8 +95,7 @@ function init() {
         ? runtimeName + ".e"
         : "(eval===" + runtimeName + ".v?" + runtimeName + ".e:eval)"
 
-      if (type === "Property" &&
-          parent.shorthand) {
+      if (type === "Property" && parent.shorthand) {
         this.magicString.prependLeft(end, ":" + code)
       } else {
         overwrite(this, start, end, code)
@@ -109,9 +103,7 @@ function init() {
     }
   }
 
-  return new EvalVisitor
+  return new EvalVisitor()
 }
 
-export default shared.inited
-  ? shared.module.visitorEval
-  : shared.module.visitorEval = init()
+export default shared.inited ? shared.module.visitorEval : (shared.module.visitorEval = init())

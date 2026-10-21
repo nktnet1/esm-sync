@@ -9,10 +9,11 @@ function BabelEqEqEqPlugin() {
       BinaryExpression({ node }) {
         const { operator } = node
 
-        if ((operator === "==" ||
-             operator === "!=") &&
-            node.left.type !== "NullLiteral" &&
-            node.right.type !== "NullLiteral") {
+        if (
+          (operator === "==" || operator === "!=") &&
+          node.left.type !== "NullLiteral" &&
+          node.right.type !== "NullLiteral"
+        ) {
           node.operator += "="
         }
       }
@@ -33,19 +34,16 @@ function BabelModePlugin({ types }) {
 
       const isFunc = path.isFunction()
 
-      if (! isFunc &&
-          ! path.isProgram()) {
+      if (!isFunc && !path.isProgram()) {
         return false
       }
 
-      const node = isFunc
-        ? path.node.body
-        : path.node
+      const node = isFunc ? path.node.body : path.node
 
       const { directives } = node
 
       if (!directives) {
-        return false;
+        return false
       }
 
       let { length } = directives
@@ -53,8 +51,7 @@ function BabelModePlugin({ types }) {
       while (length--) {
         const { value } = directives[length].value
 
-        if (value === "use sloppy" ||
-            value === "use strict") {
+        if (value === "use sloppy" || value === "use strict") {
           return true
         }
       }
@@ -71,9 +68,7 @@ function BabelModePlugin({ types }) {
     const { node } = path
     const { directives } = node.body
 
-    if (directives &&
-        isSimpleParameterList(node.params) &&
-        ! isInMode(path)) {
+    if (directives && isSimpleParameterList(node.params) && !isInMode(path)) {
       directives.push(types.directive(types.directiveLiteral("use strict")))
     }
   }
@@ -119,45 +114,55 @@ module.exports = {
   env: {
     production: {
       plugins: [
-        ["transform-remove-console", {
-          exclude: ["error"]
-        }],
+        [
+          "transform-remove-console",
+          {
+            exclude: ["error"]
+          }
+        ],
         "transform-remove-debugger"
       ]
     }
   },
   plugins: [
-    ["@babel/proposal-class-properties", {
-      loose: true
-    }],
+    [
+      "@babel/proposal-class-properties",
+      {
+        loose: true
+      }
+    ],
     "@babel/proposal-optional-catch-binding",
-    ["@babel/transform-arrow-functions", {
-      spec: false
-    }],
-    ["@babel/transform-block-scoping", {
-      throwIfClosureRequired: false
-    }],
-    ["transform-for-of-as-array", {
-      loose: true
-    }],
-    BabelOrderPlugin([
-      BabelEqEqEqPlugin,
-      BabelModePlugin,
-      BabelRemoveSloppyPlugin
-    ])
+    [
+      "@babel/transform-arrow-functions",
+      {
+        spec: false
+      }
+    ],
+    [
+      "@babel/transform-block-scoping",
+      {
+        throwIfClosureRequired: false
+      }
+    ],
+    [
+      "transform-for-of-as-array",
+      {
+        loose: true
+      }
+    ],
+    BabelOrderPlugin([BabelEqEqEqPlugin, BabelModePlugin, BabelRemoveSloppyPlugin])
   ],
   presets: [
-    ["@babel/env", {
-      debug: isTest,
-      exclude: [
-        "transform-async-to-generator",
-        "transform-for-of",
-        "transform-function-name"
-      ],
-      loose: true,
-      modules: false,
-      targets: { node: 6 }
-    }]
+    [
+      "@babel/env",
+      {
+        debug: isTest,
+        exclude: ["transform-async-to-generator", "transform-for-of", "transform-function-name"],
+        loose: true,
+        modules: false,
+        targets: { node: 6 }
+      }
+    ]
   ],
   sourceMaps: false
 }

@@ -1,4 +1,3 @@
-import { log } from "console"
-import { promises } from "fs"
+import { _ignoreErrors, log } from "console"
 
 log("non-enumerable:false")

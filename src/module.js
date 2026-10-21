@@ -28,9 +28,7 @@ import staticResolveLookupPaths from "./module/static/resolve-lookup-paths.js"
 import staticWrap from "./module/static/wrap.js"
 import staticWrapper from "./module/static/wrapper.js"
 
-const {
-  ELECTRON
-} = ENV
+const { ELECTRON } = ENV
 
 const Module = maskFunction(function (id = "", parent) {
   this.children = GenericArray.of()
@@ -42,9 +40,7 @@ const Module = maskFunction(function (id = "", parent) {
   this.paths = void 0
   this.path = getModuleDirname(this)
 
-  const children = parent == null
-    ? null
-    : parent.children
+  const children = parent == null ? null : parent.children
 
   if (Array.isArray(children)) {
     GenericArray.push(children, this)
@@ -71,7 +67,7 @@ Module.wrap = staticWrap
 assign(Module._extensions, RealModule._extensions)
 safeDefaultProperties(Module, RealModule)
 
-if (! isObjectLike(Module._cache)) {
+if (!isObjectLike(Module._cache)) {
   Module._cache = { __proto__: null }
 }
 
@@ -82,8 +78,7 @@ if (Module._cache !== RealModule._cache) {
     defineProperty(cache, name, descriptor) {
       const { _cache } = RealModule
 
-      if (isExtNode(name) &&
-          isObjectLike(_cache)) {
+      if (isExtNode(name) && isObjectLike(_cache)) {
         Reflect.defineProperty(_cache, name, descriptor)
       }
 
@@ -97,8 +92,7 @@ if (Module._cache !== RealModule._cache) {
     deleteProperty(cache, name) {
       const { _cache } = RealModule
 
-      if (isExtNode(name) &&
-          isObjectLike(_cache)) {
+      if (isExtNode(name) && isObjectLike(_cache)) {
         Reflect.deleteProperty(_cache, name)
       }
 
@@ -107,8 +101,7 @@ if (Module._cache !== RealModule._cache) {
     set(cache, name, value, receiver) {
       const { _cache } = RealModule
 
-      if (isExtNode(name) &&
-          isObjectLike(_cache)) {
+      if (isExtNode(name) && isObjectLike(_cache)) {
         Reflect.set(_cache, name, value)
       }
 
@@ -117,8 +110,7 @@ if (Module._cache !== RealModule._cache) {
   })
 }
 
-if (! ELECTRON ||
-    ! Array.isArray(SafeModule.wrapper)) {
+if (!ELECTRON || !Array.isArray(SafeModule.wrapper)) {
   Module.wrapper = staticWrapper
 }
 
@@ -129,7 +121,7 @@ ModuleProto.constructor = Module
 ModuleProto.load = protoLoad
 ModuleProto.require = protoReq
 
-if (! Array.isArray(Module.globalPaths)) {
+if (!Array.isArray(Module.globalPaths)) {
   Module._initPaths()
 }
 

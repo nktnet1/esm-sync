@@ -8,7 +8,7 @@ import setPrototypeOf from "./util/set-prototype-of.js"
 import shared from "./shared.js"
 
 function init() {
-  const childNamesMap = new Map
+  const childNamesMap = new Map()
 
   const visitLookup = new Set([
     // ConditionalExpression
@@ -71,8 +71,7 @@ function init() {
 
       const { possibleIndexes } = this
 
-      if (! Array.isArray(possibleIndexes) ||
-          possibleIndexes.length === 0) {
+      if (!Array.isArray(possibleIndexes) || possibleIndexes.length === 0) {
         return
       }
 
@@ -85,7 +84,7 @@ function init() {
     visitWithoutReset(path) {
       const value = path.getValue()
 
-      if (! isObject(value)) {
+      if (!isObject(value)) {
         return
       }
 
@@ -115,17 +114,14 @@ function init() {
       let left = oldLeft
       let right = oldRight
 
-      if (typeof start === "number" &&
-          typeof end === "number") {
+      if (typeof start === "number" && typeof end === "number") {
         // Find first index not less than `node.start`.
-        while (left < right &&
-            possibleIndexes[left] < start) {
+        while (left < right && possibleIndexes[left] < start) {
           left += 1
         }
 
         // Find first index not greater than `node.end`.
-        while (left < right &&
-            possibleIndexes[right - 1] > end) {
+        while (left < right && possibleIndexes[right - 1] > end) {
           right -= 1
         }
       }
@@ -157,18 +153,14 @@ function init() {
 
     const names = keys(value)
 
-    const noComputed =
-      value.type !== "Property" ||
-      ! value.computed
+    const noComputed = value.type !== "Property" || !value.computed
 
     for (const name of names) {
-      if (noComputed &&
-          name === "key") {
+      if (noComputed && name === "key") {
         continue
       }
 
-      if (visitLookup.has(name) &&
-          isObject(value[name])) {
+      if (visitLookup.has(name) && isObject(value[name])) {
         childNames.push(name)
       }
     }
@@ -182,6 +174,4 @@ function init() {
   return Visitor
 }
 
-export default shared.inited
-  ? shared.module.Visitor
-  : shared.module.Visitor = init()
+export default shared.inited ? shared.module.Visitor : (shared.module.Visitor = init())

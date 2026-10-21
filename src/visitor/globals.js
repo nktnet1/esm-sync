@@ -7,12 +7,9 @@ import isShadowed from "../parse/is-shadowed.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    TRANSFORMS_CONSOLE,
-    TRANSFORMS_REFLECT
-  } = COMPILER
+  const { TRANSFORMS_CONSOLE, TRANSFORMS_REFLECT } = COMPILER
 
-  const shadowedMap = new Map
+  const shadowedMap = new Map()
 
   class GlobalsVisitor extends Visitor {
     reset(options) {
@@ -42,15 +39,14 @@ function init() {
       const { object } = callee
       const { name } = object
 
-      if (! this.globals.has(name)) {
+      if (!this.globals.has(name)) {
         this.visitChildren(path)
         return
       }
 
       const args = node.arguments
 
-      if (args.length === 0 ||
-          isShadowed(path, name, shadowedMap)) {
+      if (args.length === 0 || isShadowed(path, name, shadowedMap)) {
         return
       }
 
@@ -58,8 +54,7 @@ function init() {
         let skip = true
 
         for (const { type } of args) {
-          if (type !== "Literal" &&
-              type !== "TemplateLiteral") {
+          if (type !== "Literal" && type !== "TemplateLiteral") {
             skip = false
             break
           }
@@ -83,17 +78,18 @@ function init() {
       const node = path.getValue()
       const { name } = node
 
-      if (! this.globals.has(name)) {
+      if (!this.globals.has(name)) {
         return
       }
 
       const parent = path.getParentNode()
       const { type } = parent
 
-      if ((type === "UnaryExpression" &&
-           parent.operator === "typeof") ||
-          ! isBindingIdentifier(node, parent) ||
-          isShadowed(path, name, shadowedMap)) {
+      if (
+        (type === "UnaryExpression" && parent.operator === "typeof") ||
+        !isBindingIdentifier(node, parent) ||
+        isShadowed(path, name, shadowedMap)
+      ) {
         return
       }
 
@@ -106,8 +102,7 @@ function init() {
       let code = this.runtimeName + ".g."
       let pos = node.start
 
-      if (type === "Property" &&
-          parent.shorthand) {
+      if (type === "Property" && parent.shorthand) {
         code = ":" + code + name
         pos = node.end
       }
@@ -116,9 +111,9 @@ function init() {
     }
   }
 
-  return new GlobalsVisitor
+  return new GlobalsVisitor()
 }
 
 export default shared.inited
   ? shared.module.visitorGlobals
-  : shared.module.visitorGlobals = init()
+  : (shared.module.visitorGlobals = init())

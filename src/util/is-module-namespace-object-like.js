@@ -4,18 +4,19 @@ import shared from "../shared.js"
 
 function init() {
   function isModuleNamespaceObjectLike(value) {
-    if (! isObject(value) ||
-        getPrototypeOf(value) !== null) {
+    if (!isObject(value) || getPrototypeOf(value) !== null) {
       return false
     }
 
     const descriptor = Reflect.getOwnPropertyDescriptor(value, Symbol.toStringTag)
 
-    return descriptor !== void 0 &&
+    return (
+      descriptor !== void 0 &&
       descriptor.configurable === false &&
       descriptor.enumerable === false &&
       descriptor.writable === false &&
       descriptor.value === "Module"
+    )
   }
 
   return isModuleNamespaceObjectLike
@@ -23,4 +24,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsModuleNamespaceObjectLike
-  : shared.module.utilIsModuleNamespaceObjectLike = init()
+  : (shared.module.utilIsModuleNamespaceObjectLike = init())

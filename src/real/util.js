@@ -4,4 +4,4 @@ import unwrapProxy from "../util/unwrap-proxy.js"
 
 export default shared.inited
   ? shared.module.realUtil
-  : shared.module.realUtil = unwrapProxy(realRequire("util"))
+  : (shared.module.realUtil = unwrapProxy(realRequire("util")))

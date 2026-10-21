@@ -34,31 +34,20 @@ import shimFunctionPrototypeToString from "./shim/function-prototype-to-string.j
 import shimProcessBindingUtilGetProxyDetails from "./shim/process-binding-util-get-proxy-details.js"
 import vmHook from "./hook/vm.js"
 
-const {
-  CHECK,
-  CLI,
-  EVAL,
-  INTERNAL,
-  PRELOADED,
-  REPL,
-  YARN_PNP
-} = ENV
+const { CHECK, CLI, EVAL, INTERNAL, PRELOADED, REPL, YARN_PNP } = ENV
 
-const {
-  ERR_INVALID_ARG_TYPE
-} = errors
+const { ERR_INVALID_ARG_TYPE } = errors
 
 const { safeGlobal, unsafeGlobal } = shared
 
 let exported
 
-if (shared.inited &&
-    ! shared.reloaded) {
+if (shared.inited && !shared.reloaded) {
   shimFunctionPrototypeToString.enable(unsafeGlobal)
   shimProcessBindingUtilGetProxyDetails.enable(unsafeGlobal)
 
   exported = (mod, options) => {
-    if (! isObject(mod)) {
+    if (!isObject(mod)) {
       throw new ERR_INVALID_ARG_TYPE("module", "object")
     }
 
@@ -91,7 +80,7 @@ if (shared.inited &&
 
     moduleHook(Module, mod)
 
-    if (! isInstalled(mod)) {
+    if (!isInstalled(mod)) {
       processHook(realProcess)
     }
 
@@ -114,14 +103,11 @@ if (shared.inited &&
 
   if (CHECK) {
     vmHook(realVM)
-  } else if (EVAL ||
-             REPL) {
+  } else if (EVAL || REPL) {
     moduleHook(Module)
     processHook(realProcess)
     vmHook(realVM)
-  } else if (CLI ||
-             INTERNAL ||
-             isSideloaded()) {
+  } else if (CLI || INTERNAL || isSideloaded()) {
     moduleHook(RealModule)
     mainHook(RealModule)
     processHook(realProcess)
@@ -131,8 +117,7 @@ if (shared.inited &&
     globalHook(unsafeGlobal)
   }
 
-  if (PRELOADED &&
-      YARN_PNP) {
+  if (PRELOADED && YARN_PNP) {
     pnpHook(pnp)
   }
 }

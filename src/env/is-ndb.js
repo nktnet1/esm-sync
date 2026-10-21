@@ -10,6 +10,4 @@ function init() {
   return isNdb
 }
 
-export default shared.inited
-  ? shared.module.envIsNdb
-  : shared.module.envIsNdb = init()
+export default shared.inited ? shared.module.envIsNdb : (shared.module.envIsNdb = init())

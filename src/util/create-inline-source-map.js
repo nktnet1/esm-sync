@@ -10,8 +10,7 @@ function init() {
       return sourceMap
     }
 
-    return "//# sourceMappingURL=data:application/json;charset=utf-8," +
-      encodeURI(sourceMap)
+    return "//# sourceMappingURL=data:application/json;charset=utf-8," + encodeURI(sourceMap)
   }
 
   return createInlineSourceMap
@@ -19,4 +18,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilCreateInlineSourceMap
-  : shared.module.utilCreateInlineSourceMap = init()
+  : (shared.module.utilCreateInlineSourceMap = init())

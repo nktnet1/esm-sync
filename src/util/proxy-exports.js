@@ -23,7 +23,7 @@ function init() {
   function proxyExports(entry) {
     const exported = entry.module.exports
 
-    if (! isObjectLike(exported)) {
+    if (!isObjectLike(exported)) {
       return exported
     }
 
@@ -51,10 +51,12 @@ function init() {
     })
 
     const maybeWrap = (exported, func) => {
-      if (typeof func !== "function" ||
-          isArrowFunction(func) ||
-          isBoundFunction(func) ||
-          isClassLikeFunction(func)) {
+      if (
+        typeof func !== "function" ||
+        isArrowFunction(func) ||
+        isBoundFunction(func) ||
+        isClassLikeFunction(func)
+      ) {
         return func
       }
 
@@ -68,9 +70,11 @@ function init() {
         apply: nativeTrap((func, thisArg, args) => {
           // Check `entry.completeMutableNamespace` and `entry.completeNamespace`
           // because they're proxies that native methods could be invoked on.
-          if (thisArg === proxy ||
-              thisArg === entry.completeMutableNamespace ||
-              thisArg === entry.completeNamespace) {
+          if (
+            thisArg === proxy ||
+            thisArg === entry.completeMutableNamespace ||
+            thisArg === entry.completeNamespace
+          ) {
             thisArg = exported
           }
 
@@ -109,9 +113,7 @@ function init() {
         if (typeof value === "function") {
           const unwrapped = cached.unwrap.get(value)
 
-          descriptor.value = unwrapped === void 0
-            ? value
-            : unwrapped
+          descriptor.value = unwrapped === void 0 ? value : unwrapped
         }
 
         // Use `Object.defineProperty()` instead of `Reflect.defineProperty()`
@@ -119,8 +121,7 @@ function init() {
         // https://tc39.github.io/ecma262/#sec-definepropertyorthrow
         SafeObject.defineProperty(exported, name, descriptor)
 
-        if (typeof descriptor.get === "function" &&
-            typeof handler.get !== "function") {
+        if (typeof descriptor.get === "function" && typeof handler.get !== "function") {
           handler.get = get
         }
 
@@ -144,13 +145,11 @@ function init() {
         return false
       },
       set(exported, name, value, receiver) {
-        if (! isUpdatableSet(exported, name)) {
+        if (!isUpdatableSet(exported, name)) {
           return false
         }
 
-        const unwrapped = typeof value === "function"
-          ? cached.unwrap.get(value)
-          : void 0
+        const unwrapped = typeof value === "function" ? cached.unwrap.get(value) : void 0
 
         if (unwrapped !== void 0) {
           value = unwrapped
@@ -179,9 +178,7 @@ function init() {
 
     const { builtin } = entry
 
-    const names = builtin
-      ? null
-      : keys(exported)
+    const names = builtin ? null : keys(exported)
 
     for (const name of names) {
       if (typeof Reflect.getOwnPropertyDescriptor(exported, name).get === "function") {
@@ -190,9 +187,7 @@ function init() {
       }
     }
 
-    if (! shared.support.nativeProxyReceiver ||
-        (! builtin &&
-         ! isPlainObject(exported))) {
+    if (!shared.support.nativeProxyReceiver || (!builtin && !isPlainObject(exported))) {
       // Once Node < 10 is no longer supported the `getOwnPropertyDescriptor()`
       // trap can be removed and the `get()` trap can be conditionally dropped
       // for `exported` values that return "[object Function]" or "[object Object]"
@@ -216,8 +211,7 @@ function init() {
 
         newValue = maybeWrap(exported, newValue)
 
-        if (newValue !== value &&
-            isUpdatableGet(exported, name)) {
+        if (newValue !== value && isUpdatableGet(exported, name)) {
           return newValue
         }
 
@@ -237,10 +231,12 @@ function init() {
 
         return descriptor
       }
-    } else if (builtin &&
-               isObject(exported) &&
-               ! Reflect.has(exported, Symbol.toStringTag) &&
-               getObjectTag(exported) !== "[object Object]") {
+    } else if (
+      builtin &&
+      isObject(exported) &&
+      !Reflect.has(exported, Symbol.toStringTag) &&
+      getObjectTag(exported) !== "[object Object]"
+    ) {
       handler.get = (exported, name, receiver) => {
         if (receiver === proxy) {
           receiver = exported
@@ -251,8 +247,7 @@ function init() {
         if (name === Symbol.toStringTag) {
           const newValue = getToStringTag(exported, value)
 
-          if (newValue !== value &&
-              isUpdatableGet(exported, name)) {
+          if (newValue !== value && isUpdatableGet(exported, name)) {
             return newValue
           }
         }
@@ -265,8 +260,8 @@ function init() {
 
     cached = {
       proxy,
-      unwrap: new WeakMap,
-      wrap: new WeakMap
+      unwrap: new WeakMap(),
+      wrap: new WeakMap()
     }
 
     cache.set(exported, cached)
@@ -276,16 +271,13 @@ function init() {
   }
 
   function getToStringTag(exported, value) {
-    if (typeof exported !== "function" &&
-        typeof value !== "string") {
+    if (typeof exported !== "function" && typeof value !== "string") {
       // Section 19.1.3.6: Object.prototype.toString()
       // Step 16: If `Type(tag)` is not `String`, let `tag` be `builtinTag`.
       // https://tc39.github.io/ecma262/#sec-object.prototype.tostring
       const toStringTag = getObjectTag(exported).slice(8, -1)
 
-      return toStringTag === "Object"
-        ? value
-        : toStringTag
+      return toStringTag === "Object" ? value : toStringTag
     }
 
     return value
@@ -296,4 +288,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilProxyExports
-  : shared.module.utilProxyExports = init()
+  : (shared.module.utilProxyExports = init())

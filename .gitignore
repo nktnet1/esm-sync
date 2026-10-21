@@ -12,6 +12,7 @@
 /node_modules
 /src/vendor
 /test/env/home/.local/share/Trash
+/test/env/native-cache/
 /test/env/prefix/bin
 /test/env/prefix/node
 /test/fixture/find-path/created
@@ -19,8 +20,13 @@
 /test/fixture/main-hook/symlink/file/symlink.*js
 /test/fixture/scenario/ava-nyc-tsc/*.js
 /test/fixture/scenario/webpack/output.js
+/test/fixture/scenario/native/*.node
+/test/fixture/scenario/native/*.lib
+/test/fixture/scenario/native/*.exp
+/test/fixture/scenario/native/*.obj
 /test/node_modules/symlink
 /test/vendor
+/test/env/native-cache
 
 *.bundle
 *.patch

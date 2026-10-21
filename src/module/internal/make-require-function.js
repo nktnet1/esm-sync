@@ -34,21 +34,13 @@ function makeRequireFunction(mod, requirer, resolver) {
     // Avoid cases where request = Symbol(esm‍@3.3.5:shared) causing startsWith
     // to be undefined, which indirectly cause the "__global__ is not defined"
     // error in https://github.com/nktnet1/esm-sync/issues/5
-    if (
-      request
-      && typeof request.startsWith === "function"
-      && request.startsWith("node:")
-    ) {
+    if (request && typeof request.startsWith === "function" && request.startsWith("node:")) {
       request = request.substr(5)
     }
 
-    const exported = isOwn
-      ? ownRequire(request)
-      : void 0
+    const exported = isOwn ? ownRequire(request) : void 0
 
-    return exported === void 0
-      ? requirer.call(mod, request)
-      : exported
+    return exported === void 0 ? requirer.call(mod, request) : exported
   }
 
   function resolve(request, options) {
@@ -76,7 +68,7 @@ function makeRequireFunction(mod, requirer, resolver) {
   req.resolve = resolve
   resolve.paths = paths
 
-  if (! isInstalled(mod)) {
+  if (!isInstalled(mod)) {
     resolve.paths = maskFunction(paths, realPaths)
     req.resolve = maskFunction(resolve, realResolve)
     req = maskFunction(req, realRequire)

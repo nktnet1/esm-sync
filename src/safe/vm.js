@@ -18,7 +18,7 @@ function init() {
   const names = allKeys(contextifyProto)
 
   for (const name of names) {
-    if (! has(SafeProto, name)) {
+    if (!has(SafeProto, name)) {
       copyProperty(SafeProto, contextifyProto, name)
     }
   }
@@ -30,12 +30,8 @@ function init() {
   return safeVM
 }
 
-const safeVM = shared.inited
-  ? shared.module.safeVM
-  : shared.module.safeVM = init()
+const safeVM = shared.inited ? shared.module.safeVM : (shared.module.safeVM = init())
 
-export const {
-  Script
-} = safeVM
+export const { Script } = safeVM
 
 export default safeVM

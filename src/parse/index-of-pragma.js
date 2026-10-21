@@ -33,4 +33,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseIndexOfPragma
-  : shared.module.parseIndexOfPragma = init()
+  : (shared.module.parseIndexOfPragma = init())

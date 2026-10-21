@@ -41,4 +41,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilToExternalError
-  : shared.module.utilToExternalError = init()
+  : (shared.module.utilToExternalError = init())

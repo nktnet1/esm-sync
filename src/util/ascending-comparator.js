@@ -18,4 +18,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilAscendingComparator
-  : shared.module.utilAscendingComparator = init()
+  : (shared.module.utilAscendingComparator = init())

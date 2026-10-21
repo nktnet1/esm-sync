@@ -17,6 +17,4 @@ function init() {
   return proxyWrap
 }
 
-export default shared.inited
-  ? shared.module.utilProxyWrap
-  : shared.module.utilProxyWrap = init()
+export default shared.inited ? shared.module.utilProxyWrap : (shared.module.utilProxyWrap = init())

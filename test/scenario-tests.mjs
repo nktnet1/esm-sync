@@ -1,3 +1,4 @@
+const { describe, it, beforeEach, afterEach } = globalThis.__esmSyncNativeTest
 import SemVer from "semver"
 
 import assert from "assert"
@@ -11,6 +12,13 @@ const isWin = process.platform === "win32"
 
 const canTestLab = SemVer.satisfies(process.version, ">=7.6")
 const canTestPM2 = ! isTravis
+// AVA 1 depends on esm@3.2.25, whose old internalModuleStat call causes a
+// native assertion abort on these Node versions. Keep the interoperability
+// tests enabled on safe Node 22 minors and on Node 24/26.
+const canTestAva = ! (
+  SemVer.satisfies(process.version, ">=22.10.0 <22.18.0") ||
+  SemVer.satisfies(process.version, ">=23.0.0 <24.0.0")
+)
 
 const avaPath = path.resolve("../node_modules/ava/cli.js")
 const jasminePath = path.resolve("../node_modules/jasmine/bin/jasmine.js")
@@ -40,8 +48,9 @@ function node(args, env) {
   return exec(nodePath, defaultNodeArgs.concat(args), env)
 }
 
-describe("scenario tests", function () {
-  this.timeout(0)
+// These tests execute independent CLI processes. Run a few at a time;
+// keep the PM2 cases serial because they share a daemon and log directory.
+describe("scenario tests", { concurrency: 3 }, () => {
 
   it("should work with dual packages", () =>
     [
@@ -63,11 +72,20 @@ describe("scenario tests", function () {
     node([
       "-r", pkgPath,
       "-r", "@babel/register",
-      path.resolve("fixture/scenario/babel-error/index.js")
+      path.resolve("fixture/scenario/babel-error-runner.cjs")
     ])
-    .then(assert.fail.bind("Call did not fail"), ({ stderr }) => {
-      assert.ok(stderr.includes("BABEL_ERROR"))
-    })
+    .then(
+      () => assert.fail("Babel compilation unexpectedly succeeded"),
+      ({ exitCode, stderr }) => {
+        // Preserve useful CI diagnostics without printing a massive bundled stack.
+        const diagnostic = stderr.length > 8192
+          ? `${stderr.slice(0, 4096)}\n[... truncated ...]\n${stderr.slice(-4096)}`
+          : stderr
+
+        assert.strictEqual(exitCode, 1, diagnostic)
+        assert.match(stderr, /(?:^|\n)babel-error:[^\n]*\bBABEL_ERROR\b/, diagnostic)
+      }
+    )
   )
 
   it("should work with esmod-pmb", () =>
@@ -244,8 +262,7 @@ describe("scenario tests", function () {
     ], envAuto)
   })
 
-  // Skipping due to: https://github.com/istanbuljs/nyc/issues/1530
-  it.skip("should work with babel, mocha, and nyc", () => {
+  it("should work with babel, mocha, and nyc", () => {
     const dirPath = path.resolve("fixture/scenario/babel-mocha-nyc")
     const cwdPath = path.resolve(dirPath, "cwd.js")
     const mochaPattern = path.resolve(dirPath, "test.js")
@@ -254,11 +271,14 @@ describe("scenario tests", function () {
       "--cwd", dirPath,
       "-x", ".babelrc.js", "-x", "test.js",
       "-i", cwdPath,
-      "-i", pkgPath,
+      // Babel's pirates hook must be installed before esm-sync's hook on
+      // modern Node, or Node rejects the wrapped Module prototype.
       "-i", "@babel/register",
+      "-i", pkgPath,
       "-i", "@babel/polyfill",
       "mocha", mochaPattern
     ], envAuto)
+    .then(({ stdout }) => assert.ok(stdout.includes("1 passing"), stdout))
   })
 
   it("should work with chai, mocha, and nyc", () => {
@@ -297,7 +317,7 @@ describe("scenario tests", function () {
     ], envAuto)
   )
 
-  describe("should work with ava", () => {
+  describe("should work with ava", { skip: !canTestAva }, () => {
     it("should work from the `esm` bridge", () =>
       exec("ava", [
         path.resolve("fixture/scenario/ava/bridge.test.js")
@@ -413,7 +433,7 @@ describe("scenario tests", function () {
   })
 
   describe("should work with jest", () => {
-    it.skip("should carry over the context object of jest", function () {
+    it("should carry over the context object of jest", function () {
       const dirPath = path.resolve("fixture/scenario/jest-context")
       const configPath = path.resolve(dirPath, "jest.config.json")
 
@@ -424,7 +444,7 @@ describe("scenario tests", function () {
       ], envAuto)
     })
 
-    it.skip("should carry over the process object of jest", function () {
+    it("should carry over the process object of jest", function () {
       const dirPath = path.resolve("fixture/scenario/jest-process")
       const configPath = path.resolve(dirPath, "jest.config.json")
 
@@ -435,7 +455,7 @@ describe("scenario tests", function () {
       ], envAuto)
     })
 
-    it.skip("should carry over globals from `jest.config.json`", function () {
+    it("should carry over globals from `jest.config.json`", function () {
       const dirPath = path.resolve("fixture/scenario/jest-config-globals")
       const configPath = path.resolve(dirPath, "jest.config.json")
 
@@ -492,12 +512,7 @@ describe("scenario tests", function () {
     })
   })
 
-  describe("should work with lab", function () {
-    before(function () {
-      if (! canTestLab) {
-        this.skip()
-      }
-    })
+  describe("should work with lab", { skip: !canTestLab }, () => {
 
     it("should work with lab", () =>
       node([
@@ -515,12 +530,7 @@ describe("scenario tests", function () {
     )
   })
 
-  describe("should work with pm2", () => {
-    before(function () {
-      if (! canTestPM2) {
-        this.skip()
-      }
-    })
+  describe("should work with pm2", { skip: !canTestPM2, concurrency: false }, () => {
 
     beforeEach(beforeAndAfterEach)
     afterEach(beforeAndAfterEach)
@@ -538,10 +548,6 @@ describe("scenario tests", function () {
     ]
 
     function beforeAndAfterEach() {
-      if (! canTestPM2) {
-        this.skip()
-      }
-
       return exec("pm2", ["kill"])
         .then(() => trash(logsPath))
     }

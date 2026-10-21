@@ -4,4 +4,4 @@ import unwrapProxy from "../util/unwrap-proxy.js"
 
 export default shared.inited
   ? shared.module.realFs
-  : shared.module.realFs = unwrapProxy(realRequire("fs"))
+  : (shared.module.realFs = unwrapProxy(realRequire("fs")))

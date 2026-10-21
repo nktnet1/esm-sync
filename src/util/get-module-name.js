@@ -7,8 +7,7 @@ function init() {
       const { filename, id } = mod
 
       if (typeof id === "string") {
-        if (id === "." &&
-            typeof filename === "string") {
+        if (id === "." && typeof filename === "string") {
           return filename
         }
 
@@ -28,4 +27,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetModuleName
-  : shared.module.utilGetModuleName = init()
+  : (shared.module.utilGetModuleName = init())

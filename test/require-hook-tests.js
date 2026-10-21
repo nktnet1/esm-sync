@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 describe("require hook tests", () => {
   it("should be detectable", () =>
     import("./require-hook/detectable.mjs")

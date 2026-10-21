@@ -10,6 +10,4 @@ function init() {
   return getEnv
 }
 
-export default shared.inited
-  ? shared.module.utilGetEnv
-  : shared.module.utilGetEnv = init()
+export default shared.inited ? shared.module.utilGetEnv : (shared.module.utilGetEnv = init())

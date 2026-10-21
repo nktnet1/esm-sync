@@ -8,6 +8,4 @@ function init() {
   return isInternal
 }
 
-export default shared.inited
-  ? shared.module.envIsInternal
-  : shared.module.envIsInternal = init()
+export default shared.inited ? shared.module.envIsInternal : (shared.module.envIsInternal = init())

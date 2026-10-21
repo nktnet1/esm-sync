@@ -8,11 +8,10 @@ import toString from "../util/to-string.js"
 function init() {
   const headerRegExp = /^(.+?):(\d+)(?=\n)/
 
-  // eslint-disable-next-line no-useless-escape
   const locRegExp = /^ *at (?:.+? \()?(.+?):(\d+)(?:\:(\d+))?/gm
 
   function getLocationFromStackTrace(error) {
-    if (! isError(error)) {
+    if (!isError(error)) {
       return null
     }
 
@@ -43,12 +42,7 @@ function init() {
     locRegExp.lastIndex = 0
 
     while ((match = locRegExp.exec(stack)) !== null) {
-      const [
-        ,
-        filename,
-        lineNumber,
-        column
-      ] = match
+      const [, filename, lineNumber, column] = match
 
       if (isFilename(filename)) {
         return {
@@ -63,8 +57,7 @@ function init() {
   }
 
   function isFilename(value) {
-    return isPath(value) &&
-      ! isOwnPath(value)
+    return isPath(value) && !isOwnPath(value)
   }
 
   return getLocationFromStackTrace
@@ -72,4 +65,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.errorGetLocationFromStackTrace
-  : shared.module.errorGetLocationFromStackTrace = init()
+  : (shared.module.errorGetLocationFromStackTrace = init())

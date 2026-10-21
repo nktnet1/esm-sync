@@ -9,11 +9,9 @@ import overwrite from "../parse/overwrite.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    TRANSFORMS_UNDECLARED
-  } = COMPILER
+  const { TRANSFORMS_UNDECLARED } = COMPILER
 
-  const shadowedMap = new Map
+  const shadowedMap = new Map()
 
   class UndeclaredVisitor extends Visitor {
     reset(options) {
@@ -34,18 +32,19 @@ function init() {
     visitIdentifier(path) {
       const node = path.getValue()
       const { name } = node
+      const parent = path.getParentNode()
 
-      if (! this.undeclared.has(name) ||
-          ! isBindingIdentifier(node, parent) ||
-          isShadowed(path, name, shadowedMap)) {
+      if (
+        !this.undeclared.has(name) ||
+        !isBindingIdentifier(node, parent) ||
+        isShadowed(path, name, shadowedMap)
+      ) {
         return
       }
 
-      const parent = path.getParentNode()
       const { runtimeName } = this
 
-      if (parent.type === "UnaryExpression" &&
-          parent.operator === "typeof") {
+      if (parent.type === "UnaryExpression" && parent.operator === "typeof") {
         this.transforms |= TRANSFORMS_UNDECLARED
         overwrite(this, node.start, node.end, runtimeName + ".g." + name)
         return
@@ -57,11 +56,7 @@ function init() {
         const { end, start } = node
 
         if (parent.shorthand) {
-          this.magicString
-            .prependLeft(
-              end,
-              ":" + runtimeName + '.t("' + name + '")'
-            )
+          this.magicString.prependLeft(end, ":" + runtimeName + '.t("' + name + '")')
 
           return
         }
@@ -74,19 +69,14 @@ function init() {
           suffix = ")"
         }
 
-        overwrite(
-          this,
-          start,
-          end,
-          prefix + runtimeName + '.t("' + name + '")' + suffix
-        )
+        overwrite(this, start, end, prefix + runtimeName + '.t("' + name + '")' + suffix)
       })
     }
   }
 
-  return new UndeclaredVisitor
+  return new UndeclaredVisitor()
 }
 
 export default shared.inited
   ? shared.module.visitorUndeclared
-  : shared.module.visitorUndeclared = init()
+  : (shared.module.visitorUndeclared = init())

@@ -51,4 +51,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.builtinReflect
-  : shared.module.builtinReflect = init()
+  : (shared.module.builtinReflect = init())

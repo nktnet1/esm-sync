@@ -14,8 +14,7 @@ import maskStackTrace from "../../error/mask-stack-trace.js"
 import toExternalError from "../../util/to-external-error.js"
 
 const preloadModules = maskFunction(function (requests) {
-  if (! Array.isArray(requests) ||
-      requests.length === 0) {
+  if (!Array.isArray(requests) || requests.length === 0) {
     return
   }
 
@@ -24,8 +23,7 @@ const preloadModules = maskFunction(function (requests) {
   try {
     parent.paths = Module._nodeModulePaths(cwd())
   } catch (e) {
-    if (! isError(e) ||
-        e.code !== "ENOENT") {
+    if (!isError(e) || e.code !== "ENOENT") {
       maybeMaskStackTrace(e)
 
       throw e
@@ -44,8 +42,7 @@ const preloadModules = maskFunction(function (requests) {
 }, RealModule._preloadModules)
 
 function maybeMaskStackTrace(error) {
-  if (! Loader.state.package.default.options.debug &&
-      isStackTraceMaskable(error)) {
+  if (!Loader.state.package.default.options.debug && isStackTraceMaskable(error)) {
     maskStackTrace(error)
   } else {
     toExternalError(error)

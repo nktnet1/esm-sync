@@ -12,4 +12,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.envHasLoaderModule
-  : shared.module.envHasLoaderModule = init()
+  : (shared.module.envHasLoaderModule = init())

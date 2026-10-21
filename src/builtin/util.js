@@ -26,9 +26,9 @@ if (isObjectLike(safeTypes)) {
     toWrapper(isModuleNamespaceObject)
   )
 
-  const builtinIsProxy = proxyWrap(safeTypes.isProxy, (func, [value]) =>
-    func(value) &&
-    ! isOwnProxy(value)
+  const builtinIsProxy = proxyWrap(
+    safeTypes.isProxy,
+    (func, [value]) => func(value) && !isOwnProxy(value)
   )
 
   const typesNames = ownKeys(safeTypes)

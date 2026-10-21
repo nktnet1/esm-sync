@@ -13,9 +13,9 @@ const keptPaths = [nodeModulesPath]
 const trashPaths = ignorePaths.filter(isKept)
 
 function cleanEmptyDirs() {
-  return Promise
-    .all(
-      globby.sync(["*/**/"], {
+  return Promise.all(
+    globby
+      .sync(["*/**/"], {
         absolute: true,
         cwd: rootPath,
         expandDirectories: false,
@@ -23,7 +23,7 @@ function cleanEmptyDirs() {
       })
       .filter(isEmpty)
       .map(trash)
-    )
+  )
 }
 
 function cleanNodeModules() {
@@ -35,13 +35,11 @@ function cleanRepo() {
 }
 
 function isEmpty(dirPath) {
-  return ! fs.readdirSync(dirPath).length
+  return !fs.readdirSync(dirPath).length
 }
 
 function isKept(thePath) {
-  return keptPaths.every((dirname) => ! thePath.startsWith(dirname))
+  return keptPaths.every((dirname) => !thePath.startsWith(dirname))
 }
 
-cleanRepo()
-  .then(cleanEmptyDirs)
-  .then(cleanNodeModules)
+cleanRepo().then(cleanEmptyDirs).then(cleanNodeModules)

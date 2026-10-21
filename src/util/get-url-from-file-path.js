@@ -11,9 +11,7 @@ import { resolve } from "../safe/path.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    FORWARD_SLASH
-  } = CHAR_CODE
+  const { FORWARD_SLASH } = CHAR_CODE
 
   const encodeCharsRegExp = /[?#]/g
 
@@ -27,9 +25,7 @@ function init() {
   }
 
   function getURLFromFilePath(filename) {
-    let length = typeof filename === "string"
-      ? filename.length
-      : 0
+    let length = typeof filename === "string" ? filename.length : 0
 
     if (length === 0) {
       return "file:///"
@@ -45,14 +41,15 @@ function init() {
     filename = encodeURI(filename).replace(encodeCharsRegExp, encodeChar)
     length = filename.length
 
-    if (filename.charCodeAt(length - 1) !== FORWARD_SLASH &&
-        isSep(oldFilename.charCodeAt(oldLength - 1))) {
+    if (
+      filename.charCodeAt(length - 1) !== FORWARD_SLASH &&
+      isSep(oldFilename.charCodeAt(oldLength - 1))
+    ) {
       filename += "/"
     }
 
     let i = -1
 
-    // eslint-disable-next-line no-empty
     while (++i < length && filename.charCodeAt(i) === FORWARD_SLASH) {}
 
     if (i > 1) {
@@ -69,4 +66,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetURLFromFilePath
-  : shared.module.utilGetURLFromFilePath = init()
+  : (shared.module.utilGetURLFromFilePath = init())

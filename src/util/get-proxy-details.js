@@ -13,13 +13,11 @@ function init() {
       return cached.details
     }
 
-    if (! isObjectLike(proxy)) {
+    if (!isObjectLike(proxy)) {
       return
     }
 
-    const details =
-      OwnProxy.instances.get(proxy) ||
-      realGetProxyDetails(proxy)
+    const details = OwnProxy.instances.get(proxy) || realGetProxyDetails(proxy)
 
     cache.set(proxy, { details })
 
@@ -31,4 +29,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetProxyDetails
-  : shared.module.utilGetProxyDetails = init()
+  : (shared.module.utilGetProxyDetails = init())

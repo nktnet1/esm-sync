@@ -16,6 +16,4 @@ function init() {
   return removeFile
 }
 
-export default shared.inited
-  ? shared.module.fsRemoveFile
-  : shared.module.fsRemoveFile = init()
+export default shared.inited ? shared.module.fsRemoveFile : (shared.module.fsRemoveFile = init())

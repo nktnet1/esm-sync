@@ -10,17 +10,13 @@ import unwrapOwnProxy from "../util/unwrap-own-proxy.js"
 function init() {
   const { proxyNativeSourceText } = shared
 
-  const NATIVE_SOURCE_TEXT = proxyNativeSourceText === ""
-    ? "function () { [native code] }"
-    : proxyNativeSourceText
+  const NATIVE_SOURCE_TEXT =
+    proxyNativeSourceText === "" ? "function () { [native code] }" : proxyNativeSourceText
 
   const Shim = {
     enable(context) {
       // Avoid a silent fail accessing `context.Function` in Electron 1.
-      const FuncProto = Reflect
-        .getOwnPropertyDescriptor(context, "Function")
-        .value
-        .prototype
+      const FuncProto = Reflect.getOwnPropertyDescriptor(context, "Function").value.prototype
 
       const cache = shared.memoize.shimFunctionPrototypeToString
 
@@ -29,8 +25,7 @@ function init() {
       }
 
       const apply = nativeTrap((toString, thisArg) => {
-        if (proxyNativeSourceText !== "" &&
-            isOwnProxy(thisArg)) {
+        if (proxyNativeSourceText !== "" && isOwnProxy(thisArg)) {
           thisArg = unwrapOwnProxy(thisArg)
         }
 
@@ -54,11 +49,13 @@ function init() {
         return NATIVE_SOURCE_TEXT
       })
 
-      if (Reflect.defineProperty(FuncProto, "toString", {
-            configurable: true,
-            value: new OwnProxy(FuncProto.toString, { apply }),
-            writable: true
-          })) {
+      if (
+        Reflect.defineProperty(FuncProto, "toString", {
+          configurable: true,
+          value: new OwnProxy(FuncProto.toString, { apply }),
+          writable: true
+        })
+      ) {
         cache.set(FuncProto, true)
       }
 
@@ -97,4 +94,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.shimFunctionPrototypeToString
-  : shared.module.shimFunctionPrototypeToString = init()
+  : (shared.module.shimFunctionPrototypeToString = init())

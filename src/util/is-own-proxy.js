@@ -9,18 +9,12 @@ import isObjectLike from "./is-object-like.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    PROXY_PREFIX
-  } = INSPECT
+  const { PROXY_PREFIX } = INSPECT
 
-  const {
-    PACKAGE_PREFIX
-  } = ESM
+  const { PACKAGE_PREFIX } = ESM
 
   const endMarkerRegExp = new RegExp(
-    "[\\[\"']" +
-    escapeRegExp(PACKAGE_PREFIX) +
-    ":proxy['\"\\]]\\s*:\\s*1\\s*\\}\\s*.?$"
+    "[\\[\"']" + escapeRegExp(PACKAGE_PREFIX) + ":proxy['\"\\]]\\s*:\\s*1\\s*\\}\\s*.?$"
   )
 
   const liteInspectOptions = {
@@ -48,14 +42,11 @@ function init() {
   let inspectDepth = 0
 
   function isOwnProxy(value) {
-    return OwnProxy.instances.has(value) ||
-           isOwnProxyFallback(value)
+    return OwnProxy.instances.has(value) || isOwnProxyFallback(value)
   }
 
   function isOwnProxyFallback(value) {
-    if (! shared.support.inspectProxies ||
-        ! isObjectLike(value) ||
-        ++inspectDepth !== 1) {
+    if (!shared.support.inspectProxies || !isObjectLike(value) || ++inspectDepth !== 1) {
       return false
     }
 
@@ -67,7 +58,7 @@ function init() {
       inspectDepth -= 1
     }
 
-    if (! inspected.startsWith(PROXY_PREFIX)) {
+    if (!inspected.startsWith(PROXY_PREFIX)) {
       return false
     }
 
@@ -87,4 +78,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsOwnProxy
-  : shared.module.utilIsOwnProxy = init()
+  : (shared.module.utilIsOwnProxy = init())

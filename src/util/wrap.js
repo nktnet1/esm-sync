@@ -10,6 +10,4 @@ function init() {
   return wrap
 }
 
-export default shared.inited
-  ? shared.module.utilWrap
-  : shared.module.utilWrap = init()
+export default shared.inited ? shared.module.utilWrap : (shared.module.utilWrap = init())

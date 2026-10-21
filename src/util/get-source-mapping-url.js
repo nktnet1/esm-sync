@@ -6,16 +6,7 @@ import CHAR_CODE from "../constant/char-code.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    APOSTROPHE,
-    AT,
-    EQUAL,
-    FORWARD_SLASH,
-    NUMSIGN,
-    QUOTE,
-    SPACE,
-    TAB
-  } = CHAR_CODE
+  const { APOSTROPHE, AT, EQUAL, FORWARD_SLASH, NUMSIGN, QUOTE, SPACE, TAB } = CHAR_CODE
 
   const NAME = "sourceMappingURL"
   const NAME_LENGTH = NAME.length
@@ -38,8 +29,7 @@ function init() {
     while (match === null) {
       pos = content.lastIndexOf(NAME, pos)
 
-      if (pos === -1 ||
-          pos < 4) {
+      if (pos === -1 || pos < 4) {
         return ""
       }
 
@@ -49,28 +39,27 @@ function init() {
       pos -= 4
 
       // Codeify the regexp check, /\/\/[@#][ \t]/, before `NAME`.
-      if (content.charCodeAt(pos) !== FORWARD_SLASH ||
-          content.charCodeAt(pos + 1) !== FORWARD_SLASH) {
+      if (
+        content.charCodeAt(pos) !== FORWARD_SLASH ||
+        content.charCodeAt(pos + 1) !== FORWARD_SLASH
+      ) {
         continue
       }
 
       let code = content.charCodeAt(pos + 2)
 
-      if (code !== AT &&
-          code !== NUMSIGN) {
+      if (code !== AT && code !== NUMSIGN) {
         continue
       }
 
       code = content.charCodeAt(pos + 3)
 
-      if (code !== SPACE &&
-          code !== TAB) {
+      if (code !== SPACE && code !== TAB) {
         continue
       }
 
       // Check for "=" after `NAME`.
-      if (equalPos < length &&
-        content.charCodeAt(equalPos) !== EQUAL) {
+      if (equalPos < length && content.charCodeAt(equalPos) !== EQUAL) {
         continue
       }
 
@@ -96,10 +85,7 @@ function init() {
     while (++i < matchLength) {
       const code = match.charCodeAt(i)
 
-      if (code === APOSTROPHE ||
-          code === QUOTE ||
-          code === SPACE ||
-          code === TAB) {
+      if (code === APOSTROPHE || code === QUOTE || code === SPACE || code === TAB) {
         return ""
       }
     }
@@ -112,4 +98,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilGetSourceMappingURL
-  : shared.module.utilGetSourceMappingURL = init()
+  : (shared.module.utilGetSourceMappingURL = init())

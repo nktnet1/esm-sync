@@ -6,8 +6,7 @@ function init() {
   let flyweight
 
   function branch(parser) {
-    if (flyweight === void 0 ||
-        flyweight === parser) {
+    if (flyweight === void 0 || flyweight === parser) {
       flyweight = createFlyweight()
     }
 
@@ -46,6 +45,4 @@ function init() {
   return branch
 }
 
-export default shared.inited
-  ? shared.module.parseBranch
-  : shared.module.parseBranch = init()
+export default shared.inited ? shared.module.parseBranch : (shared.module.parseBranch = init())

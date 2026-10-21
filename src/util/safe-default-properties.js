@@ -5,19 +5,13 @@ import safeCopyProperty from "./safe-copy-property.js"
 import shared from "../shared.js"
 
 function init() {
-  function safeDefaultProperties(object) {
-    const { length } = arguments
-
-    let i = 0
-
-    while (++i < length) {
-      const source = arguments[i]
+  function safeDefaultProperties(object, ...sources) {
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i]
       const names = ownKeys(source)
 
       for (const name of names) {
-        if (has(source, name) &&
-            (! has(object, name) ||
-             get(object, name) === void 0)) {
+        if (has(source, name) && (!has(object, name) || get(object, name) === void 0)) {
           safeCopyProperty(object, source, name)
         }
       }
@@ -31,4 +25,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilSafeDefaultProperties
-  : shared.module.utilSafeDefaultProperties = init()
+  : (shared.module.utilSafeDefaultProperties = init())

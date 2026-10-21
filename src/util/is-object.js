@@ -8,6 +8,4 @@ function init() {
   return isObject
 }
 
-export default shared.inited
-  ? shared.module.utilIsObject
-  : shared.module.utilIsObject = init()
+export default shared.inited ? shared.module.utilIsObject : (shared.module.utilIsObject = init())

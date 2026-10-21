@@ -4,7 +4,7 @@ import isShadowed from "../parse/is-shadowed.js"
 import shared from "../shared.js"
 
 function init() {
-  const shadowedMap = new Map
+  const shadowedMap = new Map()
 
   class RequireVisitor extends Visitor {
     reset(options) {
@@ -25,8 +25,7 @@ function init() {
         return
       }
 
-      if (node.arguments.length === 0 ||
-          isShadowed(path, "require", shadowedMap)) {
+      if (node.arguments.length === 0 || isShadowed(path, "require", shadowedMap)) {
         return
       }
 
@@ -36,9 +35,9 @@ function init() {
     }
   }
 
-  return new RequireVisitor
+  return new RequireVisitor()
 }
 
 export default shared.inited
   ? shared.module.visitorRequire
-  : shared.module.visitorRequire = init()
+  : (shared.module.visitorRequire = init())

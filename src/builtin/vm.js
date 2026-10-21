@@ -10,8 +10,7 @@ function init() {
   const names = ownKeys(safeVM)
 
   for (const name of names) {
-    if (name !== "Module" &&
-        name !== "SourceTextModule") {
+    if (name !== "Module" && name !== "SourceTextModule") {
       copyProperty(builtinVM, safeVM, name)
     }
   }
@@ -19,6 +18,4 @@ function init() {
   return builtinVM
 }
 
-export default shared.inited
-  ? shared.module.builtinVM
-  : shared.module.builtinVM = init()
+export default shared.inited ? shared.module.builtinVM : (shared.module.builtinVM = init())

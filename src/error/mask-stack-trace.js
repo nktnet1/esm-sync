@@ -19,9 +19,7 @@ import toExternalFunction from "../util/to-external-function.js"
 import toString from "../util/to-string.js"
 
 function init() {
-  const {
-    MAGIC_COOKIE
-  } = WASM
+  const { MAGIC_COOKIE } = WASM
 
   const arrowRegExp = /^(.+)\n( *\^+)\n(\n)?/m
   const atNameRegExp = /^( *at (?:.+? \()?)(.+?)(?=:\d+)/gm
@@ -29,18 +27,14 @@ function init() {
   const headerRegExp = /^(.+?):(\d+)(?=\n)/
 
   function maskStackTrace(error, options = {}) {
-    if (! isError(error)) {
+    if (!isError(error)) {
       return error
     }
 
     let column
     let lineNumber
 
-    let {
-      content,
-      filename,
-      inModule
-    } = options
+    let { content, filename, inModule } = options
 
     const fromParser = isParseError(error)
 
@@ -92,7 +86,7 @@ function init() {
           ? (stack) => fileNamesToURLs(scrubStackTrace(stack))
           : scrubStackTrace
 
-        return this.stack = replaceWithout(masked, newString, scrubber)
+        return (this.stack = replaceWithout(masked, newString, scrubber))
       }),
       set: toExternalFunction(function (value) {
         Reflect.defineProperty(this, "stack", {
@@ -112,9 +106,7 @@ function init() {
     const match = headerRegExp.exec(stack)
 
     if (match === null) {
-      return typeof filename === "string"
-        ? filename + ":1\n" + stack
-        : stack
+      return typeof filename === "string" ? filename + ":1\n" + stack : stack
     }
 
     const header = match[0]
@@ -124,25 +116,23 @@ function init() {
     let contentLines
     let contentLine
 
-    let useDecoratorLine =
-      scriptFilename !== filename &&
-      isPath(scriptFilename)
+    let useDecoratorLine = scriptFilename !== filename && isPath(scriptFilename)
 
-    if (! useDecoratorLine) {
-      if (typeof content !== "string" &&
-          typeof filename === "string" &&
-          extname(filename) !== ".wasm") {
+    if (!useDecoratorLine) {
+      if (
+        typeof content !== "string" &&
+        typeof filename === "string" &&
+        extname(filename) !== ".wasm"
+      ) {
         content = readFile(filename, "utf8")
       }
 
-      if (typeof content === "string" &&
-          ! content.startsWith(MAGIC_COOKIE)) {
+      if (typeof content === "string" && !content.startsWith(MAGIC_COOKIE)) {
         const lineIndex = lineNumber - 1
 
         contentLines = content.split("\n")
 
-        if (lineIndex > -1 &&
-            lineIndex < contentLines.length) {
+        if (lineIndex > -1 && lineIndex < contentLines.length) {
           contentLine = contentLines[lineIndex]
         } else {
           contentLine = ""
@@ -154,50 +144,48 @@ function init() {
 
     let foundArrow = false
 
-    stack = stack.replace(arrowRegExp, (match, decoratorLine, decoratorArrow, decoratorNewline = "") => {
-      foundArrow = true
+    stack = stack.replace(
+      arrowRegExp,
+      (_match, decoratorLine, decoratorArrow, decoratorNewline = "") => {
+        foundArrow = true
 
-      if (useDecoratorLine) {
-        contentLine = decoratorLine
-      }
+        if (useDecoratorLine) {
+          contentLine = decoratorLine
+        }
 
-      if (typeof contentLine !== "string") {
-        return ""
-      }
+        if (typeof contentLine !== "string") {
+          return ""
+        }
 
-      if (lineNumber === 1) {
-        const wrapper = getSilent(Module, "wrapper")
+        if (lineNumber === 1) {
+          const wrapper = getSilent(Module, "wrapper")
 
-        if (Array.isArray(wrapper)) {
-          const [prefix] = wrapper
+          if (Array.isArray(wrapper)) {
+            const [prefix] = wrapper
 
-          if (typeof prefix === "string" &&
-              decoratorLine.startsWith(prefix)) {
-            const { length } = prefix
+            if (typeof prefix === "string" && decoratorLine.startsWith(prefix)) {
+              const { length } = prefix
 
-            decoratorLine = decoratorLine.slice(length)
-            decoratorArrow = decoratorArrow.slice(length)
+              decoratorLine = decoratorLine.slice(length)
+              decoratorArrow = decoratorArrow.slice(length)
+            }
           }
         }
-      }
 
-      return decoratorLine === contentLine
-        ? contentLine + "\n" + decoratorArrow + "\n" + decoratorNewline
-        : contentLine + (contentLine ? "\n\n" : "\n")
-    })
+        return decoratorLine === contentLine
+          ? contentLine + "\n" + decoratorArrow + "\n" + decoratorNewline
+          : contentLine + (contentLine ? "\n\n" : "\n")
+      }
+    )
 
     if (foundArrow) {
       return stack
     }
 
-    if (contentLine &&
-        typeof contentLine === "string") {
+    if (contentLine && typeof contentLine === "string") {
       const { length } = header
 
-      stack =
-        stack.slice(0, length) + "\n" +
-        contentLine + "\n" +
-        stack.slice(length)
+      stack = stack.slice(0, length) + "\n" + contentLine + "\n" + stack.slice(length)
     }
 
     return stack
@@ -238,12 +226,8 @@ function init() {
 
         const contentLine = contentLines[lineIndex]
 
-        if (! blankRegExp.test(contentLine)) {
-          spliceArgs.push(
-            contentLine,
-            " ".repeat(column) + decoratorArrow,
-            ""
-          )
+        if (!blankRegExp.test(contentLine)) {
+          spliceArgs.push(contentLine, " ".repeat(column) + decoratorArrow, "")
         }
       }
     }
@@ -256,23 +240,20 @@ function init() {
   }
 
   function fileNamesToURLs(stack) {
-    return stack
-      .replace(headerRegExp, replaceHeader)
-      .replace(atNameRegExp, replaceAtName)
+    return stack.replace(headerRegExp, replaceHeader).replace(atNameRegExp, replaceAtName)
   }
 
-  function replaceAtName(match, prefix, name) {
+  function replaceAtName(_match, prefix, name) {
     return prefix + getModuleURL(name)
   }
 
-  function replaceHeader(match, filename, lineNumber) {
+  function replaceHeader(_match, filename, lineNumber) {
     return getModuleURL(filename) + ":" + lineNumber
   }
 
   function tryErrorToString(error) {
     try {
-      return toString(get(error, "name")) + ": " +
-             toString(get(error, "message"))
+      return toString(get(error, "name")) + ": " + toString(get(error, "message"))
     } catch {}
 
     return ""
@@ -283,4 +264,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.errorMaskStackTrace
-  : shared.module.errorMaskStackTrace = init()
+  : (shared.module.errorMaskStackTrace = init())

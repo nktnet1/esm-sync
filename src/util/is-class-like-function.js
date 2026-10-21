@@ -4,10 +4,7 @@ import isClassFunction from "./is-class-function.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    UPPERCASE_A,
-    UPPERCASE_Z
-  } = CHAR_CODE
+  const { UPPERCASE_A, UPPERCASE_Z } = CHAR_CODE
 
   function isClassLikeFunction(value) {
     if (typeof value === "function") {
@@ -32,4 +29,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsClassLikeFunction
-  : shared.module.utilIsClassLikeFunction = init()
+  : (shared.module.utilIsClassLikeFunction = init())

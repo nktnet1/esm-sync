@@ -11,11 +11,9 @@ function init() {
   const { isFile } = Stats.prototype
 
   let useFastPath
-  let twoArgsInternalModuleStat = (
-    gte(safeProcess.versions.node, "22.10.0") && lt(safeProcess.versions.node, "22.18.0")
-  ) || (
-    gte(safeProcess.versions.node, "23.0.0") && lt(safeProcess.versions.node, "24.0.0")
-  )
+  let twoArgsInternalModuleStat =
+    (gte(safeProcess.versions.node, "22.10.0") && lt(safeProcess.versions.node, "22.18.0")) ||
+    (gte(safeProcess.versions.node, "23.0.0") && lt(safeProcess.versions.node, "24.0.0"))
 
   function statFast(thePath) {
     if (typeof thePath !== "string") {
@@ -73,9 +71,12 @@ function init() {
     // Used to speed up loading. Returns 0 if the path refers to a file,
     // 1 when it's a directory, or a negative number on error (usually ENOENT).
     // The speedup comes from not creating thousands of Stat and Error objects.
-    const result = typeof thePath === "string"
-      ? twoArgsInternalModuleStat ? binding.fs.internalModuleStat(binding.fs, toNamespacedPath(thePath)) : binding.fs.internalModuleStat(toNamespacedPath(thePath))
-      : -1
+    const result =
+      typeof thePath === "string"
+        ? twoArgsInternalModuleStat
+          ? binding.fs.internalModuleStat(binding.fs, toNamespacedPath(thePath))
+          : binding.fs.internalModuleStat(toNamespacedPath(thePath))
+        : -1
 
     return result < 0 ? -1 : result
   }
@@ -83,6 +84,4 @@ function init() {
   return statFast
 }
 
-export default shared.inited
-  ? shared.module.fsStatFast
-  : shared.module.fsStatFast = init()
+export default shared.inited ? shared.module.fsStatFast : (shared.module.fsStatFast = init())

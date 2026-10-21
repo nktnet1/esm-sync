@@ -7,8 +7,8 @@ import overwrite from "../parse/overwrite.js"
 import shared from "../shared.js"
 
 function init() {
-  const scopeMap = new Map
-  const shadowedMap = new Map
+  const scopeMap = new Map()
+  const shadowedMap = new Map()
 
   class AssignmentVisitor extends Visitor {
     reset(options) {
@@ -44,12 +44,7 @@ function init() {
   }
 
   function checkAndMaybeWrap(visitor, path, childName) {
-    const {
-      assignableBindings,
-      importedBindings,
-      magicString,
-      runtimeName
-    } = visitor
+    const { assignableBindings, importedBindings, magicString, runtimeName } = visitor
 
     const node = path.getValue()
     const child = node[childName]
@@ -58,16 +53,18 @@ function init() {
 
     if (visitor.transformImportBindingAssignments) {
       for (const name of names) {
-        if (importedBindings.has(name) &&
-            ! isShadowed(path, name, shadowedMap)) {
+        if (importedBindings.has(name) && !isShadowed(path, name, shadowedMap)) {
           // Throw a type error for assignments to imported bindings.
           const { original } = magicString
           const { right } = node
 
           let code =
-            runtimeName + ".b(" +
-            JSON.stringify(original.slice(child.start, child.end)) + ',"' +
-            node.operator + '"'
+            runtimeName +
+            ".b(" +
+            JSON.stringify(original.slice(child.start, child.end)) +
+            ',"' +
+            node.operator +
+            '"'
 
           if (right !== void 0) {
             code += "," + original.slice(right.start, right.end)
@@ -75,41 +72,27 @@ function init() {
 
           code += ")"
 
-          overwrite(
-            visitor,
-            start,
-            end,
-            code
-          )
+          overwrite(visitor, start, end, code)
 
           break
         }
       }
     }
 
-    const {
-      transformInsideFunctions,
-      transformOutsideFunctions
-    } = visitor
+    const { transformInsideFunctions, transformOutsideFunctions } = visitor
 
-    if (transformInsideFunctions ||
-        transformOutsideFunctions) {
-      const instrumentBoth =
-        transformInsideFunctions &&
-        transformOutsideFunctions
+    if (transformInsideFunctions || transformOutsideFunctions) {
+      const instrumentBoth = transformInsideFunctions && transformOutsideFunctions
 
       for (const name of names) {
-        if (assignableBindings.has(name) &&
-            ! isShadowed(path, name, shadowedMap)) {
-          if (instrumentBoth ||
-              (transformInsideFunctions &&
-               ! isOutsideFunction(path, name, scopeMap)) ||
-              (transformOutsideFunctions &&
-               isOutsideFunction(path, name, scopeMap))) {
+        if (assignableBindings.has(name) && !isShadowed(path, name, shadowedMap)) {
+          if (
+            instrumentBoth ||
+            (transformInsideFunctions && !isOutsideFunction(path, name, scopeMap)) ||
+            (transformOutsideFunctions && isOutsideFunction(path, name, scopeMap))
+          ) {
             // Wrap assignments to exported identifiers.
-            magicString
-              .prependLeft(start, runtimeName + ".u(")
-              .prependRight(end, ")")
+            magicString.prependLeft(start, runtimeName + ".u(").prependRight(end, ")")
 
             break
           }
@@ -118,9 +101,9 @@ function init() {
     }
   }
 
-  return new AssignmentVisitor
+  return new AssignmentVisitor()
 }
 
 export default shared.inited
   ? shared.module.visitorAssignment
-  : shared.module.visitorAssignment = init()
+  : (shared.module.visitorAssignment = init())

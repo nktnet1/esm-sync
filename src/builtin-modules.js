@@ -15,11 +15,16 @@ const cache = shared.memoize.builtinModules
 
 function getExports(id) {
   switch (id) {
-    case "console": return builtinConsole
-    case "module": return Module
-    case "timers": return builtinTimers
-    case "util": return builtinUtil
-    case "vm": return builtinVM
+    case "console":
+      return builtinConsole
+    case "module":
+      return Module
+    case "timers":
+      return builtinTimers
+    case "util":
+      return builtinUtil
+    case "vm":
+      return builtinVM
   }
 
   return unwrapProxy(realRequire(id))
@@ -38,9 +43,7 @@ for (const id of builtinIds) {
     mod.exports = getExports(id)
     mod.loaded = true
 
-    if (id !== "console" &&
-        id !== "module" &&
-        id !== "util") {
+    if (id !== "console" && id !== "module" && id !== "util") {
       cache.set(id, mod)
     }
 

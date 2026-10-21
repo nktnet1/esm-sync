@@ -4,10 +4,7 @@ import shared from "../shared.js"
 import unescapeQuotes from "./unescape-quotes.js"
 
 function init() {
-  const {
-    APOSTROPHE,
-    QUOTE
-  } = CHAR_CODE
+  const { APOSTROPHE, QUOTE } = CHAR_CODE
 
   function stripQuotes(string, quoteCode) {
     if (typeof string !== "string") {
@@ -18,11 +15,9 @@ function init() {
     const endCode = string.charCodeAt(string.length - 1)
 
     if (quoteCode === void 0) {
-      if (startCode === APOSTROPHE &&
-          endCode === APOSTROPHE) {
+      if (startCode === APOSTROPHE && endCode === APOSTROPHE) {
         quoteCode = APOSTROPHE
-      } else if (startCode === QUOTE &&
-                 endCode === QUOTE) {
+      } else if (startCode === QUOTE && endCode === QUOTE) {
         quoteCode = QUOTE
       }
     }
@@ -41,4 +36,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilStripQuotes
-  : shared.module.utilStripQuotes = init()
+  : (shared.module.utilStripQuotes = init())

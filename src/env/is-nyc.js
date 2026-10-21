@@ -10,6 +10,4 @@ function init() {
   return isNyc
 }
 
-export default shared.inited
-  ? shared.module.envIsNyc
-  : shared.module.envIsNyc = init()
+export default shared.inited ? shared.module.envIsNyc : (shared.module.envIsNyc = init())

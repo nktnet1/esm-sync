@@ -9,40 +9,45 @@ import shared from "./shared.js"
 import silent from "./util/silent.js"
 
 function init() {
-  const ids = [
-    "fs",
-    "inspector",
-    "natives",
-    "util"
-  ]
+  const ids = ["fs", "inspector", "natives", "util"]
 
   const map = new Map([
-    ["fs", [
-      // Used for faster directory, file, and existence checks.
-      "internalModuleStat",
-      // Used for native `realpath()` calls in Node < 9.2.0.
-      "realpath"
-    ]],
-    ["inspector", [
-      // Used to combine `esm` and global `console` methods without adding to
-      // the call stack.
-      "consoleCall"
-    ]],
-    ["natives",
+    [
+      "fs",
+      [
+        // Used for faster directory, file, and existence checks.
+        "internalModuleStat",
+        // Used for native `realpath()` calls in Node < 9.2.0.
+        "realpath"
+      ]
+    ],
+    [
+      "inspector",
+      [
+        // Used to combine `esm` and global `console` methods without adding to
+        // the call stack.
+        "consoleCall"
+      ]
+    ],
+    [
+      "natives",
       // Use to define `Module.builtinModules` in Node < 9.3.0.
       void 0
     ],
-    ["util", [
-      // Used as the stack trace decoration indicator in Node 7+.
-      "decorated_private_symbol",
-      // Used to get the unwrapped object and proxy handler.
-      "getProxyDetails",
-      // Used for more secure environment variable retrieval in Node 10+.
-      "safeGetenv",
-      // Used to decorate stack traces until
-      // https://github.com/nodejs/node/pull/23926 is merged.
-      "setHiddenValue"
-    ]]
+    [
+      "util",
+      [
+        // Used as the stack trace decoration indicator in Node 7+.
+        "decorated_private_symbol",
+        // Used to get the unwrapped object and proxy handler.
+        "getProxyDetails",
+        // Used for more secure environment variable retrieval in Node 10+.
+        "safeGetenv",
+        // Used to decorate stack traces until
+        // https://github.com/nodejs/node/pull/23926 is merged.
+        "setHiddenValue"
+      ]
+    ]
   ])
 
   const binding = {}
@@ -52,7 +57,7 @@ function init() {
       const object = {}
       const source = safeProcess.binding(id)
 
-      if (! isObjectLike(source)) {
+      if (!isObjectLike(source)) {
         return object
       }
 
@@ -70,9 +75,7 @@ function init() {
 
           const value = getSilent(source, name)
 
-          return typeof value === "function"
-            ? GenericFunction.bind(value, source)
-            : value
+          return typeof value === "function" ? GenericFunction.bind(value, source) : value
         })
       }
 
@@ -83,6 +86,4 @@ function init() {
   return binding
 }
 
-export default shared.inited
-  ? shared.module.binding
-  : shared.module.binding = init()
+export default shared.inited ? shared.module.binding : (shared.module.binding = init())

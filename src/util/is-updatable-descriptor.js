@@ -8,10 +8,11 @@ function init() {
     // Step 7: If the data descriptor is not configurable or writable,
     // then the value must be the same.
     // https://tc39.github.io/ecma262/#sec-validateandapplypropertydescriptor
-    return isObject(descriptor) &&
-      (descriptor.configurable === true ||
-       descriptor.writable === true) &&
+    return (
+      isObject(descriptor) &&
+      (descriptor.configurable === true || descriptor.writable === true) &&
       has(descriptor, "value")
+    )
   }
 
   return isUpdatableDescriptor
@@ -19,4 +20,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsUpdatableDescriptor
-  : shared.module.utilIsUpdatableDescriptor = init()
+  : (shared.module.utilIsUpdatableDescriptor = init())

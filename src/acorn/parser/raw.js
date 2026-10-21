@@ -42,4 +42,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.acornParserLiteral
-  : shared.module.acornParserLiteral = init()
+  : (shared.module.acornParserLiteral = init())

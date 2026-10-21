@@ -10,14 +10,14 @@ function init() {
       let cache = map.get(parent)
 
       if (cache === void 0) {
-        cache = new Map
+        cache = new Map()
         map.set(parent, cache)
       }
 
       let cached = cache.get(name)
 
       if (cached !== void 0) {
-        return result = cached
+        return (result = cached)
       }
 
       if (type === "Program") {
@@ -29,9 +29,11 @@ function init() {
 
       cache.set(name, false)
 
-      if (type === "ArrowFunctionExpression" ||
-          type === "FunctionDeclaration" ||
-          type === "FunctionExpression") {
+      if (
+        type === "ArrowFunctionExpression" ||
+        type === "FunctionDeclaration" ||
+        type === "FunctionExpression"
+      ) {
         return true
       }
     })
@@ -44,4 +46,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseIsOutsideFunction
-  : shared.module.parseIsOutsideFunction = init()
+  : (shared.module.parseIsOutsideFunction = init())

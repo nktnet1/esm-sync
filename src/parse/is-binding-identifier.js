@@ -13,21 +13,19 @@ function init() {
     const { type } = parent
 
     if (type === "Property") {
-      return parent.computed ||
-             parent.shorthand
+      return parent.computed || parent.shorthand
     }
 
-    if (((type === "AssignmentExpression" ||
-          type === "AssignmentPattern") &&
-         parent.left === node) ||
-        (type === "UpdateExpression" &&
-         parent.argument === node) ||
-        type === "BreakStatement" ||
-        type === "ContinueStatement" ||
-        type === "ImportDefaultSpecifier" ||
-        type === "ImportNamespaceSpecifier" ||
-        type === "ImportSpecifier" ||
-        type === "LabeledStatement") {
+    if (
+      ((type === "AssignmentExpression" || type === "AssignmentPattern") && parent.left === node) ||
+      (type === "UpdateExpression" && parent.argument === node) ||
+      type === "BreakStatement" ||
+      type === "ContinueStatement" ||
+      type === "ImportDefaultSpecifier" ||
+      type === "ImportNamespaceSpecifier" ||
+      type === "ImportSpecifier" ||
+      type === "LabeledStatement"
+    ) {
       return false
     }
 
@@ -39,4 +37,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parseIsBindingIdentifier
-  : shared.module.parseIsBindingIdentifier = init()
+  : (shared.module.parseIsBindingIdentifier = init())

@@ -17,6 +17,4 @@ function init() {
   return toMatcher
 }
 
-export default shared.inited
-  ? shared.module.utilToMatcher
-  : shared.module.utilToMatcher = init()
+export default shared.inited ? shared.module.utilToMatcher : (shared.module.utilToMatcher = init())

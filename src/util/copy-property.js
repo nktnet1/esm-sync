@@ -4,8 +4,7 @@ import shared from "../shared.js"
 
 function init() {
   function copyProperty(object, source, name) {
-    if (! isObjectLike(object) ||
-        ! isObjectLike(source)) {
+    if (!isObjectLike(object) || !isObjectLike(source)) {
       return object
     }
 
@@ -27,4 +26,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilCopyProperty
-  : shared.module.utilCopyProperty = init()
+  : (shared.module.utilCopyProperty = init())

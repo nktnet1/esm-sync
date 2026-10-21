@@ -42,9 +42,8 @@ setDeferred(ESM, "PACKAGE_PARENT_NAME", () => {
   const { safePath } = __shared__.module
   const { sep } = safePath
 
-  const nodeModulesIndex = typeof parentFilename === "string"
-    ? parentFilename.lastIndexOf(sep + "node_modules" + sep)
-    : -1
+  const nodeModulesIndex =
+    typeof parentFilename === "string" ? parentFilename.lastIndexOf(sep + "node_modules" + sep) : -1
 
   if (nodeModulesIndex === -1) {
     return ""
@@ -53,9 +52,7 @@ setDeferred(ESM, "PACKAGE_PARENT_NAME", () => {
   const start = nodeModulesIndex + 14
   const end = parentFilename.indexOf(sep, start)
 
-  return end === -1
-    ? ""
-    : parentFilename.slice(start, end)
+  return end === -1 ? "" : parentFilename.slice(start, end)
 })
 
 export default ESM

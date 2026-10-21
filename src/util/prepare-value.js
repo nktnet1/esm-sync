@@ -7,9 +7,7 @@ function prepareValue(value) {
   // This function may be called before `Loader.state.package.default` is set.
   const defaultPkg = Loader.state.package.default
 
-  if ((defaultPkg === null ||
-       ! defaultPkg.options.debug) &&
-      isStackTraceMaskable(value)) {
+  if ((defaultPkg === null || !defaultPkg.options.debug) && isStackTraceMaskable(value)) {
     maskStackTrace(value)
   }
 

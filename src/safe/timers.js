@@ -6,9 +6,7 @@ import setProperty from "../util/set-property.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    ELECTRON
-  } = ENV
+  const { ELECTRON } = ENV
 
   const safeTimers = safe(realTimers)
 
@@ -23,12 +21,8 @@ function init() {
   return safeTimers
 }
 
-const safeTimers = shared.inited
-  ? shared.module.safeTimers
-  : shared.module.safeTimers = init()
+const safeTimers = shared.inited ? shared.module.safeTimers : (shared.module.safeTimers = init())
 
-export const {
-  setImmediate
-} = safeTimers
+export const { setImmediate } = safeTimers
 
 export default safeTimers

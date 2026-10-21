@@ -7,15 +7,10 @@ function init() {
   function isCheck() {
     const { length } = argv
 
-    return (length === 1 ||
-            length === 2) &&
-           getFlags().check &&
-           isPreloaded()
+    return (length === 1 || length === 2) && getFlags().check && isPreloaded()
   }
 
   return isCheck
 }
 
-export default shared.inited
-  ? shared.module.envIsCheck
-  : shared.module.envIsCheck = init()
+export default shared.inited ? shared.module.envIsCheck : (shared.module.envIsCheck = init())

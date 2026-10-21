@@ -1,10 +1,6 @@
 import COMPILER from "./constant/compiler.js"
 
-import {
-  Parser as AcornParser,
-  createWordsRegExp,
-  reservedWords
-} from "./acorn.js"
+import { Parser as AcornParser, createWordsRegExp, reservedWords } from "./acorn.js"
 
 import acornParserBigInt from "./acorn/parser/big-int.js"
 import acornParserClassFields from "./acorn/parser/class-fields.js"
@@ -22,10 +18,7 @@ import defaults from "./util/defaults.js"
 import shared from "./shared.js"
 
 function init() {
-  const {
-    SOURCE_TYPE_MODULE,
-    SOURCE_TYPE_SCRIPT
-  } = COMPILER
+  const { SOURCE_TYPE_MODULE, SOURCE_TYPE_SCRIPT } = COMPILER
 
   const reservedWordsRegExp = createWordsRegExp(reservedWords[6])
 
@@ -77,9 +70,9 @@ function init() {
     acornParserTopLevel.enable(parser)
 
     if (strict !== void 0) {
-      parser.strict = !! strict
+      parser.strict = !!strict
 
-      if (! parser.strict) {
+      if (!parser.strict) {
         parser.reservedWords = reservedWordsRegExp
       }
     }
@@ -105,6 +98,4 @@ function init() {
   return Parser
 }
 
-export default shared.inited
-  ? shared.module.Parser
-  : shared.module.Parser = init()
+export default shared.inited ? shared.module.Parser : (shared.module.Parser = init())

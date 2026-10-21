@@ -1,8 +1,4 @@
-import {
-  basename,
-  extname,
-  sep
-} from "./safe/path.js"
+import { basename, extname, sep } from "./safe/path.js"
 
 import CHAR_CODE from "./constant/char-code.js"
 import ENTRY from "./constant/entry.js"
@@ -43,9 +39,7 @@ import toExternalFunction from "./util/to-external-function.js"
 import toRawModuleNamespaceObject from "./util/to-raw-module-namespace-object.js"
 import validateShallow from "./module/esm/validate-shallow.js"
 
-const {
-  UPPERCASE_E
-} = CHAR_CODE
+const { UPPERCASE_E } = CHAR_CODE
 
 const {
   ERROR_GETTER,
@@ -103,7 +97,7 @@ class Entry {
   }
 
   static get(mod) {
-    if (! isObject(mod)) {
+    if (!isObject(mod)) {
       return null
     }
 
@@ -113,8 +107,7 @@ class Entry {
 
     if (entry === void 0) {
       entry = new Entry(mod)
-    } else if (entry.type === TYPE_CJS &&
-               entry._loaded === LOAD_COMPLETED) {
+    } else if (entry.type === TYPE_CJS && entry._loaded === LOAD_COMPLETED) {
       const { bridged } = shared
       const exported = entry.module.exports
       const foundEntry = bridged.get(exported)
@@ -143,29 +136,26 @@ class Entry {
   }
 
   addGetter(name, getter) {
-    if (! has(getter, "id")) {
+    if (!has(getter, "id")) {
       getter.id = name
     }
 
-    if (! has(getter, "owner")) {
+    if (!has(getter, "owner")) {
       getter.owner = this
     }
 
-    if (! has(getter, "type")) {
+    if (!has(getter, "type")) {
       getter.type = GETTER_TYPE_DEFAULT
     }
 
     const { type } = this
 
-    if (type !== TYPE_CJS &&
-        type !== TYPE_PSEUDO &&
-        name === "default") {
+    if (type !== TYPE_CJS && type !== TYPE_PSEUDO && name === "default") {
       const value = tryGetter(getter)
 
       // Give default exported anonymous functions the name "default".
       // https://tc39.github.io/ecma262/#sec-exports-runtime-semantics-evaluation
-      if (typeof value === "function" &&
-          value.name === (this.runtimeName + "anonymous")) {
+      if (typeof value === "function" && value.name === this.runtimeName + "anonymous") {
         Reflect.defineProperty(value, "name", {
           configurable: true,
           value: "default"
@@ -195,8 +185,7 @@ class Entry {
 
     let otherGetter = otherGetters[importedName]
 
-    if (otherEntry.type !== TYPE_ESM &&
-        this.extname === ".mjs") {
+    if (otherEntry.type !== TYPE_ESM && this.extname === ".mjs") {
       otherGetter = () => otherEntry.partialNamespace[importedName]
       otherGetter.owner = otherEntry
     }
@@ -216,17 +205,17 @@ class Entry {
     setter.localNames = localNames
     setter.owner = parentEntry
 
-    if (! has(setter, "exportedName")) {
+    if (!has(setter, "exportedName")) {
       setter.exportedName = null
     }
 
-    if (! has(setter, "type")) {
+    if (!has(setter, "type")) {
       setter.type = SETTER_TYPE_DEFAULT
     }
 
     const settersMap = this.setters
 
-    if (! has(settersMap, name)) {
+    if (!has(settersMap, name)) {
       settersMap[name] = []
     }
 
@@ -235,7 +224,7 @@ class Entry {
     const { importedBindings } = parentEntry
 
     for (const name of localNames) {
-      if (! importedBindings.has(name)) {
+      if (!importedBindings.has(name)) {
         importedBindings.set(name, false)
       }
     }
@@ -278,8 +267,7 @@ class Entry {
 
     const { type } = this
 
-    if (type === TYPE_ESM ||
-        type === TYPE_WASM) {
+    if (type === TYPE_ESM || type === TYPE_WASM) {
       return this
     }
 
@@ -312,8 +300,7 @@ class Entry {
   getExportByName(name, parentEntry) {
     const { type } = this
 
-    if (type === TYPE_ESM ||
-        type === TYPE_WASM) {
+    if (type === TYPE_ESM || type === TYPE_WASM) {
       return getExportByNameFast(this, name, parentEntry)
     }
 
@@ -368,7 +355,7 @@ class Entry {
     // The unique id for the module cache.
     this.id = mod.id
     // The initialized state of bindings imported by the module.
-    this.importedBindings = new Map
+    this.importedBindings = new Map()
     // The module the entry is managing.
     this.module = mod
     // The name of the module.
@@ -403,8 +390,7 @@ class Entry {
     setDeferred(this, "compileData", () => {
       const compileData = CachingCompiler.from(this)
 
-      if (compileData !== null &&
-          compileData.transforms !== 0) {
+      if (compileData !== null && compileData.transforms !== 0) {
         const content = readFile(this.package.cachePath + sep + this.cacheName, "utf8")
 
         if (content !== null) {
@@ -475,8 +461,8 @@ class Entry {
 
     const mod = this.module
 
-    if (! mod.loaded) {
-      return this._loaded = LOAD_INCOMPLETE
+    if (!mod.loaded) {
+      return (this._loaded = LOAD_INCOMPLETE)
     }
 
     this._loaded = LOAD_INDETERMINATE
@@ -484,8 +470,8 @@ class Entry {
     const { children } = this
 
     for (const name in children) {
-      if (! children[name].module.loaded) {
-        return this._loaded = LOAD_INCOMPLETE
+      if (!children[name].module.loaded) {
+        return (this._loaded = LOAD_INCOMPLETE)
       }
     }
 
@@ -494,9 +480,7 @@ class Entry {
     let exported = mod.exports
 
     if (this.type === TYPE_CJS) {
-      if (cjs.esModule &&
-          exported != null &&
-          exported.__esModule) {
+      if (cjs.esModule && exported != null && exported.__esModule) {
         this.type = TYPE_PSEUDO
       }
 
@@ -509,10 +493,13 @@ class Entry {
       if (this.type === TYPE_CJS) {
         const { filename } = this
 
-        if (typeof filename === "string" &&
-            filename.charCodeAt(filename.length + PUPPETEER_UPPERCASE_E_CHAR_OFFSET) === UPPERCASE_E &&
-            filename.endsWith(PUPPETEER_EXECUTION_CONTEXT_PATH_SEGMENT) &&
-            filename.indexOf(PUPPETEER_PACKAGE_PATH_SEGMENT) !== -1) {
+        if (
+          typeof filename === "string" &&
+          filename.charCodeAt(filename.length + PUPPETEER_UPPERCASE_E_CHAR_OFFSET) ===
+            UPPERCASE_E &&
+          filename.endsWith(PUPPETEER_EXECUTION_CONTEXT_PATH_SEGMENT) &&
+          filename.indexOf(PUPPETEER_PACKAGE_PATH_SEGMENT) !== -1
+        ) {
           shimPuppeteerExecutionContextPrototypeEvaluateHandle.enable(exported)
         }
 
@@ -531,13 +518,10 @@ class Entry {
       } else {
         const names = getExportsObjectKeys(this)
 
-        if (cjs.dedefault &&
-            names.length === 1 &&
-            names[0] === "default") {
+        if (cjs.dedefault && names.length === 1 && names[0] === "default") {
           mod.exports = exported.default
         } else {
-          if (cjs.esModule &&
-              ! has(this.getters, "__esModule")) {
+          if (cjs.esModule && !has(this.getters, "__esModule")) {
             Reflect.defineProperty(exported, "__esModule", pseudoDescriptor)
           }
 
@@ -550,7 +534,7 @@ class Entry {
 
     this.finalizeNamespace()
 
-    return this._loaded = LOAD_COMPLETED
+    return (this._loaded = LOAD_COMPLETED)
   }
 
   resumeChildren() {
@@ -565,15 +549,12 @@ class Entry {
 
       const { runtime } = childEntry
 
-      const runResult = runtime === null
-        ? void 0
-        : runtime.runResult
+      const runResult = runtime === null ? void 0 : runtime.runResult
 
       let threw = true
 
       try {
-        if (runResult !== void 0 &&
-            childEntry.state < STATE_EXECUTION_STARTED) {
+        if (runResult !== void 0 && childEntry.state < STATE_EXECUTION_STARTED) {
           childEntry.state = STATE_EXECUTION_STARTED
           childEntry.running = true
           runResult.next()
@@ -592,22 +573,16 @@ class Entry {
 
         threw = false
       } finally {
-        childEntry.state = threw
-          ? STATE_INITIAL
-          : STATE_EXECUTION_COMPLETED
+        childEntry.state = threw ? STATE_INITIAL : STATE_EXECUTION_COMPLETED
       }
     }
   }
 
   updateBindings(names, updateType = UPDATE_TYPE_DEFAULT, seen) {
     const shouldUpdateParents =
-      this.circular ||
-      updateType === UPDATE_TYPE_LIVE ||
-      updateType === UPDATE_TYPE_INIT
+      this.circular || updateType === UPDATE_TYPE_LIVE || updateType === UPDATE_TYPE_INIT
 
-    if (shouldUpdateParents &&
-        seen !== void 0 &&
-        seen.has(this)) {
+    if (shouldUpdateParents && seen !== void 0 && seen.has(this)) {
       return this
     }
 
@@ -621,24 +596,29 @@ class Entry {
     this._changed = false
 
     runGetters(this, names)
-    runSetters(this, names, (setter) => {
-      const parentEntry = setter.owner
-      const { importedBindings } = parentEntry
+    runSetters(
+      this,
+      names,
+      (setter) => {
+        const parentEntry = setter.owner
+        const { importedBindings } = parentEntry
 
-      if (setter.last !== ERROR_GETTER) {
-        for (const name of setter.localNames) {
-          importedBindings.set(name, true)
-        }
-      }
-
-      if (shouldUpdateParents) {
-        if (parentEntries === void 0) {
-          parentEntries = new Set
+        if (setter.last !== ERROR_GETTER) {
+          for (const name of setter.localNames) {
+            importedBindings.set(name, true)
+          }
         }
 
-        parentEntries.add(parentEntry)
-      }
-    }, updateType)
+        if (shouldUpdateParents) {
+          if (parentEntries === void 0) {
+            parentEntries = new Set()
+          }
+
+          parentEntries.add(parentEntry)
+        }
+      },
+      updateType
+    )
 
     this._changed = false
 
@@ -653,7 +633,7 @@ class Entry {
     }
 
     if (seen === void 0) {
-      seen = new Set
+      seen = new Set()
     }
 
     seen.add(this)
@@ -681,8 +661,7 @@ class Entry {
       mod.filename = filename
     }
 
-    if (! force &&
-        this.filename === mod.filename) {
+    if (!force && this.filename === mod.filename) {
       return this
     }
 
@@ -700,9 +679,8 @@ class Entry {
       this.basename = ""
       this.extname = ""
     } else {
-      this.basename = modDirname === "."
-        ? basename(modFilename)
-        : modFilename.slice(modDirname.length + 1)
+      this.basename =
+        modDirname === "." ? basename(modFilename) : modFilename.slice(modDirname.length + 1)
 
       this.extname = extname(modFilename)
     }
@@ -720,13 +698,10 @@ function assignCommonNamespaceHandlerTraps(handler, entry, proxy) {
     let getterValue
     let getterCalled = false
 
-    if (typeof name === "string" &&
-        has(namespace, name) &&
-        isEnumerable(namespace, name)) {
+    if (typeof name === "string" && has(namespace, name) && isEnumerable(namespace, name)) {
       let errored = entry._namespaceFinalized !== NAMESPACE_FINALIZATION_COMPLETED
 
-      if (! errored &&
-          hasGetter) {
+      if (!errored && hasGetter) {
         getterCalled = true
         getterValue = getter()
         errored = getterValue === ERROR_GETTER
@@ -737,17 +712,13 @@ function assignCommonNamespaceHandlerTraps(handler, entry, proxy) {
       }
     }
 
-    if (entry.type === TYPE_PSEUDO &&
-        name === "default" &&
-        namespace === entry._partialNamespace) {
+    if (entry.type === TYPE_PSEUDO && name === "default" && namespace === entry._partialNamespace) {
       // Treat like CJS within `.mjs` files.
       return entry.exports
     }
 
     if (hasGetter) {
-      return getterCalled
-        ? getterValue
-        : getter()
+      return getterCalled ? getterValue : getter()
     }
 
     if (receiver === proxy) {
@@ -768,13 +739,14 @@ function assignCommonNamespaceHandlerTraps(handler, entry, proxy) {
   }
 
   handler.has = (namespace, name) => {
-    return name === shared.symbol.namespace ||
-           Reflect.has(namespace, name)
+    return name === shared.symbol.namespace || Reflect.has(namespace, name)
   }
 
   handler.preventExtensions = (namespace) => {
-    return entry._namespaceFinalized === NAMESPACE_FINALIZATION_COMPLETED &&
-           Reflect.preventExtensions(namespace)
+    return (
+      entry._namespaceFinalized === NAMESPACE_FINALIZATION_COMPLETED &&
+      Reflect.preventExtensions(namespace)
+    )
   }
 }
 
@@ -782,13 +754,15 @@ function assignImmutableNamespaceHandlerTraps(handler, entry) {
   "use sloppy"
 
   handler.defineProperty = (namespace, name, descriptor) => {
-    if (entry._namespaceFinalized === NAMESPACE_FINALIZATION_COMPLETED &&
-        has(namespace, name) &&
-        isDescriptorMatch(Reflect.getOwnPropertyDescriptor(namespace, name), descriptor)) {
+    if (
+      entry._namespaceFinalized === NAMESPACE_FINALIZATION_COMPLETED &&
+      has(namespace, name) &&
+      isDescriptorMatch(Reflect.getOwnPropertyDescriptor(namespace, name), descriptor)
+    ) {
       return Reflect.defineProperty(namespace, name, descriptor)
     }
 
-    if (! isCalledFromStrictCode()) {
+    if (!isCalledFromStrictCode()) {
       return false
     }
 
@@ -804,7 +778,7 @@ function assignImmutableNamespaceHandlerTraps(handler, entry) {
       return true
     }
 
-    if (! isCalledFromStrictCode()) {
+    if (!isCalledFromStrictCode()) {
       return false
     }
 
@@ -812,7 +786,7 @@ function assignImmutableNamespaceHandlerTraps(handler, entry) {
   }
 
   handler.set = (namespace, name) => {
-    if (! isCalledFromStrictCode()) {
+    if (!isCalledFromStrictCode()) {
       return false
     }
 
@@ -840,8 +814,7 @@ function assignMutableNamespaceHandlerTraps(handler, entry, proxy) {
       entry.updateBindings(name)
     }
 
-    return Reflect.isExtensible(namespace) ||
-           Reflect.defineProperty(namespace, name, descriptor)
+    return Reflect.isExtensible(namespace) || Reflect.defineProperty(namespace, name, descriptor)
   }
 
   handler.deleteProperty = (namespace, name) => {
@@ -868,11 +841,11 @@ function assignMutableNamespaceHandlerTraps(handler, entry, proxy) {
         const newValue = Reflect.get(exported, name, receiver)
         const { type } = entry
 
-        if (newValue !== value &&
-            ((type !== TYPE_CJS &&
-              type !== TYPE_JSON) ||
-             name !== "default") &&
-            isUpdatableGet(namespace, name)) {
+        if (
+          newValue !== value &&
+          ((type !== TYPE_CJS && type !== TYPE_JSON) || name !== "default") &&
+          isUpdatableGet(namespace, name)
+        ) {
           return newValue
         }
       }
@@ -884,9 +857,9 @@ function assignMutableNamespaceHandlerTraps(handler, entry, proxy) {
   handler.getOwnPropertyDescriptor = (namespace, name) => {
     let descriptor = Reflect.getOwnPropertyDescriptor(namespace, name)
 
-    if (descriptor === void 0
-        ? ! Reflect.isExtensible(namespace)
-        : ! isUpdatableDescriptor(descriptor)) {
+    if (
+      descriptor === void 0 ? !Reflect.isExtensible(namespace) : !isUpdatableDescriptor(descriptor)
+    ) {
       return descriptor
     }
 
@@ -918,8 +891,7 @@ function assignMutableNamespaceHandlerTraps(handler, entry, proxy) {
           enumerable: exportedDescriptor.enumerable,
           value,
           writable:
-            exportedDescriptor.writable === true ||
-            typeof exportedDescriptor.set === "function"
+            exportedDescriptor.writable === true || typeof exportedDescriptor.set === "function"
         }
       }
 
@@ -932,7 +904,7 @@ function assignMutableNamespaceHandlerTraps(handler, entry, proxy) {
   }
 
   handler.set = (namespace, name, value, receiver) => {
-    if (! isUpdatableSet(namespace, name)) {
+    if (!isUpdatableSet(namespace, name)) {
       return false
     }
 
@@ -1029,68 +1001,45 @@ function getExportByName(entry, name, parentEntry) {
       return ERROR_GETTER
     }
 
-    if ((type === TYPE_PSEUDO &&
-         parentIsMJS) &&
-        name === "default") {
+    if (type === TYPE_PSEUDO && parentIsMJS && name === "default") {
       return entry.exports
     }
 
     const getter = entry.getters[name]
 
-    return getter === void 0
-      ? ERROR_GETTER
-      : getter()
+    return getter === void 0 ? ERROR_GETTER : getter()
   }
 
   const parentCJS = parentEntry.package.options.cjs
 
-  const parentNamedExports =
-    parentCJS.namedExports &&
-    ! parentIsMJS
+  const parentNamedExports = parentCJS.namedExports && !parentIsMJS
 
-  const parentMutableNamespace =
-    parentCJS.mutableNamespace &&
-    ! parentIsMJS
+  const parentMutableNamespace = parentCJS.mutableNamespace && !parentIsMJS
 
-  const useImmutableNamespace =
-    ! parentMutableNamespace ||
-    entry.extname === ".mjs"
+  const useImmutableNamespace = !parentMutableNamespace || entry.extname === ".mjs"
 
-  const usePartialNamespace =
-    ! parentNamedExports &&
-    type !== TYPE_ESM
+  const usePartialNamespace = !parentNamedExports && type !== TYPE_ESM
 
   if (useImmutableNamespace) {
-    return usePartialNamespace
-      ? entry.partialNamespace
-      : entry.completeNamespace
+    return usePartialNamespace ? entry.partialNamespace : entry.completeNamespace
   }
 
-  return usePartialNamespace
-    ? entry.partialMutableNamespace
-    : entry.completeMutableNamespace
+  return usePartialNamespace ? entry.partialMutableNamespace : entry.completeMutableNamespace
 }
 
 function getExportByNameFast(entry, name, parentEntry) {
   if (name !== "*") {
     const getter = entry.getters[name]
 
-    return getter === void 0
-      ? ERROR_GETTER
-      : tryGetter(getter)
+    return getter === void 0 ? ERROR_GETTER : tryGetter(getter)
   }
 
   const parentMutableNamespace =
-    parentEntry.package.options.cjs.mutableNamespace &&
-    parentEntry.extname !== ".mjs"
+    parentEntry.package.options.cjs.mutableNamespace && parentEntry.extname !== ".mjs"
 
-  const useImmutableNamespace =
-    ! parentMutableNamespace ||
-    entry.extname === ".mjs"
+  const useImmutableNamespace = !parentMutableNamespace || entry.extname === ".mjs"
 
-  return useImmutableNamespace
-    ? entry.completeNamespace
-    : entry.completeMutableNamespace
+  return useImmutableNamespace ? entry.completeNamespace : entry.completeMutableNamespace
 }
 
 function getExportsObjectKeys(entry, exported = entry.exports) {
@@ -1098,8 +1047,7 @@ function getExportsObjectKeys(entry, exported = entry.exports) {
 
   let possibleNames
 
-  if (type === TYPE_CJS ||
-      type === TYPE_PSEUDO) {
+  if (type === TYPE_CJS || type === TYPE_PSEUDO) {
     const isFunc = typeof exported === "function"
     const ownNames = ownPropertyNames(exported)
     const proto = getPrototypeOf(exported)
@@ -1107,13 +1055,12 @@ function getExportsObjectKeys(entry, exported = entry.exports) {
     possibleNames = []
 
     for (const name of ownNames) {
-      if (! isEnumerable(exported, name) &&
-          (name === "__esModule" ||
-           (isFunc &&
-            name === "prototype") ||
-           (has(proto, name) &&
-            ! isEnumerable(proto, name))
-          )) {
+      if (
+        !isEnumerable(exported, name) &&
+        (name === "__esModule" ||
+          (isFunc && name === "prototype") ||
+          (has(proto, name) && !isEnumerable(proto, name)))
+      ) {
         continue
       }
 
@@ -1148,16 +1095,14 @@ function initNamespaceHandler() {
 function runGetter(entry, name) {
   const getter = entry.getters[name]
 
-  if (getter === void 0 ||
-      getter.type === GETTER_TYPE_STAR_CONFLICT) {
+  if (getter === void 0 || getter.type === GETTER_TYPE_STAR_CONFLICT) {
     return
   }
 
   const exported = entry.exports
   const value = tryGetter(getter)
 
-  if (! has(exported, name) ||
-      ! Object.is(exported[name], value)) {
+  if (!has(exported, name) || !Object.is(exported[name], value)) {
     entry._changed = true
     exported[name] = value
   }
@@ -1200,29 +1145,22 @@ function runSetter(entry, name, callback, updateType) {
     }
 
     const { type } = setter
-    const changed = type !== SETTER_TYPE_DYNAMIC_IMPORT && ! Object.is(setter.last, value)
+    const changed = type !== SETTER_TYPE_DYNAMIC_IMPORT && !Object.is(setter.last, value)
     const isDynamicImport = isLoaded && type === SETTER_TYPE_DYNAMIC_IMPORT
     const isExportFrom = type === SETTER_TYPE_EXPORT_FROM
     const isExportNs = isNsChanged && type === SETTER_TYPE_NAMESPACE
     const isInit = updateType === UPDATE_TYPE_INIT
 
-    if (changed ||
-        isDynamicImport ||
-        isExportFrom ||
-        isExportNs ||
-        isInit) {
+    if (changed || isDynamicImport || isExportFrom || isExportNs || isInit) {
       setter.last = value
 
-      const setterValue = value === ERROR_GETTER
-        ? void 0
-        : value
+      const setterValue = value === ERROR_GETTER ? void 0 : value
 
       if (setter(setterValue, entry)) {
         setters.splice(length, 1)
       }
 
-      if (changed ||
-          ! isExportFrom) {
+      if (changed || !isExportFrom) {
         callback(setter)
       }
     }

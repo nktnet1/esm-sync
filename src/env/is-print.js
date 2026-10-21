@@ -5,14 +5,10 @@ import shared from "../shared.js"
 
 function init() {
   function isPrint() {
-    return argv.length === 1 &&
-      getFlags().print &&
-      isPreloaded()
+    return argv.length === 1 && getFlags().print && isPreloaded()
   }
 
   return isPrint
 }
 
-export default shared.inited
-  ? shared.module.envIsPrint
-  : shared.module.envIsPrint = init()
+export default shared.inited ? shared.module.envIsPrint : (shared.module.envIsPrint = init())

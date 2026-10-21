@@ -1,3 +1,4 @@
+const { describe, it } = globalThis.__esmSyncNativeTest
 import assert from "assert"
 import path from "path"
 import getFilePathFromURL from "../build/get-file-path-from-url.js"

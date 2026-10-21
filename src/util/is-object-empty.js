@@ -17,4 +17,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsObjectEmpty
-  : shared.module.utilIsObjectEmpty = init()
+  : (shared.module.utilIsObjectEmpty = init())

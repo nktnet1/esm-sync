@@ -6,11 +6,8 @@ function init() {
   function getSetter(object, name) {
     const useAsDescriptor = name === void 0
 
-    if (useAsDescriptor ||
-        ! shared.support.lookupShadowed) {
-      const descriptor = useAsDescriptor
-        ? object
-        : Reflect.getOwnPropertyDescriptor(object, name)
+    if (useAsDescriptor || !shared.support.lookupShadowed) {
+      const descriptor = useAsDescriptor ? object : Reflect.getOwnPropertyDescriptor(object, name)
 
       if (descriptor !== void 0) {
         return descriptor.set
@@ -27,6 +24,4 @@ function init() {
   return getSetter
 }
 
-export default shared.inited
-  ? shared.module.utilGetSetter
-  : shared.module.utilGetSetter = init()
+export default shared.inited ? shared.module.utilGetSetter : (shared.module.utilGetSetter = init())

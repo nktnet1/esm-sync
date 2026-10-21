@@ -3,17 +3,12 @@ import ENV from "../constant/env.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    WIN32
-  } = ENV
+  const { WIN32 } = ENV
 
-  const nodeModulesRegExp = WIN32
-    ? /[\\/]node_modules[\\/]/
-    : /\/node_modules\//
+  const nodeModulesRegExp = WIN32 ? /[\\/]node_modules[\\/]/ : /\/node_modules\//
 
   function isInstalled({ filename }) {
-    return typeof filename === "string" &&
-      nodeModulesRegExp.test(filename)
+    return typeof filename === "string" && nodeModulesRegExp.test(filename)
   }
 
   return isInstalled
@@ -21,4 +16,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsInstalled
-  : shared.module.utilIsInstalled = init()
+  : (shared.module.utilIsInstalled = init())

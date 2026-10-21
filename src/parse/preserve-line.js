@@ -11,4 +11,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.parsePreserveLine
-  : shared.module.parsePreserveLine = init()
+  : (shared.module.parsePreserveLine = init())

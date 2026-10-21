@@ -9,13 +9,10 @@ import setDeferred from "./util/set-deferred.js"
 import setPrototypeOf from "./util/set-prototype-of.js"
 import shared from "./shared.js"
 
-const {
-  FLAGS
-} = ENV
+const { FLAGS } = ENV
 
+// biome-ignore lint/complexity/noStaticOnlyClass: Preserve the constructor and prototype identity used by loader hooks.
 class Loader {
-  // TODO: Remove this eslint comment when the false positive is resolved.
-  // eslint-disable-next-line no-undef
   static state = null
 
   static init(cacheKey) {
@@ -26,9 +23,7 @@ class Loader {
     if (cached === void 0) {
       cached = {
         module: {
-          breakFirstLine:
-            FLAGS.inspectBrk &&
-            ! FLAGS.eval,
+          breakFirstLine: FLAGS.inspectBrk && !FLAGS.eval,
           extensions: esmExtensions,
           globalPaths: Array.from(Module.globalPaths),
           mainModule: realProcess.mainModule,
@@ -36,7 +31,7 @@ class Loader {
           scratchCache: { __proto__: null }
         },
         package: {
-          cache: new Map,
+          cache: new Map(),
           default: null
         }
       }
@@ -44,13 +39,11 @@ class Loader {
       loader.set(cacheKey, cached)
     }
 
-    return Loader.state = cached
+    return (Loader.state = cached)
   }
 }
 
-setDeferred(Loader, "state", () =>
-  Loader.init(JSON.stringify(Package.createOptions()))
-)
+setDeferred(Loader, "state", () => Loader.init(JSON.stringify(Package.createOptions())))
 
 setPrototypeOf(Loader.prototype, null)
 

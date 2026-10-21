@@ -8,11 +8,7 @@ import { resolve } from "../safe/path.js"
 import shared from "../shared.js"
 
 function init() {
-  const {
-    APOSTROPHE,
-    LEFT_CURLY_BRACKET,
-    QUOTE
-  } = CHAR_CODE
+  const { APOSTROPHE, LEFT_CURLY_BRACKET, QUOTE } = CHAR_CODE
 
   function getOptions() {
     const ESM_OPTIONS = env && env.ESM_OPTIONS
@@ -26,9 +22,7 @@ function init() {
     if (isPath(options)) {
       options = readFile(resolve(options), "utf8")
 
-      options = options === null
-        ? ""
-        : options.trim()
+      options = options === null ? "" : options.trim()
     }
 
     if (options === "") {
@@ -37,9 +31,7 @@ function init() {
 
     const code0 = options.charCodeAt(0)
 
-    if (code0 === APOSTROPHE ||
-        code0 === LEFT_CURLY_BRACKET ||
-        code0 === QUOTE) {
+    if (code0 === APOSTROPHE || code0 === LEFT_CURLY_BRACKET || code0 === QUOTE) {
       options = parseJSON6(options)
     }
 
@@ -49,6 +41,4 @@ function init() {
   return getOptions
 }
 
-export default shared.inited
-  ? shared.module.envGetOptions
-  : shared.module.envGetOptions = init()
+export default shared.inited ? shared.module.envGetOptions : (shared.module.envGetOptions = init())

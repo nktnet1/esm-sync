@@ -24,4 +24,4 @@ function init() {
 
 export default shared.inited
   ? shared.module.utilIsClassFunction
-  : shared.module.utilIsClassFunction = init()
+  : (shared.module.utilIsClassFunction = init())
