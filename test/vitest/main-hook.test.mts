@@ -18,7 +18,7 @@ const stdEsmHasUnsafeStatABI =
 
 for (const esmEnv of testEnvironments) {
   function node(args: string[], options = loaderOptions) {
-    return runNode(args, esmEnv, options)
+    return runNode(args, esmEnv, options, { cacheNamespace: "main-hook" })
   }
 
   function runMain(filename: string, options = loaderOptions) {

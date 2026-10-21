@@ -10,7 +10,8 @@ for (const esmEnv of testEnvironments) {
         const { exitCode, stderr } = await runNode(
           ["./node_modules/cli-hook-pass", "UNRESOLVABLE_VALUE", request],
           esmEnv,
-          { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }
+          { ESM_OPTIONS: "{cjs:true,mode:'auto'}" },
+          { cacheNamespace: "cli-hook" }
         )
 
         assert.equal(exitCode, 0, stderr)
@@ -21,7 +22,8 @@ for (const esmEnv of testEnvironments) {
         const { exitCode, stdout, stderr } = await runNode(
           ["./node_modules/cli-hook-pass", JSON.stringify({ r: request })],
           esmEnv,
-          { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }
+          { ESM_OPTIONS: "{cjs:true,mode:'auto'}" },
+          { cacheNamespace: "cli-hook" }
         )
 
         assert.equal(exitCode, 0, stderr)
@@ -31,7 +33,9 @@ for (const esmEnv of testEnvironments) {
       it(`rejects .mjs sideloading with ${request}`, async () => {
         const { exitCode, stderr } = await runNode(
           ["./node_modules/cli-hook-fail", request],
-          esmEnv
+          esmEnv,
+          {},
+          { cacheNamespace: "cli-hook" }
         )
 
         assert.equal(exitCode, 1, stderr)

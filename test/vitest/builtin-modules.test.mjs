@@ -13,7 +13,14 @@ for (const esmEnv of testEnvironments) {
     it("inspects console values like native Node", async () => {
       const filename = `${fixturePath}console-inspect.js`
       const builtin = await runNode([filename], esmEnv)
-      const loader = await runNode(["-r", "../index.js", filename], esmEnv)
+      const loader = await runNode(
+        ["-r", "../index.js", filename],
+        esmEnv,
+        {},
+        {
+          cacheNamespace: "builtin-modules"
+        }
+      )
 
       assert.equal(builtin.exitCode, 0, builtin.stderr)
       assert.equal(loader.exitCode, 0, loader.stderr)
@@ -27,7 +34,8 @@ for (const esmEnv of testEnvironments) {
         const { exitCode, stdout, stderr } = await runNode(
           ["-r", "../index.js", filename],
           esmEnv,
-          envAuto
+          envAuto,
+          { cacheNamespace: "builtin-modules" }
         )
 
         assert.notEqual(exitCode, 0, "Expected named import to fail")
@@ -43,7 +51,8 @@ for (const esmEnv of testEnvironments) {
         const { exitCode, stdout, stderr } = await runNode(
           ["-r", "../index.js", filename],
           esmEnv,
-          envAuto
+          envAuto,
+          { cacheNamespace: "builtin-modules" }
         )
 
         assert.equal(exitCode, 0, stderr)

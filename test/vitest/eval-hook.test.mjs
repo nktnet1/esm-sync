@@ -20,7 +20,8 @@ for (const esmEnv of testEnvironments) {
               'import { log } from "console"\n\nlog("eval-hook:true")'
             ],
             esmEnv,
-            loaderOptions
+            loaderOptions,
+            { cacheNamespace: "eval-hook" }
           )
 
           assert.equal(exitCode, 0, stderr)
@@ -39,7 +40,8 @@ for (const esmEnv of testEnvironments) {
               'const { format } = require("util")\nformat("print-hook:%s", true)'
             ],
             esmEnv,
-            loaderOptions
+            loaderOptions,
+            { cacheNamespace: "eval-hook" }
           )
 
           assert.equal(exitCode, 0, stderr)
