@@ -17,6 +17,11 @@ type AstNode = {
   loc?: { start: { line: number; column: number } }
   callee?: AstNode
   arguments?: AstNode[]
+  argument?: AstNode
+  consequent?: AstNode
+  alternate?: AstNode
+  operator?: string
+  test?: AstNode
   value?: unknown
   [key: string]: unknown
 }
@@ -41,7 +46,7 @@ function callName(node: AstNode | undefined): string | undefined {
 
 // Native files use literal it()/it.skip() declarations. Read the test names
 // without executing their loader-hook code inside Vitest's module graph.
-export function collectNativeCases(filename: string): NativeCase[] {
+export function collectNativeCases(filename: string, platform = process.platform): NativeCase[] {
   const source = readFileSync(path.join(testPath, filename), "utf8")
   const ast = parse(source, { ecmaVersion: "latest", sourceType: "module", locations: true })
   const cases: NativeCase[] = []
@@ -54,6 +59,24 @@ export function collectNativeCases(filename: string): NativeCase[] {
     }
 
     const current = node as AstNode
+    if (current.type === "IfStatement") {
+      // Platform-specific tests are registered only on the OS they exercise.
+      // Match the same branch when discovering native cases for Vitest.
+      const condition = current.test
+      if (condition?.type === "Identifier" && condition.name === "isWin") {
+        walk(platform === "win32" ? current.consequent : current.alternate, suites)
+        return
+      }
+      if (
+        condition?.type === "UnaryExpression" &&
+        condition.operator === "!" &&
+        condition.argument?.type === "Identifier" &&
+        condition.argument.name === "isWin"
+      ) {
+        walk(platform !== "win32" ? current.consequent : current.alternate, suites)
+        return
+      }
+    }
     if (current.type === "CallExpression") {
       const calleeName = callName(current.callee as AstNode)
       const loc = current.loc?.start

@@ -855,14 +855,15 @@ describe("miscellaneous tests", () => {
         .catch((e) => checkError(e, "ERR_MODULE_RESOLUTION_LEGACY"))
     })
 
-    it("should support requests with trailing backslashes in Windows", { skip: !isWin }, () => {
+    if (isWin) {
+      it("should support requests with trailing backslashes in Windows", () => {
+        const request = ".\\node_modules\\ext-priority\\"
 
-      const request = ".\\node_modules\\ext-priority\\"
+        assert.doesNotThrow(() => require2(request))
 
-      assert.doesNotThrow(() => require2(request))
-
-      return import(request)
-    })
+        return import(request)
+      })
+    }
 
     it("should support requests containing safe characters in ESM", () =>
       Promise
@@ -873,16 +874,17 @@ describe("miscellaneous tests", () => {
         .map((request) => import(request)))
     )
 
-    it("should support requests containing unsafe characters in ESM", { skip: isWin }, () => {
-
-      return Promise
-        .all([
-          "./fixture/unsafe-characters%5B\b\t\n\r:%3F%5D.mjs",
-          "./fixture/unsafe-characters%5B%08%09%0A%0D:%3F%5D.mjs",
-          "./fixture/unsafe-characters%5b%08%09%0a%0d:%3f%5d.mjs"
-        ]
-        .map((request) => import(request)))
-    })
+    if (!isWin) {
+      it("should support requests containing unsafe characters in ESM", () =>
+        Promise
+          .all([
+            "./fixture/unsafe-characters%5B\b\t\n\r:%3F%5D.mjs",
+            "./fixture/unsafe-characters%5B%08%09%0A%0D:%3F%5D.mjs",
+            "./fixture/unsafe-characters%5b%08%09%0a%0d:%3f%5d.mjs"
+          ]
+          .map((request) => import(request)))
+      )
+    }
 
     it("should support builtin module specifiers with percent encodings", () =>
       import("%66%73")
