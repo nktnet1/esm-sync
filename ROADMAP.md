@@ -192,6 +192,60 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
       This preserves native-addon coverage across Node 22/24/26 without depending
       on a V8-specific ABI or changing production dependencies.
 
+### Original-test parity and Test262 conformance baseline (21 October 2026)
+
+The original `esm` suite audit found that the syntax-check, REPL, and Test262
+suites were no longer registered after the test-runner migration. The syntax-check
+and REPL integrations are now covered by real Node subprocess tests, and
+`pnpm test:conformance` restores the separately runnable Test262 suite. The
+conformance runner loads each testcase's declared harness includes and retains
+the project's existing skiplist.
+
+The pinned Test262 revision `d53ebc8b1931d9f1541e43d59650776e4b766248`
+was run on **Linux x64 / Node 24.21.0** in the development-test environment
+using `--harmony` and `ESM_OPTIONS={cjs:false,cache:false}`. Of 1,745 selected
+cases, 27 were excluded by the **existing** skiplist. All 1,718 registered
+cases executed: **1,104 passed, 614 failed, 0 skipped**. The full corpus has
+**not** been validated on Node 22 or 26, and it is not part of the default
+Vitest command. Do not report conformance as green.
+
+| Test262 failure directory/group | Failures |
+| --- | ---: |
+| Top-level await | 242 |
+| Dynamic import | 241 |
+| Deferred imports (`import defer`) | 94 |
+| `import.meta` | 7 |
+| Import attributes | 6 |
+| Import bytes | 5 |
+| Ambiguous export bindings | 5 |
+| Other module and export cases | 14 |
+| **Total** | **614** |
+
+These counts classify **test locations**, not proven root causes. Examples
+include rejected top-level await, an invalid assignment target that is
+executed instead of rejected during parsing, and an incorrectly reported
+ambiguous export. Recent proposals (source-phase imports, deferred imports,
+and import attributes) require separation of Node runtime restrictions,
+harness support, and `esm-sync` loader defects before any fix is claimed.
+Do not add blanket exclusions to conceal these failures.
+
+- [x] Restore syntax-check and REPL tests using real Node subprocesses.
+- [x] Restore pinned Test262 execution and per-test harness includes.
+- [x] Restore meaningful ESM `--print` coverage: check the imported ESM value
+      through the print flags and assert Node 22/24/26's explicit
+      `ERR_EVAL_ESM_CANNOT_PRINT` for inline `import` under those flags.
+      Modern Node rejects that CLI combination before the loader runs;
+      `--eval` still tests an inline static import.
+- [ ] Triage failing Test262 groups, distinguishing loader defects, Node
+      runtime semantics, newer syntax, and any remaining harness gaps.
+- [ ] Fix supported-language regressions first (negative syntax checks,
+      ambiguous exports, namespace/cycle behaviour), with focused fixtures.
+- [ ] Address or explicitly document top-level await, dynamic import, and
+      newer module syntax separately, without widening the skiplist.
+- [ ] Re-run the pinned corpus on supported Node versions and record the
+      results before making a conformance claim or enabling a CI gate.
+- [ ] Restore macOS and Windows CI coverage in its own patch.
+
 ### 8. Replace Rspack and Babel with tsdown/Oxc
 
 This is the highest-risk phase because `.babel.config.js` implements custom
