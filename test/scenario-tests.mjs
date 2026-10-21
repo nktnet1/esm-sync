@@ -552,6 +552,12 @@ describe("scenario tests", { concurrency: 3 }, () => {
     // cases still exercise PMX; these cases exercise Node's -r preload path.
     const preloadPM2Args = defaultPM2Args.concat("--no-pmx")
 
+    // PM2 checks process.env.pmx in ProcessContainerFork before loading the
+    // application. Preload the guard explicitly: CLI --no-pmx alone does not
+    // consistently disable the monitoring hook on Windows.
+    const pmxGuardPath = path.resolve("fixture/scenario/pm2-cli-preload.cjs")
+      .replace(/\\/g, "/")
+
     function beforeAndAfterEach() {
       return exec("pm2", ["kill"])
         .then(() => trash(logsPath))
@@ -597,6 +603,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
     it("should work from the Node CLI", () => {
       const nodeArgs = defaultNodeArgs.concat(
+        "-r", pmxGuardPath,
         "-r", pkgPath.replace(/\\/g, "/")
       )
 
@@ -629,6 +636,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
     it("should work with babel/register from the Node CLI", () => {
       const nodeArgs = defaultNodeArgs.concat(
+        "-r", pmxGuardPath,
         "-r", pkgPath.replace(/\\/g, "/"),
         "-r", "@babel/register"
       )
