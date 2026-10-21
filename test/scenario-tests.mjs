@@ -12,6 +12,13 @@ const isWin = process.platform === "win32"
 
 const canTestLab = SemVer.satisfies(process.version, ">=7.6")
 const canTestPM2 = ! isTravis
+// AVA 1 depends on esm@3.2.25, whose old internalModuleStat call causes a
+// native assertion abort on these Node versions. Keep the interoperability
+// tests enabled on safe Node 22 minors and on Node 24/26.
+const canTestAva = ! (
+  SemVer.satisfies(process.version, ">=22.10.0 <22.18.0") ||
+  SemVer.satisfies(process.version, ">=23.0.0 <24.0.0")
+)
 
 const avaPath = path.resolve("../node_modules/ava/cli.js")
 const jasminePath = path.resolve("../node_modules/jasmine/bin/jasmine.js")
@@ -308,7 +315,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
     ], envAuto)
   )
 
-  describe("should work with ava", () => {
+  describe("should work with ava", { skip: !canTestAva }, () => {
     it("should work from the `esm` bridge", () =>
       exec("ava", [
         path.resolve("fixture/scenario/ava/bridge.test.js")

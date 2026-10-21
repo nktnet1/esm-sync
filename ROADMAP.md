@@ -8,7 +8,7 @@ observable behaviour intact unless an intentional breaking change is documented.
 
 | Area | Current | Target |
 | --- | --- | --- |
-| Runtime | Node.js `>=6`; CI on 22/24 | Node.js 26 |
+| Runtime | Node.js `>=6`; CI on 22/24/26 | Validate 26, retain 24, keep 22 CI |
 | Package manager | pnpm 11 | pnpm 12 |
 | Git hooks | Husky | Lefthook |
 | Type checking | TypeScript 4.9 | TypeScript 6.0.3; 7.1+ deferred |
@@ -67,9 +67,9 @@ should be a separate, reviewable patch and remove its superseded tooling.
 - [x] Detect stale installed compiler versions before type-checking: the supplied
       dependency archive still contains TypeScript 4.9, which cannot parse the
       current Node 26 type declarations and is not the declared TypeScript 6.
-- [ ] Verify `pnpm typecheck` and `ts-node` integration using installed TypeScript 6;
-      the supplied dependencies still contain TypeScript 4.9.
-- [ ] Keep TypeScript constrained to the 6.x line in `.ncurc.mjs` until TypeScript
+- [x] Verify the TypeScript 6.0.3 checks and `ts-node` integration using the
+      supplied dependency archive, including declaration and AVA fixture checks.
+- [x] Keep TypeScript constrained to the 6.x line in `.ncurc.mjs` until TypeScript
       7.1+ and dependent API consumers are ready.
 
 ### 4. Update dependencies and CI hygiene
@@ -86,7 +86,8 @@ should be a separate, reviewable patch and remove its superseded tooling.
       Direct run-only invocation still fails fast when prerequisites are missing.
 - [x] Propagate cleanup and child-process errors rather than silently passing
       builds or tests after a failed operation.
-- [ ] Pin the Test262 source revision for reproducible fixture preparation.
+- [x] Pin the Test262 source revision for reproducible fixture preparation;
+      fail closed on stale provenance and stage replacements before publishing.
 - [ ] Review security overrides and unused dependencies; keep overrides only
       where they remain necessary and document intentional pins.
 - [ ] Defer removal of ESLint, Mocha, Rspack, and Babel packages until their
@@ -132,11 +133,11 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
 - [x] Stop passing `--experimental-worker` on Node 11.7+, where it is unnecessary.
 - [x] Override transitive yargs 16/17 to the Node 26-compatible patch releases,
       so legacy Mocha compatibility scenarios do not load extensionless CommonJS as ESM.
-- [ ] Identify remaining Node 6-era runtime shims for removal and defer Babel-specific
-      changes until the tsdown phase validates output parity.
-- [ ] Explicitly decide whether Node 24 remains supported. If Node 26 becomes
-      the minimum, set `engines.node` accordingly and release it as a breaking major.
-- [ ] Keep tests running under real Node processes; do not infer loader
+- [x] Inventory Node 6-era compatibility adapters; keep observable behaviour intact
+      and defer removal to Phase 8 parity checks (see `docs/test-fixtures-and-compatibility.md`).
+- [x] Retain Node 24 support and Node 22 CI, without raising the existing
+      `engines.node` range unless verification demonstrates it is inaccurate.
+- [x] Keep tests running under real Node processes; do not infer loader
       compatibility from a test runner's transformed module environment.
 
 ### 7. Replace the internal Mocha runner with Vitest
@@ -162,15 +163,15 @@ duplicate work. `pnpm lint` is read-only; `pnpm lint:fix` applies Biome fixes.
       module caches, CLI execution, and environment-dependent behaviours.
       Only move tests when their native-Node execution boundary is preserved.
 - [x] Run development/production and cached/uncached loader scenarios as needed.
-- [ ] Keep the Test262 and Acorn validation paths reproducible; preserve
+- [x] Keep the Test262 and Acorn validation paths reproducible; preserve
       standalone preparation and run-only commands while `pnpm test` remains
       self-contained for local development.
 - [x] Confirm no internal coverage runner needs migration; `nyc` remains
       solely in external-tool compatibility scenarios.
 - [x] Remove Mocha as the **internal** runner, its bootstrap and unused helpers.
-- [ ] Retain Mocha, Jest, AVA, Jasmine, or other runner packages **only** when
-      an intentional, passing third-party compatibility scenario exercises them.
-      Otherwise remove the scenarios and dependencies together.
+- [x] Audit Mocha, Jest, AVA, Jasmine, Lab, and other host-runner dependencies.
+      Keep them only for passing, intentional compatibility scenarios, as
+      documented in `docs/test-fixtures-and-compatibility.md`.
 - [x] Make CI run the complete Vitest suite, including isolated real-Node
       integration suites and both cached and uncached environments.
 - [x] Replace the obsolete `sleep` NAN addon in native compatibility testing

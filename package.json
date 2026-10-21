@@ -12,6 +12,7 @@
     "clean": "node script/clean.js",
     "fixtures:acorn": "node script/setup-fixtures.js acorn",
     "fixtures:prepare": "node script/setup-fixtures.js",
+    "fixtures:test262": "node script/setup-fixtures.js test262",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "pub": "node script/publish.js",

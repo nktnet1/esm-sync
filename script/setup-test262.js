@@ -5,13 +5,21 @@ const fs = require("fs-extra")
 const globby = require("globby")
 const path = require("path")
 const test262Parser = require("test262-parser")
-const trash = require("./trash.js")
 
 const YAML_END = "---*/"
 
 const rootPath = path.resolve(__dirname, "..")
-const test262Path = path.resolve(rootPath, "test/vendor/test262")
-const repoPath = path.resolve(test262Path, ".repo")
+const vendorPath = path.resolve(rootPath, "test/vendor")
+const test262Path = path.resolve(vendorPath, "test262")
+const stagingPath = path.resolve(vendorPath, ".test262-staging")
+const repoPath = path.resolve(stagingPath, "checkout")
+const preparedPath = path.resolve(stagingPath, "prepared")
+const revisionPath = ".prepared-revision"
+const test262URL = "https://github.com/tc39/test262.git"
+
+// Update this only as an intentional fixture change: the Test262 corpus is
+// not part of the standard Vitest run and must not silently drift with main.
+const TEST262_REVISION = "d53ebc8b1931d9f1541e43d59650776e4b766248"
 
 const testDirs = [
   "harness",
@@ -26,68 +34,111 @@ function git(cwd, args) {
   return execa("git", args, { cwd })
 }
 
-function setupTest262() {
-  const harnessPath = path.resolve(test262Path, "harness/assert.js")
-  const hasAllTestDirs = testDirs.every((dir) => fs.existsSync(path.resolve(test262Path, dir)))
+function isPrepared(directory = test262Path) {
+  const markerPath = path.resolve(directory, revisionPath)
+  const harnessPath = path.resolve(directory, "harness/assert.js")
 
-  if (fs.existsSync(harnessPath) && hasAllTestDirs) {
-    return Promise.resolve()
+  if (!fs.existsSync(markerPath) || !fs.existsSync(harnessPath)) {
+    return false
   }
 
-  return trash(repoPath)
-    .then(() =>
-      git(rootPath, ["clone", "--depth", "1", "https://github.com/tc39/test262.git", repoPath])
+  if (!testDirs.every((dir) => fs.existsSync(path.resolve(directory, dir)))) {
+    return false
+  }
+
+  return fs.readFileSync(markerPath, "utf8").trim() === TEST262_REVISION
+}
+
+async function prepareCorpus() {
+  await fs.ensureDir(repoPath)
+  await git(repoPath, ["init", "--quiet"])
+  // A depth-one clone of main cannot reliably check out an older pinned SHA.
+  // Fetch the exact revision instead; never fall back to the moving branch.
+  await git(repoPath, [
+    "fetch",
+    "--quiet",
+    "--no-tags",
+    "--depth",
+    "1",
+    test262URL,
+    TEST262_REVISION
+  ])
+  await git(repoPath, ["checkout", "--quiet", "--detach", "FETCH_HEAD"])
+
+  const { stdout: actualRevision } = await git(repoPath, ["rev-parse", "HEAD"])
+  if (actualRevision !== TEST262_REVISION) {
+    throw new Error(
+      `Test262 revision mismatch: expected ${TEST262_REVISION}, got ${actualRevision}`
     )
-    .then(() =>
-      testDirs.reduce((promise, testDir) => {
-        const repoDirPath = path.resolve(repoPath, testDir)
-        const testDirPath = path.resolve(test262Path, testDir)
+  }
 
-        return promise.then(() => trash(testDirPath)).then(() => fs.move(repoDirPath, testDirPath))
-      }, Promise.resolve())
-    )
-    .then(() => trash(repoPath))
-    .then(() => {
-      const test262Tests = globby.sync(["test/language/**/*.js", "!**/*_FIXTURE.js"], {
-        absolute: true,
-        cwd: test262Path
-      })
+  for (const testDir of testDirs) {
+    const source = path.resolve(repoPath, testDir)
+    const destination = path.resolve(preparedPath, testDir)
 
-      const trashed = []
+    if (!(await fs.pathExists(source))) {
+      throw new Error(`Pinned Test262 revision is missing ${testDir}`)
+    }
 
-      for (const filename of test262Tests) {
-        let content = fs.readFileSync(filename, "utf-8")
+    await fs.ensureDir(path.dirname(destination))
+    await fs.move(source, destination)
+  }
 
-        const { attrs } = test262Parser.parseFile(content)
-        const features = attrs.features || []
-        const { flags } = attrs
+  const test262Tests = globby.sync(["test/language/**/*.js", "!**/*_FIXTURE.js"], {
+    absolute: true,
+    cwd: preparedPath
+  })
 
-        if (!flags.module && !features.includes("dynamic-import")) {
-          trashed.push(filename)
-          continue
-        }
+  for (const filename of test262Tests) {
+    let content = fs.readFileSync(filename, "utf8")
+    const { attrs } = test262Parser.parseFile(content)
+    const features = attrs.features || []
+    const { flags } = attrs
 
-        // Follow Test262 guidance for strict mode.
-        // https://github.com/tc39/test262/blob/master/INTERPRETING.md#strict-mode
-        content = (flags.onlyStrict ? '"use strict";\n' : "") + content
+    if (!flags.module && !features.includes("dynamic-import")) {
+      fs.unlinkSync(filename)
+      continue
+    }
 
-        const pos = content.indexOf(YAML_END)
+    // Follow Test262 guidance for strict mode.
+    // https://github.com/tc39/test262/blob/main/INTERPRETING.md#strict-mode
+    content = (flags.onlyStrict ? '"use strict";\n' : "") + content
 
-        const pragma = '"use ' + (flags.module ? "module" : "script") + '";'
+    const pos = content.indexOf(YAML_END)
+    const pragma = '"use ' + (flags.module ? "module" : "script") + '";'
 
-        if (pos === -1) {
-          content = pragma + "\n" + content
-        } else {
-          const start = pos + YAML_END.length
+    if (pos === -1) {
+      content = pragma + "\n" + content
+    } else {
+      const start = pos + YAML_END.length
+      content = content.slice(0, start) + "\n" + pragma + "\n" + content.slice(start)
+    }
 
-          content = content.slice(0, start) + "\n" + pragma + "\n" + content.slice(start)
-        }
+    fs.writeFileSync(filename, content)
+  }
 
-        fs.writeFileSync(filename, content)
-      }
+  await fs.writeFile(path.resolve(preparedPath, revisionPath), TEST262_REVISION + "\n")
+}
 
-      return trash(trashed)
-    })
+async function setupTest262() {
+  if (isPrepared()) {
+    console.log(`[test262] revision ${TEST262_REVISION} is already prepared.`)
+    return
+  }
+
+  // Never replace a previously prepared corpus until fetching and processing
+  // the new revision succeeds. A failed preparation leaves no valid marker.
+  await fs.remove(stagingPath)
+  try {
+    await prepareCorpus()
+    await fs.remove(test262Path)
+    await fs.move(preparedPath, test262Path)
+    console.log(`[test262] prepared revision ${TEST262_REVISION}.`)
+  } finally {
+    await fs.remove(stagingPath)
+  }
 }
 
 module.exports = setupTest262
+module.exports.isPrepared = isPrepared
+module.exports.revision = TEST262_REVISION
