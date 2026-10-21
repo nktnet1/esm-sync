@@ -69,6 +69,25 @@ jobs:
       - name: Build test bundles
         run: pnpm build --test
 
+      # pnpm's Windows Node runtime contains node.exe but not the C headers or
+      # import library required to compile the Node-API test fixture.
+      - name: Prepare Windows Node-API build files
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = node -p "process.versions.node"
+          $base = "https://nodejs.org/dist/v$version"
+          $directory = Join-Path $env:RUNNER_TEMP "node-api-$version"
+          New-Item -ItemType Directory -Force -Path $directory | Out-Null
+          $archive = Join-Path $directory 'headers.tar.gz'
+          Invoke-WebRequest "$base/node-v$version-headers.tar.gz" -OutFile $archive
+          tar -xzf $archive -C $directory
+          $headers = Join-Path $directory "node-v$version/include/node"
+          if (!(Test-Path (Join-Path $headers 'node_api.h'))) { throw 'Node-API headers are missing' }
+          Invoke-WebRequest "$base/win-x64/node.lib" -OutFile (Join-Path $directory 'node.lib')
+          "ESM_SYNC_NODE_HEADERS=$headers" >> $env:GITHUB_ENV
+          "ESM_SYNC_NODE_LIB=$directory" >> $env:GITHUB_ENV
+
       - name: Run Vitest (unit and isolated native-Node integration tests)
         run: pnpm test:vitest
 

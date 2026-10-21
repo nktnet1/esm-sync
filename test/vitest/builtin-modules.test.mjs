@@ -17,7 +17,7 @@ for (const esmEnv of testEnvironments) {
         esmEnv,
         {},
         {
-          cacheNamespace: "builtin-modules"
+          cacheNamespace: "builtin-modules-console"
         }
       )
 
@@ -34,7 +34,7 @@ for (const esmEnv of testEnvironments) {
         ["-r", "../index.js", filename],
         esmEnv,
         envAuto,
-        { cacheNamespace: "builtin-modules" }
+        { cacheNamespace: "builtin-modules-negative" }
       )
 
       assert.notEqual(exitCode, 0, "Expected named import to fail")
@@ -50,7 +50,7 @@ for (const esmEnv of testEnvironments) {
         ["-r", "../index.js", filename],
         esmEnv,
         envAuto,
-        { cacheNamespace: "builtin-modules" }
+        { cacheNamespace: "builtin-modules-positive" }
       )
 
       assert.equal(exitCode, 0, stderr)
