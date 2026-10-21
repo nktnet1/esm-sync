@@ -60,8 +60,15 @@ export function runNode(
     timeout = 20_000,
     executable = process.execPath,
     cacheNamespace,
-    input
-  }: { timeout?: number; executable?: string; cacheNamespace?: string; input?: string } = {}
+    input,
+    keepStdinOpen = false
+  }: {
+    timeout?: number
+    executable?: string
+    cacheNamespace?: string
+    input?: string
+    keepStdinOpen?: boolean
+  } = {}
 ): Promise<NodeResult> {
   return new Promise((resolve, reject) => {
     const effectiveOptions = cacheNamespace
@@ -93,9 +100,13 @@ export function runNode(
       stdio: "pipe",
       timeout
     })
-    // All subprocesses receive EOF when no source is supplied, matching the
-    // previous ignored stdin while allowing --check to read ESM source.
-    child.stdin.end(input)
+    // An interactive Node REPL needs stdin to stay open until the test
+    // fixture finishes its asynchronous evaluations and exits.
+    if (keepStdinOpen) {
+      if (input !== undefined) child.stdin.write(input)
+    } else {
+      child.stdin.end(input)
+    }
 
     let stdout = ""
     let stderr = ""
