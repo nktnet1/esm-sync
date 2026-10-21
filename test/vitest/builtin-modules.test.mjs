@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import consoleModule from "node:console"
+import Module from "node:module"
 import { fileURLToPath } from "node:url"
 import { describe, it } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.mts"
@@ -27,10 +27,7 @@ for (const esmEnv of testEnvironments) {
     })
 
     it("does not expose non-enumerable built-in properties as exports", async () => {
-      assert.equal(
-        Object.getOwnPropertyDescriptor(consoleModule, "_ignoreErrors")?.enumerable,
-        false
-      )
+      assert.equal(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable, false)
 
       const filename = `${fixturePath}non-enumerable.mjs`
       const { exitCode, stdout, stderr } = await runNode(
@@ -46,10 +43,7 @@ for (const esmEnv of testEnvironments) {
     })
 
     it("exposes non-enumerable built-in properties with cjs.namedExports", async () => {
-      assert.equal(
-        Object.getOwnPropertyDescriptor(consoleModule, "_ignoreErrors")?.enumerable,
-        false
-      )
+      assert.equal(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable, false)
 
       const filename = `${fixturePath}non-enumerable.js`
       const { exitCode, stdout, stderr } = await runNode(

@@ -21,11 +21,12 @@ const patterns = fs
   })
   .filter(Boolean)
 
-module.exports = globby.sync(patterns, {
-  absolute: true,
-  cwd: rootPath,
-  dot: true,
-  expandDirectories: false,
-  onlyFiles: false,
-  transform: path.normalize
-})
+module.exports = globby
+  .sync(patterns, {
+    absolute: true,
+    cwd: rootPath,
+    dot: true,
+    expandDirectories: false,
+    onlyFiles: false
+  })
+  .map((thePath) => path.normalize(thePath))
