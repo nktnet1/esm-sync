@@ -39,6 +39,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      # Audit the published dependency graph once per matrix; development-host
+      # advisories are reviewed separately instead of auto-upgrading legacy runners.
+      - name: Audit production dependencies
+        if: matrix.node-version == 26
+        run: pnpm audit:prod
+
       - name: Lint without modifying files
         run: pnpm lint
 

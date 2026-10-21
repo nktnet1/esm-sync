@@ -74,7 +74,13 @@ should be a separate, reviewable patch and remove its superseded tooling.
 
 ### 4. Update dependencies and CI hygiene
 
-- [ ] Update maintained runtime and development packages in small, tested groups.
+- [x] Inventory runtime and development dependencies against build scripts,
+      fixtures, CLI tools and active compatibility scenarios. Preserve packages
+      still required by Rspack/Babel until Phase 8 (see
+      `docs/dependency-hygiene.md`).
+- [ ] Review maintained-package updates against live registry metadata and
+      apply only compatible, tested updates; do not force major-version churn
+      ahead of Phase 8.
 - [x] Audit the single runtime dependency, `punycode`: retain it because
       `src/real/punycode.js` explicitly loads the userland `punycode/` entry.
 - [x] Keep CI on explicit Node/pnpm versions, cache the pnpm store, and surface
@@ -88,10 +94,17 @@ should be a separate, reviewable patch and remove its superseded tooling.
       builds or tests after a failed operation.
 - [x] Pin the Test262 source revision for reproducible fixture preparation;
       fail closed on stale provenance and stage replacements before publishing.
-- [ ] Review security overrides and unused dependencies; keep overrides only
-      where they remain necessary and document intentional pins.
-- [ ] Defer removal of ESLint, Mocha, Rspack, and Babel packages until their
-      replacement phases, so this phase does not break the existing toolchain.
+- [x] Remove ten inactive security override selectors after comparing the
+      pnpm 12 lockfile with transitive dependency requirements; document the
+      23 retained selectors and legacy compatibility risks in
+      `docs/dependency-hygiene.md`.
+- [x] Add a high-severity production-dependency audit to Node 26 CI without
+      suppressing registry errors or blocking other matrix entries.
+- [ ] Triage a live full-dependency `pnpm audit:all` report; registry access was
+      unavailable during the local Phase 4 review.
+- [x] Remove ESLint in Phase 5, retain Mocha only for intentional host
+      compatibility, and defer Rspack/Babel removal to Phase 8 so the current
+      build remains functional.
 
 For local verification, `pnpm test` automatically prepares fixtures and
 rebuilds development test bundles; `pnpm test:prod` does the same for production.

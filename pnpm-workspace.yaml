@@ -10,13 +10,10 @@ allowBuilds:
   sq-native: false
   unrs-resolver: false
 overrides:
-  '@grpc/grpc-js@<1.8.22': '^1.8.22'
   '@tootallnate/once@<3.0.1': '^3.0.1'
-  axios@<0.31.0: '^0.31.0'
   brace-expansion@^5.0.0 <5.0.6: ^5.0.6
   braces@<3.0.3: '^3.0.3'
   cross-spawn@<6.0.6: '^6.0.6'
-  degenerator@<3.0.1: '^3.0.1'
   diff@^4.0.0 <4.0.4: '^4.0.4'
   diff@^5.0.0 <5.2.2: '^5.2.2'
   fast-uri@<=3.1.1: ^3.1.2
@@ -26,18 +23,11 @@ overrides:
   micromatch@<4.0.8: '^4.0.8'
   minimatch@<3.1.4: '^3.1.4'
   nanoid@^3.0.0 <3.3.8: '^3.3.8'
-  pac-resolver@<5.0.0: '^5.0.0'
-  postcss@<8.5.10: '^8.5.10'
   protobufjs@<7.5.5: '^7.5.5'
-  protobufjs@^8.0.0 <8.2.0: ^8.2.0
   qs@^6.11.1 <=6.15.1: ^6.15.2
   semver@^7.0.0 <7.5.2: '^7.5.2'
   serialize-javascript@<7.0.5: '^7.0.5'
-  systeminformation@^4.17.0 <=5.31.5: ^5.31.6
-  tar@<6.2.1: '^6.2.1'
-  tar@>7.0.0 <=7.5.9: '^7.5.10'
   trim-newlines@<3.0.1: ^3.0.1
-  uuid@^4.0.0 <14.0.0: '^14.0.0'
   ws@^7.0.0 <7.5.10: '^7.5.10'
   ws@^8.0.0 <8.20.1: ^8.20.1
   # Node 26 treats extensionless files in ESM packages as ESM; yargs 16/17

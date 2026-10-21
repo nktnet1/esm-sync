@@ -12,6 +12,20 @@ function cachePath(namespace: string) {
   return path.join(cacheRoot, `vitest-${namespace}`)
 }
 
+async function withFreshCaches(namespaces: string[], run: () => Promise<void>) {
+  const clean = () =>
+    Promise.all(
+      namespaces.map((namespace) => rm(cachePath(namespace), { force: true, recursive: true }))
+    )
+
+  await clean()
+  try {
+    await run()
+  } finally {
+    await clean()
+  }
+}
+
 describe("isolated native Node loader caches", () => {
   it("isolates both environments without mutating caller options", () => {
     const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
@@ -54,11 +68,7 @@ describe("isolated native Node loader caches", () => {
     const namespaces = ["cache-probe-a", "cache-probe-b"]
     const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
 
-    await Promise.all(
-      namespaces.map((namespace) => rm(cachePath(namespace), { force: true, recursive: true }))
-    )
-
-    try {
+    await withFreshCaches(namespaces, async () => {
       const results = await Promise.all(
         namespaces.map((cacheNamespace) =>
           runNode(
@@ -69,9 +79,31 @@ describe("isolated native Node loader caches", () => {
           )
         )
       )
+
       for (const result of results) {
         assert.equal(result.exitCode, 0, result.stderr)
         assert.ok(result.stdout.includes("dynamic-import-cjs:true"), result.stdout)
+      }
+    })
+  })
+
+  it("writes compiled-module metadata into separate disk caches concurrently", async () => {
+    const namespaces = ["cache-write-a", "cache-write-b"]
+    const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
+
+    await withFreshCaches(namespaces, async () => {
+      // The dynamic-import fixture above can use native import without creating
+      // transformed-module cache entries. The bridge fixture explicitly compiles
+      // .mjs modules and is suitable for checking persisted cache metadata.
+      const results = await Promise.all(
+        namespaces.map((cacheNamespace) =>
+          runNode(["./fixture/cache/index.js"], cachedEnv, options, { cacheNamespace })
+        )
+      )
+
+      for (const result of results) {
+        assert.equal(result.exitCode, 0, result.stderr)
+        assert.ok(result.stdout.includes("cache:true"), result.stdout)
       }
 
       for (const namespace of namespaces) {
@@ -80,10 +112,6 @@ describe("isolated native Node loader caches", () => {
         ) as { meta: Record<string, unknown> }
         assert.ok(Object.keys(cacheMeta.meta).length > 0, "Expected a populated disk cache")
       }
-    } finally {
-      await Promise.all(
-        namespaces.map((namespace) => rm(cachePath(namespace), { force: true, recursive: true }))
-      )
-    }
+    })
   })
 })
