@@ -88,7 +88,14 @@ async function setupRepo() {
 async function setupNode() {
   const basePath = path.resolve(nodePath, isWin ? "" : "..")
   await trash(basePath)
-  await fs.ensureLink(process.execPath, nodePath)
+  // Windows CI often keeps pnpm's Node runtime and the checkout on different
+  // drives; hard links cannot cross volumes. Copy the executable instead.
+  if (isWin) {
+    await fs.ensureDir(path.dirname(nodePath))
+    await fs.copyFile(process.execPath, nodePath)
+  } else {
+    await fs.ensureLink(process.execPath, nodePath)
+  }
 }
 
 function runTests() {

@@ -16,11 +16,13 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      matrix:
-        node-version: [22, 24, 26]
       fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15-intel, windows-2022]
+        node-version: [22, 24, 26]
 
     steps:
       - name: Checkout code
@@ -34,15 +36,23 @@ jobs:
           cache: true
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
+      # Native-addon test fixtures require MSVC; cl.exe is not on PATH by
+      # default on GitHub-hosted Windows runners.
+      - name: Set up MSVC for the native-addon fixture
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       # The lockfile must be refreshed after the Lefthook migration before
       # frozen installs can be re-enabled. Lockfile changes are kept out of patches.
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      # Audit the published dependency graph once per matrix; development-host
-      # advisories are reviewed separately instead of auto-upgrading legacy runners.
+      # Audit production dependencies once (Linux / Node 26), rather than in
+      # every OS job. Review development-only advisories separately.
       - name: Audit production dependencies
-        if: matrix.node-version == 26
+        if: runner.os == 'Linux' && matrix.node-version == 26
         run: pnpm audit:prod
 
       - name: Lint without modifying files

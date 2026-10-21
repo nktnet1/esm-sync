@@ -244,7 +244,10 @@ Do not add blanket exclusions to conceal these failures.
       newer module syntax separately, without widening the skiplist.
 - [ ] Re-run the pinned corpus on supported Node versions and record the
       results before making a conformance claim or enabling a CI gate.
-- [ ] Restore macOS and Windows CI coverage in its own patch.
+- [x] Restore macOS Intel and Windows x64 CI job registration for Node 22, 24,
+      and 26 alongside Linux; configure MSVC for the native-addon test fixture.
+- [ ] Verify the first GitHub-hosted macOS and Windows CI runs and address any
+      platform-specific failures without skipping or weakening tests.
 
 ### 8. Replace Rspack and Babel with tsdown/Oxc
 
