@@ -547,6 +547,11 @@ describe("scenario tests", { concurrency: 3 }, () => {
       "--name", "pm2"
     ]
 
+    // The short-lived CLI fixtures can disconnect before PM2's optional PMX
+    // metrics hook sends its first IPC message (EPIPE on Windows). The bridge
+    // cases still exercise PMX; these cases exercise Node's -r preload path.
+    const preloadPM2Args = defaultPM2Args.concat("--no-pmx")
+
     function beforeAndAfterEach() {
       return exec("pm2", ["kill"])
         .then(() => trash(logsPath))
@@ -595,7 +600,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
         "-r", pkgPath.replace(/\\/g, "/")
       )
 
-      const pm2Args = defaultPM2Args.concat(
+      const pm2Args = preloadPM2Args.concat(
         "--node-args", nodeArgs.join(" "),
         path.resolve("fixture/scenario/pm2/main.js")
       )
@@ -628,7 +633,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
         "-r", "@babel/register"
       )
 
-      const pm2Args = defaultPM2Args.concat(
+      const pm2Args = preloadPM2Args.concat(
         "--node-args", nodeArgs.join(" "),
         path.resolve("fixture/scenario/pm2-babel/main.js")
       )
