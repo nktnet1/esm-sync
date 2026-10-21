@@ -262,8 +262,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
     ], envAuto)
   })
 
-  // Skipping due to: https://github.com/istanbuljs/nyc/issues/1530
-  it.skip("should work with babel, mocha, and nyc", () => {
+  it("should work with babel, mocha, and nyc", () => {
     const dirPath = path.resolve("fixture/scenario/babel-mocha-nyc")
     const cwdPath = path.resolve(dirPath, "cwd.js")
     const mochaPattern = path.resolve(dirPath, "test.js")
@@ -272,11 +271,14 @@ describe("scenario tests", { concurrency: 3 }, () => {
       "--cwd", dirPath,
       "-x", ".babelrc.js", "-x", "test.js",
       "-i", cwdPath,
-      "-i", pkgPath,
+      // Babel's pirates hook must be installed before esm-sync's hook on
+      // modern Node, or Node rejects the wrapped Module prototype.
       "-i", "@babel/register",
+      "-i", pkgPath,
       "-i", "@babel/polyfill",
       "mocha", mochaPattern
     ], envAuto)
+    .then(({ stdout }) => assert.ok(stdout.includes("1 passing"), stdout))
   })
 
   it("should work with chai, mocha, and nyc", () => {
