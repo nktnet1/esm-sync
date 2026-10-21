@@ -34,6 +34,17 @@ describe("isolated native Node loader caches", () => {
     assert.equal(options.ESM_OPTIONS, "{cjs:0,mode:all}")
   })
 
+  it("inserts after the opening brace without changing later braces or whitespace", () => {
+    const options = {
+      ESM_OPTIONS: " \n {cjs:false,mode:'auto',extra:{value:'{keep-me}'}} "
+    }
+    const isolated = isolateLoaderCache(options, cachedEnv, "nested-options")
+
+    assert.ok(isolated.ESM_OPTIONS?.startsWith(" \n {cache:'"))
+    assert.ok(isolated.ESM_OPTIONS?.endsWith(",cjs:false,mode:'auto',extra:{value:'{keep-me}'}} "))
+    assert.equal(options.ESM_OPTIONS, " \n {cjs:false,mode:'auto',extra:{value:'{keep-me}'}} ")
+  })
+
   it("respects tests that supply their own cache setting", () => {
     const options = { ESM_OPTIONS: "{cache:false,cjs:false}" }
     assert.equal(isolateLoaderCache(options, cachedEnv, "main-hook"), options)

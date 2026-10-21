@@ -41,9 +41,13 @@ export function isolateLoaderCache(
   // instead, preserving the option syntax exercised by the fixture tests.
   const quotedCache = `'${cache.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`
 
+  // Insert immediately after the first opening brace without rewriting nested
+  // braces or string values. The object-literal check above guarantees it exists.
+  const insertionIndex = source.indexOf("{") + 1
+
   return {
     ...options,
-    ESM_OPTIONS: source.replace("{", `{cache:${quotedCache},`)
+    ESM_OPTIONS: `${source.slice(0, insertionIndex)}cache:${quotedCache},${source.slice(insertionIndex)}`
   }
 }
 
