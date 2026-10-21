@@ -592,7 +592,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
     it("should work from the Node CLI", () => {
       const nodeArgs = defaultNodeArgs.concat(
-        "-r", pkgPath
+        "-r", pkgPath.replace(/\\/g, "/")
       )
 
       const pm2Args = defaultPM2Args.concat(
@@ -624,7 +624,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
     it("should work with babel/register from the Node CLI", () => {
       const nodeArgs = defaultNodeArgs.concat(
-        "-r", pkgPath,
+        "-r", pkgPath.replace(/\\/g, "/"),
         "-r", "@babel/register"
       )
 

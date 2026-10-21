@@ -133,7 +133,9 @@ describe("URL tests", () => {
     let actual
     let expected
 
-    expected = isWin ? "file:///C:/" : "file:///"
+    expected = isWin
+      ? "file:///" + path.parse(testPath).root.replace(/\\/g, "/")
+      : "file:///"
     actual = getURLFromFilePath("/")
     assert.strictEqual(actual, expected)
 
