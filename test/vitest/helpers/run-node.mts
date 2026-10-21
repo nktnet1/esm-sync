@@ -59,8 +59,9 @@ export function runNode(
   {
     timeout = 20_000,
     executable = process.execPath,
-    cacheNamespace
-  }: { timeout?: number; executable?: string; cacheNamespace?: string } = {}
+    cacheNamespace,
+    input
+  }: { timeout?: number; executable?: string; cacheNamespace?: string; input?: string } = {}
 ): Promise<NodeResult> {
   return new Promise((resolve, reject) => {
     const effectiveOptions = cacheNamespace
@@ -89,9 +90,13 @@ export function runNode(
     const child = spawn(executable, args, {
       cwd: testPath,
       env,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: "pipe",
       timeout
     })
+    // All subprocesses receive EOF when no source is supplied, matching the
+    // previous ignored stdin while allowing --check to read ESM source.
+    child.stdin.end(input)
+
     let stdout = ""
     let stderr = ""
 
