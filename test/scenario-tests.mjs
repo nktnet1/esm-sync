@@ -1,4 +1,4 @@
-const { describe, it, beforeEach, afterEach } = globalThis.__esmSyncNativeTest
+const { describe, it, before, after, afterEach } = globalThis.__esmSyncNativeTest
 import SemVer from "semver"
 
 import assert from "assert"
@@ -532,25 +532,24 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
   describe("should work with pm2", { skip: !canTestPM2, concurrency: false }, () => {
 
-    beforeEach(beforeAndAfterEach)
-    afterEach(beforeAndAfterEach)
+    // Keep the daemon alive across cases so the next app cannot connect to a
+    // daemon that is still shutting down on Windows.
+    before(beforeAndAfter)
+    after(beforeAndAfter)
+    afterEach(() => exec("pm2", ["delete", "all"]))
 
     const MAX_WAIT = 10000
 
     const logsPath = path.resolve("env/home/.pm2/logs")
-    const stderrPath = path.resolve(logsPath, "pm2-error.log")
-    const stdoutPath = path.resolve(logsPath, "pm2-out.log")
-
     const defaultPM2Args = [
       "start",
       "--no-autorestart",
-      "--name", "pm2"
+      "--wait-ready"
     ]
 
-    // The short-lived CLI fixtures can disconnect before PM2's optional PMX
-    // metrics hook sends its first IPC message (EPIPE on Windows). The bridge
-    // cases still exercise PMX; these cases exercise Node's -r preload path.
-    const preloadPM2Args = defaultPM2Args.concat("--no-pmx")
+    // Keep monitoring enabled in bridge cases and exercise explicit Node
+    // preloads without the optional PMX hook in the CLI cases.
+    const preloadPM2Args = ["--no-pmx"]
 
     // PM2 checks process.env.pmx in ProcessContainerFork before loading the
     // application. Preload the guard explicitly: CLI --no-pmx alone does not
@@ -558,27 +557,50 @@ describe("scenario tests", { concurrency: 3 }, () => {
     const pmxGuardPath = path.resolve("fixture/scenario/pm2-cli-preload.cjs")
       .replace(/\\/g, "/")
 
-    function beforeAndAfterEach() {
+    function beforeAndAfter() {
       return exec("pm2", ["kill"])
+        .then(() => {
+          const pidPath = path.resolve("env/home/.pm2/pm2.pid")
+          const started = Date.now()
+
+          // PM2's Windows kill command can return on a timeout. The daemon
+          // removes its PID file after closing both the RPC and PUB sockets.
+          return new Promise(function check(resolve, reject) {
+            if (!fs.existsSync(pidPath)) {
+              resolve()
+            } else if (Date.now() - started >= MAX_WAIT) {
+              reject(new Error(`PM2 did not finish shutting down: ${pidPath}`))
+            } else {
+              setTimeout(() => check(resolve, reject), 100)
+            }
+          })
+        })
         .then(() => trash(logsPath))
     }
 
-    function waitForLogs(stderrPath, stdoutPath) {
+    function readLogs(name) {
+      const stderrPath = path.resolve(logsPath, `${name}-error.log`)
+      const stdoutPath = path.resolve(logsPath, `${name}-out.log`)
+
+      return {
+        stderr: fs.existsSync(stderrPath)
+          ? fs.readFileSync(stderrPath, "utf8")
+          : "",
+        stdout: fs.existsSync(stdoutPath)
+          ? fs.readFileSync(stdoutPath, "utf8")
+          : ""
+      }
+    }
+
+    function waitForLogs(name, expected) {
       const started = Date.now()
 
       return new Promise(function check(resolve) {
         const waited = Date.now() - started
-
-        const stderr = fs.existsSync(stderrPath)
-          ? fs.readFileSync(stderrPath, "utf8")
-          : ""
-
-        const stdout = fs.existsSync(stdoutPath)
-          ? fs.readFileSync(stdoutPath, "utf8")
-          : ""
+        const { stderr, stdout } = readLogs(name)
 
         if (stderr ||
-            stdout ||
+            stdout.split(/\r?\n/).includes(expected) ||
             waited > MAX_WAIT) {
           resolve({ stderr, stdout })
         } else {
@@ -587,18 +609,43 @@ describe("scenario tests", { concurrency: 3 }, () => {
       })
     }
 
-    it("should work from the `esm` bridge", () => {
-      const pm2Args = defaultPM2Args.concat(
-        "--node-args", defaultNodeArgs.join(" "),
-        path.resolve("fixture/scenario/pm2")
-      )
-
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
+    function runPM2(name, args, expected) {
+      return exec("pm2", defaultPM2Args.concat("--name", name, args))
+        .then(() => waitForLogs(name, expected))
         .then(({ stderr, stdout }) => {
           assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2:true"))
+          assert.ok(stdout.split(/\r?\n/).includes(expected),
+            `${name} did not acknowledge PM2 IPC readiness:\n${stdout}`)
+          return exec("pm2", ["jlist"])
         })
+        .then(({ stdout }) => {
+          const app = JSON.parse(stdout).find((app) => app.name === name)
+
+          assert.ok(app, `PM2 did not register ${name}`)
+          assert.strictEqual(app.pm2_env.status, "online")
+          assert.ok(app.pid > 0, `${name} did not stay alive until PM2 stopped it`)
+          // ProcessContainerFork sends node_version before loading the fixture.
+          // This checks that the startup message reached the daemon as well.
+          assert.strictEqual(app.pm2_env.node_version, process.versions.node)
+          return exec("pm2", ["stop", name])
+        })
+        .then(() => {
+          // Read again after stopping the app so late errors cannot be hidden
+          // by the first success marker or by daemon teardown.
+          const { stderr, stdout } = readLogs(name)
+
+          assert.strictEqual(stderr, "")
+          assert.ok(stdout.split(/\r?\n/).includes(expected), stdout)
+        })
+    }
+
+    it("should work from the `esm` bridge", () => {
+      const pm2Args = [
+        "--node-args", defaultNodeArgs.join(" "),
+        path.resolve("fixture/scenario/pm2")
+      ]
+
+      return runPM2("pm2-bridge", pm2Args, "pm2:true")
     })
 
     it("should work from the Node CLI", () => {
@@ -612,26 +659,16 @@ describe("scenario tests", { concurrency: 3 }, () => {
         path.resolve("fixture/scenario/pm2/main.js")
       )
 
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
-        .then(({ stderr, stdout }) => {
-          assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2:true"))
-        })
+      return runPM2("pm2-cli", pm2Args, "pm2:true")
     })
 
     it("should work with babel/register from the `esm` bridge", () => {
-      const pm2Args = defaultPM2Args.concat(
+      const pm2Args = [
         "--node-args", defaultNodeArgs.join(" "),
         path.resolve("fixture/scenario/pm2-babel")
-      )
+      ]
 
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
-        .then(({ stderr, stdout }) => {
-          assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2-babel:true"))
-        })
+      return runPM2("pm2-babel-bridge", pm2Args, "pm2-babel:true")
     })
 
     it("should work with babel/register from the Node CLI", () => {
@@ -646,12 +683,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
         path.resolve("fixture/scenario/pm2-babel/main.js")
       )
 
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
-        .then(({ stderr, stdout }) => {
-          assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2-babel:true"))
-        })
+      return runPM2("pm2-babel-cli", pm2Args, "pm2-babel:true")
     })
   })
 

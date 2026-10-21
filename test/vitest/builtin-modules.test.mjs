@@ -31,14 +31,28 @@ for (const esmEnv of testEnvironments) {
 
       const filename = `${fixturePath}non-enumerable.mjs`
       const { exitCode, stdout, stderr } = await runNode(
-        ["-r", "../index.js", filename],
+        ["-r", `${fixturePath}report-error.cjs`, "-r", "../index.js", filename],
         esmEnv,
         envAuto,
         { cacheNamespace: "builtin-modules-negative" }
       )
 
-      assert.notEqual(exitCode, 0, "Expected named import to fail")
-      assert.ok(stderr.includes("does not provide an export"), stderr)
+      const diagnostic =
+        stderr.length > 8192
+          ? `${stderr.slice(0, 4096)}\n[... truncated ...]\n${stderr.slice(-4096)}`
+          : stderr
+      const report = /^builtin-error:(.+)$/m.exec(stderr)
+
+      assert.equal(exitCode, 1, diagnostic)
+      assert.ok(report, diagnostic)
+      assert.deepEqual(
+        JSON.parse(report[1]),
+        {
+          name: "SyntaxError",
+          message: "The requested module 'module' does not provide an export named '_stat'"
+        },
+        diagnostic
+      )
       assert.equal(stdout, "")
     })
 
