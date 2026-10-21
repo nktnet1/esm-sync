@@ -18,11 +18,13 @@
   them after explicit preparation and building. Test execution may still clear
   caches and compile the local Node-API native-addon test fixture.
 
-The optional legacy Test262 conformance harness (`test/test262.mjs`) is not part
-of the default Vitest matrix. Its historical skiplist and `--harmony` requirement
-remain separate from the original 691-case core migration baseline (now with
-four additional fixture-provenance tests). Likewise, the Acorn
-source corpus is vendored for compilation, rather than counted as Vitest cases.
+Run `pnpm test:conformance` to prepare the pinned Test262 corpus, build the test
+loader, and execute the conformance suite separately from Vitest. Each case runs
+in its own Node subprocess with `--harmony`. The existing Test262 skiplist is
+reported as excluded cases rather than silently passing, and the runner fails
+if no runnable cases are found. The conformance suite is intentionally not part
+of the default Vitest matrix. Likewise, the Acorn source corpus is vendored for
+compilation, rather than counted as Vitest cases.
 
 ## Third-party runner dependencies
 
