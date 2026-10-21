@@ -154,8 +154,21 @@ function init() {
 
   setDeferred(shared, "unsafeContext", () => {
     const { safeVM, utilPrepareContext } = shared.module
+    const unsafeGlobal = shared.unsafeGlobal
+    let context = safeVM.createContext(unsafeGlobal)
 
-    return utilPrepareContext(safeVM.createContext(shared.unsafeGlobal))
+    // Some Node versions cannot resolve existing VM-context global bindings
+    // when that context is re-used from an embedding runtime such as Jest.
+    // Recontextify a copy rather than executing modules without process/global.
+    if (
+      safeVM.isContext(unsafeGlobal) &&
+      typeof unsafeGlobal.global === "object" &&
+      new safeVM.Script("typeof global").runInContext(context) === "undefined"
+    ) {
+      context = safeVM.createContext({ ...unsafeGlobal })
+    }
+
+    return utilPrepareContext(context)
   })
 
   setDeferred(support, "await", () => {

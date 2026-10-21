@@ -433,7 +433,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
   })
 
   describe("should work with jest", () => {
-    it.skip("should carry over the context object of jest", function () {
+    it("should carry over the context object of jest", function () {
       const dirPath = path.resolve("fixture/scenario/jest-context")
       const configPath = path.resolve(dirPath, "jest.config.json")
 
@@ -444,7 +444,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
       ], envAuto)
     })
 
-    it.skip("should carry over the process object of jest", function () {
+    it("should carry over the process object of jest", function () {
       const dirPath = path.resolve("fixture/scenario/jest-process")
       const configPath = path.resolve(dirPath, "jest.config.json")
 
@@ -455,7 +455,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
       ], envAuto)
     })
 
-    it.skip("should carry over globals from `jest.config.json`", function () {
+    it("should carry over globals from `jest.config.json`", function () {
       const dirPath = path.resolve("fixture/scenario/jest-config-globals")
       const configPath = path.resolve(dirPath, "jest.config.json")
 

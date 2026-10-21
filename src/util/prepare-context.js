@@ -74,6 +74,11 @@ function init() {
       return context
     }
 
+    // An already-contextified global (e.g. Jest's sandbox) has its own realm.
+    // Node's lazy globals cannot safely be transplanted into it: even reading
+    // their descriptors can abort Node, and copied getters reject the receiver.
+    const isExistingContext = shared.module.safeVM.isContext(shared.unsafeGlobal)
+    const unsafeGlobalNames = ["DOMException", "performance", "crypto", "navigator"]
     const names = allKeys(defaultGlobal)
 
     for (const name of names) {
@@ -88,6 +93,8 @@ function init() {
         }
       } else if (name === "GLOBAL" || name === "root") {
         descriptor = getDeprecatedGlobalDescriptor(name, context)
+      } else if (isExistingContext && unsafeGlobalNames.includes(name)) {
+        continue
       } else if (!has(context, name)) {
         descriptor = Reflect.getOwnPropertyDescriptor(defaultGlobal, name)
       }
