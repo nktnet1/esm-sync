@@ -48,7 +48,7 @@ const Runtime = {
       this.initBindings(["default"])
     }
   },
-  addExportFromSetter(importedName, exportedName = importedName) {
+  addExportFromSetter(importedName, exportedName = importedName, preserveGetter = false) {
     const setter = createAccessor(SETTER_TYPE_EXPORT_FROM, (_value, childEntry) => {
       const { entry } = this
 
@@ -60,7 +60,19 @@ const Runtime = {
         entry._namespaceFinalized = NAMESPACE_FINALIZATION_DEFERRED
       }
 
-      entry.addGetterFrom(childEntry, importedName, exportedName)
+      if (preserveGetter) {
+        // A namespace imported and exported through a local binding has the
+        // same identity as `export * as`, but its getter must keep observing
+        // the local value for CommonJS interception and mocking.
+        const getter = entry.getters[exportedName]
+
+        if (getter !== void 0) {
+          getter.owner = childEntry
+          getter.id = importedName
+        }
+      } else {
+        entry.addGetterFrom(childEntry, importedName, exportedName)
+      }
     })
 
     setter.exportedName = exportedName

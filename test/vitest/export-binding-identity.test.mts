@@ -17,19 +17,35 @@ export function setCount(value) { count = value }
   "namespace-direct-two.mjs": 'export * as shared from "./source.mjs"\n',
   "namespace-merge.mjs":
     'export * from "./namespace-direct.mjs"; export * from "./namespace-direct-two.mjs"\n',
+  "namespace-import-one.mjs": 'import * as ns from "./source.mjs"; export { ns as shared }\n',
+  "namespace-import-two.mjs": 'import * as ns from "./source.mjs"; export { ns as shared }\n',
+  "namespace-import-late.mjs": 'export { ns as shared }; import * as ns from "./source.mjs"\n',
+  "namespace-import-merge.mjs":
+    'export * from "./namespace-import-one.mjs"; export * from "./namespace-import-two.mjs"\n',
+  "namespace-mixed-merge.mjs":
+    'export * from "./namespace-import-late.mjs"; export * from "./namespace-direct.mjs"\n',
   "positive.mjs": `import { count as mergedCount } from "./merge.mjs"
 import { shared } from "./namespace-merge.mjs"
+import { shared as importedShared } from "./namespace-import-merge.mjs"
+import { shared as mixedShared } from "./namespace-mixed-merge.mjs"
 import * as originalNamespace from "./source.mjs"
 import { setCount } from "./source.mjs"
-if (mergedCount !== 1 || shared !== originalNamespace) throw new Error("wrong original binding")
+if (mergedCount !== 1 || shared !== originalNamespace || importedShared !== shared || mixedShared !== shared) throw new Error("wrong original binding")
 setCount(3)
-if (mergedCount !== 3 || shared.count !== 3) throw new Error("lost live binding")
+if (mergedCount !== 3 || shared.count !== 3 || importedShared.count !== 3) throw new Error("lost live binding")
 console.log("export-binding-identity:true")
 `,
   "alias-left.mjs": 'export { left as selection } from "./source.mjs"\n',
   "alias-right.mjs": 'export { right as selection } from "./source.mjs"\n',
   "conflict.mjs": 'export * from "./alias-left.mjs"; export * from "./alias-right.mjs"\n',
   "negative.mjs": 'import { selection } from "./conflict.mjs"; console.log(selection)\n',
+  "other-source.mjs": "export const other = 42\n",
+  "namespace-import-other.mjs":
+    'import * as ns from "./other-source.mjs"; export { ns as shared }\n',
+  "namespace-conflict.mjs":
+    'export * from "./namespace-import-one.mjs"; export * from "./namespace-import-other.mjs"\n',
+  "namespace-negative.mjs":
+    'import { shared } from "./namespace-conflict.mjs"; console.log(shared)\n',
   "report-error.cjs":
     'process.once("uncaughtExceptionMonitor", (error) => process.stderr.write(`binding-error:${error.name}\\n`))\n'
 }
@@ -84,6 +100,40 @@ for (const esmEnv of testEnvironments) {
         assert.ok(/^binding-error:SyntaxError$/m.test(stderr), stderr.slice(-4000))
         assert.equal(stdout, "")
       })
+    })
+
+    it("rejects conflicting namespace bindings from different source modules", async () => {
+      await withFixtures(async (directory) => {
+        const { exitCode, stdout, stderr } = await runNode(
+          [
+            "-r",
+            path.join(directory, "report-error.cjs"),
+            "-r",
+            "../index.js",
+            path.join(directory, "namespace-negative.mjs")
+          ],
+          esmEnv,
+          options,
+          { cacheNamespace: "export-namespace-conflict" }
+        )
+
+        assert.notEqual(exitCode, 0)
+        assert.ok(/^binding-error:SyntaxError$/m.test(stderr), stderr.slice(-4000))
+        assert.equal(stdout, "")
+      })
+    })
+
+    it("retains local namespace values when CommonJS dependencies are mocked", async () => {
+      const { exitCode, stdout, stderr } = await runNode(
+        ["-r", "../index.js", "fixture/scenario/mock-require-inject"],
+        esmEnv,
+        { ESM_OPTIONS: "{cjs:true,mode:'auto'}" },
+        { cacheNamespace: "export-namespace-mocking", timeout: 15_000 }
+      )
+
+      assert.equal(exitCode, 0, stderr.slice(-4000))
+      assert.equal(stderr, "")
+      assert.equal(stdout, "")
     })
   })
 }

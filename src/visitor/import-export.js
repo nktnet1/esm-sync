@@ -55,6 +55,15 @@ function init() {
         }
 
         const map = this.importSpecifierMap.get(imported.request)
+
+        if (imported.name === "*") {
+          // Keep the local namespace value so CommonJS mocking can replace
+          // it, while recording its source for export-star resolution.
+          localExports.push([exportedName, localName])
+          map.namespaceReExports.set(exportedName, imported.name)
+          continue
+        }
+
         let names = map.reExports.get(exportedName)
 
         if (names === void 0) {
@@ -108,6 +117,20 @@ function init() {
               toStringLiteral(name) +
               ")]"
           }
+        })
+
+        map.namespaceReExports.forEach((importedName, exportedName) => {
+          setterArgsList +=
+            (setterArgsList === "" ? "" : ",") +
+            "[" +
+            toStringLiteral(importedName) +
+            ",null," +
+            runtimeName +
+            ".f(" +
+            toStringLiteral(importedName) +
+            "," +
+            toStringLiteral(exportedName) +
+            ",true)]"
         })
 
         if (map.star) {
@@ -233,11 +256,7 @@ function init() {
 
         const localName = specifier.local.name
 
-        // Namespace imports are not treated as indirect exports here: the
-        // CommonJS mocking hooks can substitute their local namespace value.
-        if (importsName !== "*") {
-          this.importedBindingMap.set(localName, { request, name: importsName })
-        }
+        this.importedBindingMap.set(localName, { request, name: importsName })
 
         localNames.push(localName)
 
@@ -479,6 +498,7 @@ function init() {
     return {
       imports: new Map(),
       reExports: new Map(),
+      namespaceReExports: new Map(),
       star: false
     }
   }
