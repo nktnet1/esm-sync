@@ -30,11 +30,13 @@ function getCompiler() {
 function parseTest(filename, isModule) {
   const source = readFileSync(filename, "utf8")
 
-  if (isModule) {
-    getCompiler().compile(source, { hint: 2, pragmas: false, sourceType: 2 })
-  } else {
-    new vm.Script(source, { filename })
-  }
+  // The loader's script compiler can skip parsing text without import/export
+  // candidates. Validate its output with vm.Script to catch those errors, but
+  // only *after* transforming phase modifiers: older Node versions cannot
+  // parse valid `import.source()` even when esm-sync can.
+  const sourceType = isModule ? 2 : 1
+  const compiled = getCompiler().compile(source, { hint: sourceType, pragmas: false, sourceType })
+  if (!isModule) new vm.Script(compiled.code, { filename })
 }
 
 // Node's vm.Module parser does not yet accept `import defer`, although the

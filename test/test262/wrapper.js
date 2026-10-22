@@ -7,7 +7,7 @@ const requireHelper = createRequire(import.meta.url)
 const { checkModuleLink, parseTest } = requireHelper("./phase-analysis.cjs")
 
 const MAX_WAIT = 1000
-const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = ""] = process.argv
+const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = "", syntaxOnly = "false"] = process.argv
 
 const testPath = path.resolve("../vendor/test262")
 const harnessPath = path.resolve(testPath, "harness")
@@ -127,7 +127,7 @@ async function main() {
   let phase = "runtime"
 
   try {
-    if (expectedPhase) {
+    if (expectedPhase || syntaxOnly === "true") {
       try {
         parseTest(path.resolve(testFilename), isModule === "true")
       } catch (failure) {
@@ -135,7 +135,9 @@ async function main() {
         return
       }
 
-      if (expectedPhase === "parse") return
+      // Generated grammar-only cases must not resolve placeholder imports.
+      // Like parse negatives, they verify syntax without executing the body.
+      if (expectedPhase === "parse" || syntaxOnly === "true") return
 
       if (isModule === "true") {
         const linkResult = await checkModuleLink(path.resolve(testFilename))

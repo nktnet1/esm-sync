@@ -67,10 +67,19 @@ identify instantiation failures before the test is executed by esm-sync.
 Unknown/unverifiable phases fail closed instead of being counted as passing.
 This preflight does not replace testing the loader itself, nor can a separate
 VM graph prove the precise stage at which esm-sync threw an error; a future
-loader-level phase hook would provide stronger guarantees. Async tests wait
-for `$DONE`, reject its error argument or duplicate calls, and surface
-unhandled rejections and timeouts instead of treating print output as success.
-The complete corpus has not been rerun after these harness changes.
+loader-level phase hook would provide stronger guarantees. Script-goal
+parse negatives use both esm-sync's script parser and Node's VM parser on
+the **compiled** script: this catches ordinary syntax errors skipped by the
+compiler's fast path, while accepting phase modifiers that older V8 versions
+cannot parse natively and rejecting invalid forms such as
+`new import.source(...).prop`. Two generated top-level `import.source()`
+syntax-positive cases use an intentionally unresolvable `<module source>`
+placeholder and contain no runtime assertions; these are parsed without
+execution and tagged `syntaxOnly: true` in JSON reports. Other `syntax/valid`
+cases still execute their assertions. Async
+tests wait for `$DONE`, reject its error argument or duplicate calls, and
+surface unhandled rejections and timeouts instead of treating print output as
+success. The complete corpus has not been rerun after these harness changes.
 
 ### Conformance re-audit (22 October 2026)
 

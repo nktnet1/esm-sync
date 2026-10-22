@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
@@ -25,6 +25,7 @@ type TestCaseOptions = {
   isModule?: boolean
   isAsync?: boolean
   expectedPhase?: string
+  syntaxOnly?: boolean
   dependency?: string
 }
 
@@ -51,7 +52,8 @@ async function executeCase(options: TestCaseOptions) {
         String(options.isAsync ?? false),
         "[]",
         String(isModule),
-        options.expectedPhase ?? ""
+        options.expectedPhase ?? "",
+        String(options.syntaxOnly ?? false)
       ],
       {
         cwd: wrapperDirectory,
@@ -93,6 +95,89 @@ describe("Test262 negative-phase verification", () => {
       () => assertTest262Outcome(runtime.filename, runtime.stdout, "SyntaxError", "parse"),
       /but no error occurred/
     )
+  })
+
+  it("uses esm-sync script grammar for invalid source-phase constructor calls", async () => {
+    const invalid = await executeCase({
+      source: "new import.source('./dependency.mjs').prop;",
+      expectedPhase: "parse"
+    })
+    assertFailure(invalid, "SyntaxError", "parse")
+
+    // Script-specific duplicate var/function declarations are legal.
+    const valid = await executeCase({
+      source: "var smoosh; function smoosh() {}",
+      syntaxOnly: true
+    })
+    assert.equal(valid.stdout, "")
+  })
+
+  it("parses generated positive grammar cases without resolving placeholder imports", async () => {
+    const valid = await executeCase({
+      source: "var smoosh; function smoosh() {} import.source('<module source>');",
+      syntaxOnly: true
+    })
+    assert.equal(valid.stdout, "")
+
+    const invalid = await executeCase({
+      source: "new import.source('<module source>').prop;",
+      syntaxOnly: true
+    })
+    assertFailure(invalid, "SyntaxError", "parse")
+
+    // Syntax-only mode is opt-in, so ordinary script assertions still run.
+    const runtime = await executeCase({ source: "throw new RangeError('evaluated')" })
+    assertFailure(runtime, "RangeError", "runtime")
+  })
+
+  it("passes the pinned top-level import.source syntax cases", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-test262-report-"))
+    try {
+      const command = path.join(testPath, "../script/run-test262.js")
+      const reportFile = path.join(directory, "report.json")
+      const { exitCode, stderr, stdout, timedOut } = await execa(
+        process.execPath,
+        [
+          command,
+          "--filter",
+          "top-level-import-source",
+          "--reporter",
+          "dot",
+          "--report",
+          reportFile
+        ],
+        {
+          cwd: path.dirname(command),
+          reject: false,
+          timeout: 20_000,
+          env: { ...process.env, NODE_ENV: "development", ESM_ENV: "development-test" }
+        }
+      )
+      assert.equal(timedOut, false)
+      assert.equal(exitCode, 0, stderr || stdout)
+
+      const report = JSON.parse(await readFile(reportFile, "utf8")) as {
+        selected: number
+        passed: number
+        failed: number
+        cases: Array<{ path: string; syntaxOnly?: boolean }>
+      }
+      assert.equal(report.selected, 6)
+      assert.equal(report.passed, 6)
+      assert.equal(report.failed, 0)
+      assert.deepEqual(
+        report.cases
+          .filter(({ syntaxOnly }) => syntaxOnly)
+          .map(({ path: filename }) => path.basename(filename))
+          .sort(),
+        [
+          "top-level-import-source-empty-str-is-valid-assign-expr.js",
+          "top-level-import-source-script-code-valid.js"
+        ]
+      )
+    } finally {
+      await rm(directory, { force: true, recursive: true })
+    }
   })
 
   it("parses negative modules using the esm-sync compiler rather than evaluating them", async () => {
