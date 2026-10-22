@@ -40,6 +40,22 @@ const { ERR_CONST_ASSIGNMENT, ERR_UNDEFINED_IDENTIFIER } = errors
 
 const { Promise: ExPromise, eval: evalIndirect } = shared.external
 
+function isCyclicStarReExport(getter, entry, exportedName) {
+  const seen = new Set()
+
+  while (getter !== void 0 && getter.deferred && !seen.has(getter)) {
+    seen.add(getter)
+
+    if (getter.owner === entry && getter.id === exportedName) {
+      return true
+    }
+
+    getter = getter.owner.getters[getter.id]
+  }
+
+  return false
+}
+
 const Runtime = {
   addDefaultValue(value) {
     this.addExportGetters([["default", () => value]])
@@ -109,6 +125,12 @@ const Runtime = {
 
         const getter = getters[exportedName]
         const childGetter = childGetters[exportedName]
+
+        // ResolveExport discards indirect re-exports that return to the same
+        // module and export name. They cannot independently provide a binding.
+        if (isCyclicStarReExport(childGetter, entry, exportedName)) {
+          continue
+        }
 
         // A star export is ambiguous only if the original module or binding
         // differs. Explicit exports still take precedence over star exports.

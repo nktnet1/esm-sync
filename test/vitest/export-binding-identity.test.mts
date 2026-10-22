@@ -46,6 +46,30 @@ console.log("export-binding-identity:true")
     'export * from "./namespace-import-one.mjs"; export * from "./namespace-import-other.mjs"\n',
   "namespace-negative.mjs":
     'import { shared } from "./namespace-conflict.mjs"; console.log(shared)\n',
+  "cycle-single-root.mjs":
+    'export * from "./cycle-single-forward.mjs"; export * from "./source.mjs"\n',
+  "cycle-single-forward.mjs": 'export { count } from "./cycle-single-root.mjs"\n',
+  "cycle-multi-root.mjs":
+    'export * from "./cycle-multi-forward-a.mjs"; export * from "./source.mjs"; export * from "./cycle-multi-forward-b.mjs"\n',
+  "cycle-multi-forward-a.mjs": 'export { count } from "./cycle-multi-root.mjs"\n',
+  "cycle-multi-forward-b.mjs": 'export { count } from "./cycle-multi-root.mjs"\n',
+  "cycle-nested-root.mjs":
+    'export * from "./cycle-nested-forward-a.mjs"; export * from "./source.mjs"\n',
+  "cycle-nested-forward-a.mjs": 'export { count } from "./cycle-nested-forward-b.mjs"\n',
+  "cycle-nested-forward-b.mjs": 'export { count } from "./cycle-nested-root.mjs"\n',
+  "cycle-positive.mjs": `import { count as single } from "./cycle-single-root.mjs"
+import { count as multi } from "./cycle-multi-root.mjs"
+import { count as nested } from "./cycle-nested-root.mjs"
+import { setCount } from "./source.mjs"
+if (single !== 1 || multi !== 1 || nested !== 1) throw new Error("wrong cyclic star binding")
+setCount(6)
+if (single !== 6 || multi !== 6 || nested !== 6) throw new Error("lost cyclic star live binding")
+console.log("cyclic-star-resolution:true")
+`,
+  "cycle-missing-root.mjs": 'export * from "./cycle-missing-forward.mjs"\n',
+  "cycle-missing-forward.mjs": 'export { count } from "./cycle-missing-root.mjs"\n',
+  "cycle-missing-negative.mjs":
+    'import { count } from "./cycle-missing-root.mjs"; console.log(count)\n',
   "report-error.cjs":
     'process.once("uncaughtExceptionMonitor", (error) => process.stderr.write(`binding-error:${error.name}\\n`))\n'
 }
@@ -115,6 +139,41 @@ for (const esmEnv of testEnvironments) {
           esmEnv,
           options,
           { cacheNamespace: "export-namespace-conflict" }
+        )
+
+        assert.notEqual(exitCode, 0)
+        assert.ok(/^binding-error:SyntaxError$/m.test(stderr), stderr.slice(-4000))
+        assert.equal(stdout, "")
+      })
+    })
+
+    it("ignores cyclic indirect export-star paths while retaining live bindings", async () => {
+      await withFixtures(async (directory) => {
+        const { exitCode, stdout, stderr } = await runNode(
+          ["-r", "../index.js", path.join(directory, "cycle-positive.mjs")],
+          esmEnv,
+          options,
+          { cacheNamespace: "export-cycle-resolution" }
+        )
+
+        assert.equal(exitCode, 0, stderr.slice(-4000))
+        assert.ok(stdout.includes("cyclic-star-resolution:true"), stdout)
+      })
+    })
+
+    it("rejects an export-star cycle without any concrete binding", async () => {
+      await withFixtures(async (directory) => {
+        const { exitCode, stdout, stderr } = await runNode(
+          [
+            "-r",
+            path.join(directory, "report-error.cjs"),
+            "-r",
+            "../index.js",
+            path.join(directory, "cycle-missing-negative.mjs")
+          ],
+          esmEnv,
+          options,
+          { cacheNamespace: "export-cycle-missing" }
         )
 
         assert.notEqual(exitCode, 0)
