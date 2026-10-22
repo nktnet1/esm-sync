@@ -1,4 +1,6 @@
 import fs from "fs-extra"
+import { registerHooks } from "node:module"
+import { pathToFileURL } from "node:url"
 import path from "path"
 import vm from "vm"
 
@@ -7,6 +9,25 @@ const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true"] = proc
 
 const testPath = path.resolve("../vendor/test262")
 const harnessPath = path.resolve(testPath, "harness")
+const fixtureDirectory = path.join(fs.realpathSync(testPath), "test/language") + path.sep
+const moduleFixturePrefix = pathToFileURL(fixtureDirectory).href
+
+// Test262 *_FIXTURE.js imports are modules even when they have no ESM syntax.
+// Native dynamic import would otherwise give empty fixtures a CommonJS default
+// export. Keep this hook confined to the pinned corpus, not application code.
+registerHooks({
+  load(url, context, nextLoad) {
+    const loaded = nextLoad(url, context)
+    if (
+      url.startsWith(moduleFixturePrefix) &&
+      /_FIXTURE\.js(?:[?#]|$)/.test(url) &&
+      context.importAttributes?.type === undefined
+    ) {
+      return { ...loaded, format: "module" }
+    }
+    return loaded
+  }
+})
 
 const harnessFilenames = new Set([
   "assert.js",

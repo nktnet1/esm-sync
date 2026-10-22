@@ -1,16 +1,2 @@
-# SCRIPT GOAL: These cases depend on script-goal evaluation and the namespace
-# of a JavaScript fixture imported as a module. The current wrapper and
-# loader configuration do not reproduce those semantics faithfully.
-test/language/expressions/dynamic-import/namespace/await-ns-delete-non-exported-no-strict.js
-
-# SCRIPT GOAL: See the preceding namespace exclusion.
-test/language/expressions/dynamic-import/namespace/await-ns-delete-non-exported-strict.js
-
-# SCRIPT GOAL: See the preceding namespace exclusion.
-test/language/expressions/dynamic-import/namespace/default-property-not-set-own.js
-
-# SCRIPT GOAL: See the preceding namespace exclusion.
-test/language/expressions/dynamic-import/namespace/promise-then-ns-delete-non-exported-no-strict.js
-
-# SCRIPT GOAL: See the preceding namespace exclusion.
-test/language/expressions/dynamic-import/namespace/promise-then-ns-delete-non-exported-strict.js
+# No current exclusions. Each future entry needs a reason comment directly
+# followed by the corpus-relative test path on the next line.

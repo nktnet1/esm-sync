@@ -72,11 +72,11 @@ re-enabled 15 dynamic-import module tests and 6 module early-error tests:
 all 21 pass in the full suite without regressions. The same restored cases
 also pass targeted runs under Node 26.12.0.
 
-All six remaining exclusions are script-goal dynamic-import tests. They need
-a script-aware harness instead of importing the test file as a module. The
-runner also checks expected error **types**, not their declared parse,
-resolution, or runtime **phases**, so an apparent pass is not a complete
-conformance guarantee.
+At that snapshot, all six remaining exclusions were script-goal
+dynamic-import tests. Script-goal execution and fixture-module loading have
+since restored all six. The runner still checks expected error **types**, not
+their declared parse, resolution, or runtime **phases**, so an apparent pass
+is not a complete conformance guarantee.
 
 Of the 266 failures, 242 live under `top-level-await` and another 14 involve
 async module evaluation elsewhere. The other ten include five import-bytes
@@ -95,8 +95,9 @@ JSON report with `status: "unsupported"` and `unsupportedFeatures`; they are
 not added to the permanent skiplist. A host implementing the feature will run
 those tests normally.
 
-The pinned corpus now reports **1,739 selected: 1,474 passed, 259 failed,
-6 unsupported, and 6 separately excluded** on Node 24.21.0. The one new
+At the v1.0.4 baseline, the pinned corpus reported **1,739 selected:
+1,474 passed, 259 failed, 6 unsupported, and 6 separately excluded** on
+Node 24.21.0. The one new
 passing case checks that a deferred namespace preserves the exact value
 thrown by an already-errored module rather than rejecting during deferred
 import linking. The other six former failures are accurately classified as
@@ -107,6 +108,21 @@ Node 24.21.0 and 26.12.0 lack both capabilities in the supplied runtimes.
 The private-brand behaviour is controlled by the JavaScript engine's private
 field operations and cannot be corrected through proxy traps. These feature
 gates do not skip source-phase or async module evaluation failures.
+
+### Test262 script goal and module fixtures
+
+Non-module Test262 cases now execute using `vm.Script`, preserving their
+script-goal semantics. Test262 `*_FIXTURE.js` files imported from the pinned
+`test/language` corpus are treated as ES modules even when they contain no
+import/export syntax. A scoped Node module-load hook avoids the synthetic
+`default` export that Node would otherwise add when interpreting such a file
+as CommonJS. The hook leaves files outside the prepared Test262 corpus alone,
+including ordinary application CommonJS modules.
+
+After the script-goal change restored one excluded case, the fixture-loading
+fix restores the other five dynamic-import namespace cases. The skiplist is
+now empty. These cases are covered by targeted Vitest subprocess regressions;
+the complete Test262 corpus has not been rerun after the script-goal changes.
 
 ## Third-party runner dependencies
 
