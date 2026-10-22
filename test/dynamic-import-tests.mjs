@@ -54,6 +54,36 @@ describe("dynamic import tests", () => {
     }
   })
 
+  it("should not evaluate a deferred module while it is already evaluating", async () => {
+    try {
+      const module = await import("./fixture/defer-self-evaluation.mjs")
+
+      assert.ok(globalThis.esmSyncDeferredSelfError instanceof TypeError)
+      assert.strictEqual(module.value, 41)
+      // The failed access must not permanently prevent deferred evaluation.
+      assert.strictEqual(module.getDeferredValue(), 41)
+    } finally {
+      delete globalThis.esmSyncDeferredSelfError
+    }
+  })
+
+  it("should not evaluate a deferred module with an actively evaluating dependency", async () => {
+    try {
+      const root = await import("./fixture/defer-active-root.mjs")
+
+      assert.strictEqual(root.value, 7)
+      assert.ok(globalThis.esmSyncDeferredDependencyError instanceof TypeError)
+      assert.strictEqual(globalThis.esmSyncDeferredDependencyLeafExecuted, undefined)
+
+      const leaf = await import("./fixture/defer-active-leaf.mjs")
+      assert.strictEqual(leaf.value, 9)
+      assert.strictEqual(globalThis.esmSyncDeferredDependencyLeafExecuted, true)
+    } finally {
+      delete globalThis.esmSyncDeferredDependencyError
+      delete globalThis.esmSyncDeferredDependencyLeafExecuted
+    }
+  })
+
   it("should preserve ToString errors for phase-qualified dynamic imports", async () => {
     const phases = await import("./fixture/phased-dynamic-import.mjs")
     const thrown = new Error("specifier conversion failed")

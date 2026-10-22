@@ -32,6 +32,8 @@ const {
   SETTER_TYPE_DYNAMIC_IMPORT,
   SETTER_TYPE_EXPORT_FROM,
   SETTER_TYPE_NAMESPACE,
+  STATE_EXECUTION_COMPLETED,
+  STATE_EXECUTION_STARTED,
   TYPE_CJS,
   TYPE_ESM,
   TYPE_PSEUDO,
@@ -103,6 +105,21 @@ function isCyclicStarReExport(getter, entry, exportedName) {
   }
 
   return false
+}
+
+// A deferred namespace must not resume an ESM graph whose evaluation is
+// already on the stack, even when the target module itself is only linked.
+// This follows the synchronous part of ReadyForSyncExecution.
+function readyForSyncExecution(entry, seen = new Set()) {
+  if (seen.has(entry) || entry.state === STATE_EXECUTION_COMPLETED) return true
+  if (entry.state === STATE_EXECUTION_STARTED || entry.running) return false
+
+  seen.add(entry)
+  for (const name in entry.children) {
+    if (!readyForSyncExecution(entry.children[name], seen)) return false
+  }
+
+  return true
 }
 
 const Runtime = {
@@ -374,6 +391,9 @@ const Runtime = {
 
       const ensureEvaluated = () => {
         if (failure !== void 0) throw failure
+        if (!readyForSyncExecution(childEntry)) {
+          throw new ExTypeError("Deferred module cannot be evaluated synchronously")
+        }
         if (started) return
         started = true
         try {
