@@ -44,6 +44,9 @@ function init() {
       if (typeof parser.checkLValSimple === "function") {
         parser.checkLValSimple = wrap(parser.checkLValSimple, checkLVal)
       }
+      if (typeof parser.parseWithClause === "function") {
+        parser.parseWithClause = wrap(parser.parseWithClause, parseWithClause)
+      }
       parser.parseExport = wrap(parser.parseExport, parseExport)
       parser.parseModuleExportName = wrap(parser.parseModuleExportName, parseModuleExportName)
       parser.parseExprAtom = wrap(parser.parseExprAtom, parseExprAtom)
@@ -111,6 +114,10 @@ function init() {
 
     node.source = this.parseExprAtom()
 
+    if (this.options.ecmaVersion >= 16) {
+      node.attributes = this.parseWithClause()
+    }
+
     this.semicolon()
 
     return this.finishNode(node, finishType)
@@ -124,6 +131,32 @@ function init() {
     }
 
     return name
+  }
+
+  function parseWithClause(func, args) {
+    const attributes = Reflect.apply(func, this, args)
+
+    if (attributes.length < 2) {
+      return attributes
+    }
+
+    const keys = new Set()
+
+    // Acorn's duplicate-key error can be suppressed by parser tolerance.
+    // Validate parsed values, not raw spellings, and do not use an object as
+    // a key table (`__proto__` must be treated like every other string).
+    for (const attribute of attributes) {
+      const { key } = attribute
+      const name = key.type === "Identifier" ? key.name : key.value
+
+      if (keys.has(name)) {
+        throw new errors.SyntaxError(this, key.start, "Duplicate attribute key '" + name + "'")
+      }
+
+      keys.add(name)
+    }
+
+    return attributes
   }
 
   function hasUnpairedSurrogate(value) {

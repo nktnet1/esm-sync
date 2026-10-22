@@ -923,3 +923,53 @@ describe("arbitrary module namespace names", () => {
     )
   })
 })
+
+describe("static import attributes", () => {
+  it("rejects duplicate attribute keys after normalizing string escapes", () => {
+    for (const attributes of [
+      'type: "json", "type": "json"',
+      'type: "json", "typ\\u0065": "json"',
+      '"__proto__": "json", "__proto__": "json"'
+    ]) {
+      for (const statement of [
+        'import "fixture"',
+        'import value from "fixture"',
+        'import { value } from "fixture"',
+        'import * as namespace from "fixture"',
+        'export * from "fixture"',
+        'export * as namespace from "fixture"',
+        'export { value } from "fixture"'
+      ]) {
+        const source = `${statement} with { ${attributes} }`
+
+        for (const sourceType of modernTypes) {
+          assert.throws(
+            () => Compiler.compile(source, { sourceType }),
+            { name: "SyntaxError", message: /Duplicate attribute key/ },
+            source
+          )
+        }
+      }
+    }
+  })
+
+  it("accepts empty and distinct import attributes in imports and re-exports", () => {
+    for (const attributes of ["", 'type: "json", Type: "module"']) {
+      for (const statement of [
+        'import "fixture"',
+        'import value from "fixture"',
+        'import { value } from "fixture"',
+        'export * from "fixture"',
+        'export * as namespace from "fixture"',
+        'export * as "custom name" from "fixture"',
+        'export { value } from "fixture"'
+      ]) {
+        const source = `${statement} with { ${attributes} }`
+
+        for (const sourceType of modernTypes) {
+          assert.doesNotThrow(() => Compiler.compile(source, { sourceType }), source)
+        }
+      }
+    }
+  })
+})
