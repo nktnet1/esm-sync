@@ -54,7 +54,7 @@ function init() {
           continue
         }
 
-        const map = this.importSpecifierMap.get(imported.request)
+        const map = this.importSpecifierMap.get(imported.key)
 
         if (imported.name === "*") {
           // Keep the local namespace value so CommonJS mocking can replace
@@ -78,8 +78,8 @@ function init() {
 
       const { runtimeName } = this
 
-      this.importSpecifierMap.forEach((map, request) => {
-        code += runtimeName + ".w(" + toStringLiteral(request)
+      this.importSpecifierMap.forEach((map) => {
+        code += runtimeName + ".w(" + toStringLiteral(map.request)
 
         let setterArgsList = ""
 
@@ -138,11 +138,11 @@ function init() {
             (setterArgsList === "" ? "" : ",") + '["*",null,' + runtimeName + ".n()]"
         }
 
-        if (setterArgsList !== "") {
+        if (setterArgsList !== "" || map.moduleType === "text") {
           code += ",[" + setterArgsList + "]"
         }
 
-        code += ");"
+        code += map.moduleType === "text" ? ',"text");' : ");"
       })
 
       this.magicString.prependLeft(top.insertIndex, code)
@@ -224,15 +224,8 @@ function init() {
 
       const { importSpecifierMap, temporalBindings } = this
       const node = path.getValue()
-      const request = node.source.value
       const { specifiers } = node
-
-      let map = importSpecifierMap.get(request)
-
-      if (map === void 0) {
-        map = createImportSpecifierMap()
-        importSpecifierMap.set(request, map)
-      }
+      const map = getImportSpecifierMap(importSpecifierMap, node)
 
       const { imports } = map
 
@@ -256,7 +249,7 @@ function init() {
 
         const localName = specifier.local.name
 
-        this.importedBindingMap.set(localName, { request, name: importsName })
+        this.importedBindingMap.set(localName, { key: map.key, name: importsName })
 
         localNames.push(localName)
 
@@ -279,14 +272,7 @@ function init() {
 
       const { importSpecifierMap } = this
       const node = path.getValue()
-      const request = node.source.value
-
-      let map = importSpecifierMap.get(request)
-
-      if (map === void 0) {
-        map = createImportSpecifierMap()
-        importSpecifierMap.set(request, map)
-      }
+      const map = getImportSpecifierMap(importSpecifierMap, node)
 
       map.star = true
 
@@ -446,14 +432,7 @@ function init() {
         // Support re-exporting specifiers of an imported module:
         // export { name1, name2, ..., nameN } from "mod"
         const { importSpecifierMap } = this
-        const request = source.value
-
-        let map = importSpecifierMap.get(request)
-
-        if (map === void 0) {
-          map = createImportSpecifierMap()
-          importSpecifierMap.set(request, map)
-        }
+        const map = getImportSpecifierMap(importSpecifierMap, node)
 
         for (const specifier of specifiers) {
           const exportedName = getExportedName(specifier)
@@ -492,6 +471,27 @@ function init() {
         overwrite(this, meta.start, meta.end, this.runtimeName + "._")
       }
     }
+  }
+
+  function getImportSpecifierMap(maps, node) {
+    const request = node.source.value
+    const attribute = (node.attributes ?? []).find(
+      ({ key }) => (key.type === "Identifier" ? key.name : key.value) === "type"
+    )
+    const moduleType = attribute?.value.value === "text" ? "text" : void 0
+    const key = moduleType === "text" ? request + "\0text" : request
+
+    let map = maps.get(key)
+
+    if (map === void 0) {
+      map = createImportSpecifierMap()
+      map.key = key
+      map.request = request
+      map.moduleType = moduleType
+      maps.set(key, map)
+    }
+
+    return map
   }
 
   function createImportSpecifierMap() {

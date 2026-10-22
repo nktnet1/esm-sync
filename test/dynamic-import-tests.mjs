@@ -25,6 +25,40 @@ function assertAbcNs(ns) {
 }
 
 describe("dynamic import tests", () => {
+  it("should load text modules without evaluating the contents as JavaScript", async () => {
+    const ns = await import("./fixture/text-module.txt", { with: { type: "text" } })
+
+    assert.strictEqual(ns.default, "A text module is not { executable JavaScript }.\n")
+    assert.deepStrictEqual(Object.keys(ns), ["default"])
+  })
+
+  it("should import, re-export, and forward text modules with static attributes", async () => {
+    const mod = await import("./fixture/text-consumer.mjs")
+
+    assert.strictEqual(mod.text, "A text module is not { executable JavaScript }.\n")
+    assert.strictEqual(mod.namespace.default, mod.text)
+    assert.deepStrictEqual(Object.keys(mod.namespace), ["default"])
+    assert.strictEqual(mod.reExported, mod.text)
+    assert.strictEqual(mod.reExportedNamespace.default, mod.text)
+    assert.strictEqual(mod.javascript, 17)
+    assert.match(mod.rawJavaScript, /export default 17/)
+  })
+
+  it("should cache text and JavaScript modules separately for the same filename", async () => {
+    const request = "./fixture/text-module.mjs"
+    const first = await import(request, { with: { type: "text" } })
+    const again = await import(request, { with: { type: "text" } })
+    const jsModule = await import(request)
+
+    assert.strictEqual(first, again)
+    assert.match(first.default, /export default 17/)
+    assert.strictEqual(jsModule.default, 17)
+    assert.notStrictEqual(first, jsModule)
+  })
+
+  it("should reject a missing named export from a text module", async () => {
+    await assert.rejects(import("./fixture/text-invalid-import.mjs"), SyntaxError)
+  })
   it("should establish live binding of values", () =>
     import("./fixture/live.mjs").then((ns) => {
       ns.reset()

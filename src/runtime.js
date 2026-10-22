@@ -65,11 +65,21 @@ function validateDynamicImportOptions(options) {
 
   // EnumerableOwnProperties collects string keys before looking up their
   // values. In particular, ignore symbols and non-enumerable properties.
+  let moduleType
+
   for (const key of Object.keys(attributes)) {
-    if (typeof attributes[key] !== "string") {
+    const value = attributes[key]
+
+    if (typeof value !== "string") {
       throw new ExTypeError("Dynamic import attribute values must be strings")
     }
+
+    if (key === "type") {
+      moduleType = value
+    }
   }
+
+  return moduleType
 }
 
 function isCyclicStarReExport(getter, entry, exportedName) {
@@ -309,6 +319,7 @@ const Runtime = {
     const { entry } = this
 
     return new ExPromise((resolvePromise, rejectPromise) => {
+      let moduleType
       // EvaluateImportCall converts the specifier and processes import
       // attributes before returning its promise. Errors reject the promise
       // through its executor instead of escaping from import().
@@ -321,7 +332,7 @@ const Runtime = {
           request = ImportString(request)
         }
 
-        validateDynamicImportOptions(options)
+        moduleType = validateDynamicImportOptions(options)
       } catch (error) {
         // A failed ToString can originate inside the bundled runtime. Expose
         // the caller's error constructors without replacing a thrown value.
@@ -353,7 +364,7 @@ const Runtime = {
             ]
           ]
 
-          esmImport(request, entry, setterArgsList, true)
+          esmImport(request, entry, setterArgsList, true, moduleType)
         } catch (e) {
           if (!Loader.state.package.default.options.debug && isStackTraceMaskable(e)) {
             maskStackTrace(e, {
@@ -444,8 +455,8 @@ const Runtime = {
   globalEval(content) {
     return evalIndirect(this.compileGlobalEval(content))
   },
-  import(request, setterArgsList) {
-    return esmImport(request, this.entry, setterArgsList)
+  import(request, setterArgsList, moduleType) {
+    return esmImport(request, this.entry, setterArgsList, false, moduleType)
   },
   initBindings(names) {
     this.entry.updateBindings(names)
