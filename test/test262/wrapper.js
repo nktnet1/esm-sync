@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url"
 import path from "path"
 import vm from "vm"
 const requireHelper = createRequire(import.meta.url)
-const { checkModuleLink, parseTest } = requireHelper("./phase-analysis.cjs")
+const { checkModuleLink, getCompiler, getLinkOnly, parseTest, runModule } = requireHelper("./phase-analysis.cjs")
 
 const MAX_WAIT = 1000
 const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = "", syntaxOnly = "false"] = process.argv
@@ -96,7 +96,7 @@ if (completion !== null) {
 }
 
 function runTest() {
-  if (isModule === "true") return import(testFilename)
+  if (isModule === "true") return runModule(path.resolve(testFilename))
 
   const filename = path.resolve(testFilename)
   const source = fs.readFileSync(filename, "utf8")
@@ -124,10 +124,19 @@ function reportFailure(failure, phase) {
 }
 
 async function main() {
-  let phase = "runtime"
+  const needsParsing = Boolean(expectedPhase) || syntaxOnly === "true" || isModule === "true"
+
+  // Compiler/linker bootstrap errors are runner failures, not Test262 error
+  // phases. Initialise outside the test-error handler to prevent false passes.
+  if (needsParsing) getCompiler()
+  if (isModule === "true" && expectedPhase !== "parse" && syntaxOnly !== "true") {
+    getLinkOnly()
+  }
+
+  const phase = "runtime"
 
   try {
-    if (expectedPhase || syntaxOnly === "true") {
+    if (needsParsing) {
       try {
         parseTest(path.resolve(testFilename), isModule === "true")
       } catch (failure) {
@@ -140,11 +149,15 @@ async function main() {
       if (expectedPhase === "parse" || syntaxOnly === "true") return
 
       if (isModule === "true") {
-        const linkResult = await checkModuleLink(path.resolve(testFilename))
-        phase = linkResult.phase
-        if (phase === "unknown") {
-          throw new Error(`Cannot verify Test262 module error phase: ${linkResult.error?.message}`)
+        const linkResult = checkModuleLink(path.resolve(testFilename))
+        if (!linkResult.linked) {
+          reportFailure(linkResult.error, linkResult.phase)
+          return
         }
+
+        // A successful instantiation is not a resolution-negative pass,
+        // regardless of what evaluating the body might later throw.
+        if (expectedPhase === "resolution") return
       }
     }
 
@@ -163,4 +176,7 @@ async function main() {
   }
 }
 
-main().catch((failure) => error("Test262 runner failed:", failure))
+main().catch((failure) => {
+  process.exitCode = 1
+  error("Test262 runner failed:", failure)
+})

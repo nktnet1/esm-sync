@@ -1,13 +1,10 @@
 const { readFileSync } = require("node:fs")
 const path = require("node:path")
-const { fileURLToPath, pathToFileURL } = require("node:url")
 const vm = process.getBuiltinModule("node:vm")
 
 // The compiler bundle normally receives this binding from esm-sync's loader.
 // The standalone Test262 phase checker needs the same compiler configuration.
 let compiler
-
-class UnsupportedLinkCheckError extends Error {}
 
 function getCompiler() {
   if (compiler) return compiler
@@ -39,74 +36,52 @@ function parseTest(filename, isModule) {
   if (!isModule) new vm.Script(compiled.code, { filename })
 }
 
-// Node's vm.Module parser does not yet accept `import defer`, although the
-// esm-sync compiler does. This link-only check replaces the phase modifier;
-// it is never used to execute or validate the original import semantics.
-function linkOnlySource(source) {
-  return source.replace(/\bimport\s+defer\s+\*\s+as\s+/g, "import * as ")
+// Use the loader's own parse/link path, not a second implementation based on
+// vm.SourceTextModule. Compiler and bridge bootstrap errors must escape
+// the Test262 reporter rather than look like expected resolution failures.
+let linkOnly
+let moduleRequire
+let parseErrors
+
+function getLinkOnly() {
+  if (linkOnly) return linkOnly
+
+  const root = path.resolve(__dirname, "../..")
+  const esm = require(root)
+  const ownModule = require.cache[require.resolve(root)]
+  if (!ownModule) throw new Error("Test262: esm-sync module is not loaded")
+
+  // The loader's internal require(symbol) protocol already exposes its
+  // shared state to esm-sync's own modules. It is not a public application API.
+  const ownRequire = esm(ownModule)
+  const version = require(path.join(root, "package.json")).version
+  const shared = ownRequire(Symbol.for(`esm\u200d@${version}:shared`))
+  const check = shared?.module?.test262LinkOnly
+  const errors = shared?.module?.test262ParseErrors
+  if (typeof check !== "function" || !(errors instanceof WeakSet)) {
+    throw new Error("Test262: esm-sync test-only linker is unavailable")
+  }
+
+  parseErrors = errors
+  linkOnly = (filename) => check(filename, module)
+  moduleRequire = ownRequire
+  return linkOnly
 }
 
-async function checkModuleLink(filename) {
-  const context = vm.createContext({})
-  const cache = new Map()
+function runModule(filename) {
+  getLinkOnly()
+  return moduleRequire(filename)
+}
 
-  function createModule(file) {
-    const resolved = path.resolve(file)
-    const existing = cache.get(resolved)
-    if (existing) return existing
-
-    const extension = path.extname(resolved)
-    let mod
-
-    if (extension === ".json") {
-      // Parsing JSON belongs to module loading/linking, not evaluation.
-      JSON.parse(readFileSync(resolved, "utf8"))
-      mod = new vm.SyntheticModule(["default"], () => {}, { context, identifier: resolved })
-    } else if (extension === ".js" || extension === ".mjs") {
-      mod = new vm.SourceTextModule(linkOnlySource(readFileSync(resolved, "utf8")), {
-        context,
-        identifier: resolved
-      })
-    } else {
-      throw new UnsupportedLinkCheckError(`Unsupported Test262 module extension: ${extension}`)
-    }
-
-    cache.set(resolved, mod)
-    return mod
-  }
-
-  let root
-  try {
-    root = createModule(filename)
-  } catch (error) {
-    // The root must be parseable before we can infer anything about linking.
-    return { phase: "unknown", error }
-  }
+function checkModuleLink(filename) {
+  const link = getLinkOnly()
 
   try {
-    await root.link(async (specifier, referencingModule, importAttributes) => {
-      if (!specifier.startsWith(".")) {
-        throw new UnsupportedLinkCheckError(`Unsupported Test262 phase-check specifier: ${specifier}`)
-      }
-
-      const resolved = fileURLToPath(new URL(specifier, pathToFileURL(referencingModule.identifier)))
-      const type = importAttributes?.attributes?.type
-      const attributes = importAttributes?.attributes ?? {}
-      const extension = path.extname(resolved)
-
-      if (
-        Object.keys(attributes).some((key) => key !== "type") ||
-        (type !== undefined && type !== (extension === ".json" ? "json" : undefined))
-      ) {
-        throw new SyntaxError(`Unsupported import attributes for ${specifier}`)
-      }
-
-      return createModule(resolved)
-    })
-    return { phase: "runtime" }
+    link(filename)
+    return { linked: true }
   } catch (error) {
-    return { phase: error instanceof UnsupportedLinkCheckError ? "unknown" : "resolution", error }
+    return { linked: false, phase: parseErrors.has(error) ? "parse" : "resolution", error }
   }
 }
 
-module.exports = { checkModuleLink, parseTest }
+module.exports = { checkModuleLink, getCompiler, getLinkOnly, parseTest, runModule }

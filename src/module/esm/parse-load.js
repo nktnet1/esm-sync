@@ -6,7 +6,7 @@ import validateDeep from "./validate-deep.js"
 
 const { STATE_PARSING_COMPLETED, TYPE_CJS } = ENTRY
 
-function parseLoad(request, parent, isMain) {
+function parseLoad(request, parent, isMain, linkOnly = false) {
   const { moduleState } = shared
 
   moduleState.parsing = true
@@ -29,7 +29,9 @@ function parseLoad(request, parent, isMain) {
         validateDeep(entry)
       }
 
-      entry = load(request, parent, isMain)
+      if (!linkOnly) {
+        entry = load(request, parent, isMain)
+      }
     }
   } finally {
     moduleState.requireDepth -= 1

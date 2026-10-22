@@ -23,20 +23,28 @@ const wrapperFile = path.join(wrapperDirectory, "wrapper.js")
 type TestCaseOptions = {
   source: string
   isModule?: boolean
+  moduleFilename?: string
   isAsync?: boolean
   expectedPhase?: string
   syntaxOnly?: boolean
   dependency?: string
+  dependencies?: Record<string, string>
 }
 
 async function executeCase(options: TestCaseOptions) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-test262-phases-"))
   try {
     const isModule = options.isModule ?? false
-    const filename = path.join(directory, isModule ? "case.mjs" : "case.js")
+    const filename = path.join(
+      directory,
+      options.moduleFilename ?? (isModule ? "case.mjs" : "case.js")
+    )
     await writeFile(filename, options.source)
     if (options.dependency !== undefined) {
       await writeFile(path.join(directory, "dependency.mjs"), options.dependency)
+    }
+    for (const [name, source] of Object.entries(options.dependencies ?? {})) {
+      await writeFile(path.join(directory, name), source)
     }
 
     const { exitCode, stderr, stdout, timedOut } = await execa(
@@ -207,13 +215,175 @@ describe("Test262 negative-phase verification", () => {
       source: 'import "./dependency.mjs";',
       dependency: 'throw new SyntaxError("evaluation failed")',
       isModule: true,
-      expectedPhase: "resolution"
+      expectedPhase: "runtime"
     })
     assertFailure(thrown, "SyntaxError", "runtime")
     assert.throws(
       () => assertTest262Outcome(thrown.filename, thrown.stdout, "SyntaxError", "resolution"),
       /unexpected error phase/
     )
+  })
+
+  it("attributes malformed imported source to parsing, not linking", async () => {
+    const result = await executeCase({
+      source: 'import "./dependency.mjs"; throw new Error("root evaluated")',
+      dependency: "export const = 1",
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assertFailure(result, "SyntaxError", "parse")
+    assert.throws(
+      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution"),
+      /unexpected error phase/
+    )
+  })
+
+  it("checks positive module linking before allowing evaluation", async () => {
+    const invalid = await executeCase({
+      source: 'import { absent } from "./dependency.mjs"; throw new SyntaxError("evaluated")',
+      dependency: "export const present = 1",
+      isModule: true
+    })
+    assertFailure(invalid, "SyntaxError", "resolution")
+    assert.match(invalid.stdout, /absent/)
+    assert.doesNotMatch(invalid.stdout, /evaluated/)
+
+    const evaluated = await executeCase({
+      source: 'throw new TypeError("positive module evaluated")',
+      isModule: true
+    })
+    assertFailure(evaluated, "TypeError", "runtime")
+
+    const valid = await executeCase({
+      source:
+        'import { answer } from "./dependency.mjs"; if (answer !== 42) throw new Error("bad import")',
+      dependency: "export const answer = 42",
+      isModule: true
+    })
+    assert.equal(valid.stdout, "")
+  })
+
+  it("instantiates a valid module graph without executing any of its bodies", async () => {
+    const result = await executeCase({
+      source: 'import { value } from "./dependency.mjs"; throw new SyntaxError("root evaluated")',
+      dependency: 'export const value = 1; throw new SyntaxError("dependency evaluated")',
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assert.equal(result.stdout, "")
+    assert.throws(
+      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution"),
+      /but no error occurred/
+    )
+  })
+
+  it("does not evaluate a syntax-free module while checking instantiation", async () => {
+    const result = await executeCase({
+      source: 'throw new SyntaxError("the body is not a linker error")',
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("enforces the Test262 module goal for syntax-free .js files", async () => {
+    const result = await executeCase({
+      source: 'if (this !== undefined) throw new SyntaxError("executed as CommonJS")',
+      moduleFilename: "case.js",
+      isModule: true
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("validates cyclic imports through esm-sync without evaluating the cycle", async () => {
+    const result = await executeCase({
+      source: 'import { first } from "./a.mjs"; throw new TypeError("root evaluated")',
+      dependencies: {
+        "a.mjs":
+          'import { second } from "./b.mjs"; export const first = 1; throw new Error("a evaluated")',
+        "b.mjs":
+          'import { first } from "./a.mjs"; export const second = 2; throw new Error("b evaluated")'
+      },
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("rejects missing exports in a transitive graph before evaluating bodies", async () => {
+    const result = await executeCase({
+      source: 'import "./bridge.mjs"; throw new SyntaxError("root evaluated")',
+      dependencies: {
+        "bridge.mjs":
+          'import { absent } from "./leaf.mjs"; throw new SyntaxError("bridge evaluated")',
+        "leaf.mjs": 'export const present = 1; throw new SyntaxError("leaf evaluated")'
+      },
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assertFailure(result, "SyntaxError", "resolution")
+    assert.match(result.stdout, /absent/)
+    assert.doesNotMatch(result.stdout, /evaluated/)
+  })
+
+  it("rejects an ambiguous star re-export during instantiation", async () => {
+    const result = await executeCase({
+      source: 'import { shared } from "./barrel.mjs"; throw new SyntaxError("root evaluated")',
+      dependencies: {
+        "barrel.mjs": 'export * from "./left.mjs"; export * from "./right.mjs"',
+        "left.mjs": 'export const shared = 1; throw new Error("left evaluated")',
+        "right.mjs": 'export const shared = 2; throw new Error("right evaluated")'
+      },
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assertFailure(result, "SyntaxError", "resolution")
+    assert.match(result.stdout, /shared/)
+    assert.doesNotMatch(result.stdout, /evaluated/)
+  })
+
+  it("does not credit a matching runtime error to the resolution phase", async () => {
+    const result = await executeCase({
+      source: 'import "./dependency.mjs"; throw new SyntaxError("root runtime failure")',
+      dependency: 'throw new SyntaxError("dependency runtime failure")',
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assert.equal(result.stdout, "")
+    assert.throws(
+      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution"),
+      /but no error occurred/
+    )
+  })
+
+  it("links deferred imports without triggering evaluation", async () => {
+    const linked = await executeCase({
+      source:
+        'import defer * as ns from "./dependency.mjs"; throw new SyntaxError("root evaluated")',
+      dependency: 'export const value = 1; throw new SyntaxError("deferred evaluated")',
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assert.equal(linked.stdout, "")
+
+    const runtime = await executeCase({
+      source:
+        'import defer * as ns from "./dependency.mjs"; if (ns.value !== 1) throw new Error("wrong value")',
+      dependency: "export const value = 1",
+      isModule: true
+    })
+    assert.equal(runtime.stdout, "")
+  })
+
+  it("classifies actual dependency evaluation failures as runtime errors", async () => {
+    const result = await executeCase({
+      source: 'import "./dependency.mjs"',
+      dependency: 'throw new SyntaxError("dependency runtime failure")',
+      isModule: true,
+      expectedPhase: "runtime"
+    })
+    assertFailure(result, "SyntaxError", "runtime")
+    assert.match(result.stdout, /dependency runtime failure/)
   })
 
   it("accepts a runtime error only with the correct type and phase", async () => {

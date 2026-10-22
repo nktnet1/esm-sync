@@ -13,6 +13,7 @@ import ENV from "./constant/env.js"
 import Loader from "./loader.js"
 import Module from "./module.js"
 import Package from "./package.js"
+import esmParseLoad from "./module/esm/parse-load.js"
 import RealModule from "./real/module.js"
 
 import errors from "./errors.js"
@@ -39,6 +40,19 @@ const { CHECK, CLI, EVAL, INTERNAL, PRELOADED, REPL, YARN_PNP } = ENV
 const { ERR_INVALID_ARG_TYPE } = errors
 
 const { safeGlobal, unsafeGlobal } = shared
+
+// The Test262 harness observes the real loader's linking pass without
+// evaluating modules. Keep this private to test builds; applications use the
+// unchanged public require() API, which continues to evaluate after linking.
+if (process.env.ESM_SYNC_TEST_BUILD) {
+  shared.module.test262ParseErrors = new WeakSet()
+  shared.module.test262LinkOnly = (filename, parent) => {
+    // Test262's `module` flag must apply even to syntax-free .js fixtures.
+    // Scope mode:all to the test graph rather than the harness or host modules.
+    Package.from(filename, { cache: false, cjs: false, mode: "all" })
+    return esmParseLoad(filename, parent, false, true)
+  }
+}
 
 let exported
 

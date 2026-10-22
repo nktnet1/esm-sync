@@ -26,6 +26,7 @@ import has from "../../util/has.js"
 import isAbsolute from "../../path/is-absolute.js"
 import isIdentifierName from "../../util/is-identifier-name.js"
 import isObjectEmpty from "../../util/is-object-empty.js"
+import isParseError from "../../util/is-parse-error.js"
 import isOwnPath from "../../util/is-own-path.js"
 import isStackTraceMaskable from "../../util/is-stack-trace-maskable.js"
 import keys from "../../util/keys.js"
@@ -296,6 +297,13 @@ function tryCompile(caller, entry, content, options) {
   }
 
   entry.state = STATE_INITIAL
+
+  // Preserve the origin of a transitive dependency's parse error before stack
+  // masking removes the parser-specific fields. Test262 needs the actual phase,
+  // not just the thrown error's name. No metadata escapes a test build.
+  if (process.env.ESM_SYNC_TEST_BUILD && isParseError(error)) {
+    shared.module.test262ParseErrors?.add(error)
+  }
 
   if (!Loader.state.package.default.options.debug && isStackTraceMaskable(error)) {
     captureStackTrace(error, caller)

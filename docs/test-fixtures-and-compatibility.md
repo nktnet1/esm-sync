@@ -84,13 +84,11 @@ classification cannot silently satisfy this check.
 A report's group names describe *test file locations*, not proven root causes.
 The harness now compares both the declared negative-test **error type and
 phase**. Parse-negative cases are checked without evaluation, using the
-esm-sync compiler for modules and `vm.Script` for scripts. For resolution and
-runtime negatives, an independent, link-only native VM module graph helps
-identify instantiation failures before the test is executed by esm-sync.
-Unknown/unverifiable phases fail closed instead of being counted as passing.
-This preflight does not replace testing the loader itself, nor can a separate
-VM graph prove the precise stage at which esm-sync threw an error; a future
-loader-level phase hook would provide stronger guarantees. Script-goal
+esm-sync compiler for modules and `vm.Script` for scripts. Module cases then
+run esm-sync's own loader through its linking/validation pass without module
+evaluation; only after a successful link may runtime cases execute. The
+wrapper fails closed if that private, test-only phase bridge is unavailable.
+Script-goal
 parse negatives use both esm-sync's script parser and Node's VM parser on
 the **compiled** script: this catches ordinary syntax errors skipped by the
 compiler's fast path, while accepting phase modifiers that older V8 versions
@@ -172,6 +170,29 @@ and additionally provides per-case `unsupportedFeatureSources` (`host` and
 can overlap if a testcase requires both kinds of unavailable capability.
 The full Test262 corpus has **not** been rerun after the harness changes, so
 older pass/failure totals above remain historical rather than a current baseline.
+
+### Test262 resolution-phase validation
+
+The Test262 wrapper parses the root using esm-sync's compiler and now validates
+module graphs through **esm-sync's own parse/link/validate pass** instead of
+creating a separate `vm.SourceTextModule` graph. Parse errors in transitive
+dependencies retain their parse-phase attribution through test-only metadata,
+rather than being misreported as linking errors. A test-build-only private
+bridge invokes the existing loader without its subsequent evaluating load.
+Module-mode `.js` fixtures use `mode:all` scoped to their own graph. Cyclic
+imports and deep missing/ambiguous exports are therefore checked using the
+same resolver and binding machinery as normal esm-sync imports.
+
+A resolution-negative case **stops after linking**, regardless of success;
+a body throwing the expected error type cannot disguise a successful link.
+Positive module cases and runtime-negative module cases are linked first and
+only then evaluated using esm-sync's normal require hook. This keeps runtime
+error attribution on the same loader as link validation, rather than letting
+a second, native Node linking pass masquerade as a runtime error. An inability
+to initialise the private validation bridge fails the runner rather than
+masquerading as a Test262 error. The JSON report schema and unsupported
+feature classifications are unchanged. Top-level await and ModuleSource
+support remain outside this change.
 
 ### Test262 script goal and module fixtures
 

@@ -104,7 +104,8 @@ const config = defineConfig({
     }),
     new EnvironmentPlugin({
       PACKAGE_FILENAMES,
-      PACKAGE_VERSION
+      PACKAGE_VERSION,
+      ESM_SYNC_TEST_BUILD: isTest
     }),
     new NormalModuleReplacementPlugin(
       /acorn[\\/]src[\\/]regexp\.js/,
