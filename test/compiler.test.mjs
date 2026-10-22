@@ -804,3 +804,31 @@ describe("compiler tests", () => {
     }
   })
 })
+
+describe("import assignment target early errors", () => {
+  it("rejects assigning to import.meta and dynamic import expressions", () => {
+    for (const target of ["import.meta", 'import("value")']) {
+      for (const source of [
+        `${target} = 1`,
+        `${target} += 1`,
+        `++${target}`,
+        `${target}++`,
+        `({ value: ${target} } = {})`,
+        `[${target}] = []`,
+        `for (${target} of []) {}`
+      ]) {
+        assert.throws(
+          () => Compiler.compile(source, { sourceType: MODULE }),
+          SyntaxError,
+          `Expected a SyntaxError for: ${source}`
+        )
+      }
+    }
+  })
+
+  it("keeps property assignments to import.meta and import() results valid", () => {
+    for (const source of ['import.meta.value = 1', 'import("value").result = 1']) {
+      assert.doesNotThrow(() => Compiler.compile(source, { sourceType: MODULE }), source)
+    }
+  })
+})

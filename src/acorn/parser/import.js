@@ -34,7 +34,15 @@ function init() {
       // Allow `yield import()` to parse.
       tt._import.startsExpr = true
 
-      parser.checkLVal = wrap(parser.checkLVal, checkLVal)
+      // Acorn 8.19 validates assignment targets through checkLValSimple,
+      // not the older checkLVal method. Preserve both entry points.
+      if (typeof parser.checkLVal === "function") {
+        parser.checkLVal = wrap(parser.checkLVal, checkLVal)
+      }
+
+      if (typeof parser.checkLValSimple === "function") {
+        parser.checkLValSimple = wrap(parser.checkLValSimple, checkLVal)
+      }
       parser.parseExport = wrap(parser.parseExport, parseExport)
       parser.parseExprAtom = wrap(parser.parseExprAtom, parseExprAtom)
       parser.parseNew = wrap(parser.parseNew, parseNew)
