@@ -157,10 +157,25 @@ describe("dynamic import tests", () => {
     }
   })
 
-  it("should accept exactly one argument", () => {
+  it("should accept up to two arguments and optional trailing commas", () => {
+    const lines = [
+      'import("mod",)',
+      'import("mod", {})',
+      'import("mod", {},)',
+      'import("mod", { with: { type: "json" } })'
+    ]
+
+    for (const line of lines) {
+      assert.doesNotThrow(() => Compiler.compile(line), line)
+    }
+  })
+
+  it("should reject invalid argument lists", () => {
     const lines = [
       "import()",
-      "import(a,b)",
+      "import(a,b,c)",
+      "import(a,b,c,)",
+      "import(a,,)",
       "import(...[a])"
     ]
 

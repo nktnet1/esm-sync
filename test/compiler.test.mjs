@@ -200,6 +200,24 @@ describe("compiler tests", () => {
     assert.ok(result.code.includes('i("a")'))
   })
 
+  it("should preserve the evaluation of a second dynamic import argument", () => {
+    const code = 'import("fixture", (globalThis.called += 1, {}),)'
+
+    for (const sourceType of sourceTypes) {
+      const { code: transformed } = Compiler.compile(code, { sourceType })
+      const runtime = { i(_specifier, options) { return options } }
+
+      globalThis.called = 0
+
+      try {
+        assert.deepStrictEqual(new Function("_", `return ${transformed}`)(runtime), {})
+        assert.equal(globalThis.called, 1)
+      } finally {
+        delete globalThis.called
+      }
+    }
+  })
+
   it("should transform dynamic import in switch statements", () => {
     const code = [
       "(async () => {",

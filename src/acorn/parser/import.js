@@ -218,7 +218,14 @@ function init() {
 
       this.expect(tt.parenL)
 
-      callExpr.arguments = [this.parseMaybeAssign()]
+      const callArguments = [this.parseMaybeAssign()]
+
+      if (this.eat(tt.comma) && this.type !== tt.parenR) {
+        callArguments.push(this.parseMaybeAssign())
+        this.eat(tt.comma)
+      }
+
+      callExpr.arguments = callArguments
       callExpr.callee = base
 
       this.expect(tt.parenR)
