@@ -56,7 +56,7 @@ function readCase(filename) {
 async function runCase(filename, { expectedError, isAsync, isModule, includes }) {
   const { exitCode, stdout, stderr, timedOut } = await execa(
     process.execPath,
-    ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync), JSON.stringify(includes)],
+    ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync), JSON.stringify(includes), String(isModule)],
     {
       cwd: fixturePath,
       reject: false,

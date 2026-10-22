@@ -3,7 +3,7 @@ import path from "path"
 import vm from "vm"
 
 const MAX_WAIT = 1000
-const [,, testFilename, isAsync, extraIncludes = "[]"] = process.argv
+const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true"] = process.argv
 
 const testPath = path.resolve("../vendor/test262")
 const harnessPath = path.resolve(testPath, "harness")
@@ -61,7 +61,22 @@ Object.keys(console).forEach((name) => {
 // Suppress unhandled promise rejection warnings.
 process.on("unhandledRejection", () => {})
 
-import(testFilename)
+// Script cases must execute as scripts: importing them silently changes their
+// strictness, global bindings, and dynamic-import referrer semantics.
+function runTest() {
+  if (isModule === "true") return import(testFilename)
+
+  const filename = path.resolve(testFilename)
+  const source = fs.readFileSync(filename, "utf8")
+  const script = new vm.Script(source, {
+    filename,
+    importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
+  })
+  return Promise.resolve(script.runInThisContext())
+}
+
+Promise.resolve()
+  .then(runTest)
   .then(() => {
     if (isAsync === "true") {
       return waitForAsyncTest()
