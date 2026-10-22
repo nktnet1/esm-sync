@@ -58,6 +58,11 @@ For example, a targeted rerun without a rebuild:
 pnpm test:conformance:run --filter module-code --limit 20 --report .cache/test262-module-code.json
 ```
 
+The regular Vitest suite also runs the 76 pinned `module-code/instn-` cases as
+a focused conformance regression. It requires all 58 positive cases and 18
+resolution-negative cases to pass; a reduced selection or unsupported
+classification cannot silently satisfy this check.
+
 A report's group names describe *test file locations*, not proven root causes.
 The harness now compares both the declared negative-test **error type and
 phase**. Parse-negative cases are checked without evaluation, using the
