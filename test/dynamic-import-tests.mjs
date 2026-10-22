@@ -27,21 +27,28 @@ function assertAbcNs(ns) {
 describe("dynamic import tests", () => {
   it("should reject unavailable source-phase modules without evaluating them", async () => {
     const phases = await import("./fixture/phased-dynamic-import.mjs")
-    const request = "./fixture/export/abc.mjs"
+    const request = "./export/abc.mjs"
 
     await assert.rejects(phases.source(request), (error) => error.name === "SyntaxError")
     await assert.rejects(phases.source(request, { with: {} }), (error) => error.name === "SyntaxError")
   })
 
-  it("should reject unavailable deferred evaluation without eager execution", async () => {
+  it("should defer dynamic import evaluation until export access", async () => {
     const phases = await import("./fixture/phased-dynamic-import.mjs")
-    const request = "./fixture/defer-unevaluated.mjs"
+    // Specifiers resolve relative to the module containing import.defer().
+    const request = "./defer-unevaluated.mjs"
 
     globalThis.esmSyncDeferredWasEvaluated = false
 
     try {
-      await assert.rejects(phases.defer(request), (error) => error.name === "SyntaxError")
+      const namespace = await phases.defer(request)
+
       assert.strictEqual(globalThis.esmSyncDeferredWasEvaluated, false)
+      assert.strictEqual(Object.getPrototypeOf(namespace), null)
+      assert.strictEqual(namespace[Symbol.toStringTag], "Deferred Module")
+      assert.strictEqual(globalThis.esmSyncDeferredWasEvaluated, false)
+      assert.strictEqual(namespace.value, 42)
+      assert.strictEqual(globalThis.esmSyncDeferredWasEvaluated, true)
     } finally {
       delete globalThis.esmSyncDeferredWasEvaluated
     }
