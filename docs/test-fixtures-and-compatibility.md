@@ -26,6 +26,40 @@ if no runnable cases are found. The conformance suite is intentionally not part
 of the default Vitest matrix. Likewise, the Acorn source corpus is vendored for
 compilation, rather than counted as Vitest cases.
 
+## Focused Test262 investigations
+
+The Test262 corpus is downloaded by `pnpm fixtures:test262` and is pinned to
+its recorded revision. It is intentionally **not** installed as an npm package.
+Use `pnpm test:conformance` to prepare it, build the loader, and execute the full
+selected suite. This run currently has known failures, so a non-zero exit code
+is expected until those issues are addressed.
+
+Once fixtures and the test loader are ready, use `pnpm test:conformance:run` to
+rerun without downloading or rebuilding. The runner accepts these options:
+
+- `--filter <path>` selects tests whose repository-relative paths contain the
+  supplied text, ignoring case. This works with either `/` or `\` separators.
+- `--limit <number>` runs the first N matching, non-excluded cases in stable
+  path order. An unmatched filter is an error, never a successful empty run.
+- `--report <file>` writes a JSON report containing the corpus revision, Node
+  runtime, selected and excluded counts, per-case outcomes, error messages,
+  and failing directory groups. The `complete` field indicates whether all
+  selected cases produced results. A failing suite still writes its report.
+- `--reporter spec|dot|tap` selects a built-in Node test reporter. For a full
+  suite, `dot` produces less console output than `spec`.
+
+For example, a targeted rerun without a rebuild:
+
+```sh
+pnpm test:conformance:run --filter module-code --limit 20 --report .cache/test262-module-code.json
+```
+
+A report's group names describe *test file locations*, not proven root causes.
+The existing harness compares thrown error types but does not yet distinguish
+Test262's parse, resolution, and runtime negative-test phases. The selected
+cases, feature support, and Node host behaviour must therefore be evaluated
+before interpreting any apparent pass percentage as full ECMAScript conformance.
+
 ## Third-party runner dependencies
 
 The following are deliberately retained for **external host interoperability**,

@@ -1,15 +1,16 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { describe, it } from "node:test"
+import { after, describe, it } from "node:test"
 import execa from "execa"
 import globby from "globby"
 import test262Parser from "test262-parser"
 
 const require = createRequire(import.meta.url)
 const setupTest262 = require("../script/setup-test262.js")
+const { createReport, selectCases } = require("../script/test262-selection.js")
 const testPath = fileURLToPath(new URL("./", import.meta.url))
 const fixturePath = path.join(testPath, "test262")
 const corpusPath = path.join(testPath, "vendor/test262")
@@ -39,6 +40,7 @@ function readCase(filename) {
   return {
     description: attrs.description?.trim() || path.basename(filename),
     expectedError: attrs.negative?.type,
+    expectedPhase: attrs.negative?.phase,
     isAsync: Boolean(attrs.flags.async),
     includes: attrs.includes || []
   }
@@ -88,26 +90,63 @@ if (files.length === 0) {
 
 const cases = files.map((filename) => ({
   filename,
-  relativePath: path.relative(corpusPath, filename),
+  relativePath: path.relative(corpusPath, filename).split(path.sep).join("/"),
   skippedReason: skiplist.get(path.normalize(filename)),
   ...readCase(filename)
 }))
 const excluded = cases.filter(({ skippedReason }) => skippedReason !== undefined)
-
-if (excluded.length === cases.length) {
-  throw new Error("No runnable Test262 cases remain after applying the skiplist")
-}
+const filter = process.env.TEST262_FILTER || ""
+const limitValue = process.env.TEST262_LIMIT
+const limit = limitValue ? Number(limitValue) : undefined
+const selectedCases = selectCases(cases, { filter, limit })
+const reportPath = process.env.TEST262_REPORT
+const results = []
 
 if (excluded.length > 0) {
   console.info(`Test262: excluding ${excluded.length} known cases from test/test262/skiplist`)
 }
 
-describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, () => {
-  for (const testCase of cases) {
-    if (testCase.skippedReason !== undefined) continue
+console.info(`Test262: selected ${selectedCases.length} of ${cases.length - excluded.length} runnable cases`)
 
+describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, () => {
+  if (reportPath) {
+    after(() => {
+      const report = createReport({
+        revision: setupTest262.revision,
+        selected: selectedCases.length,
+        excluded: excluded.length,
+        results
+      })
+      const outputPath = path.resolve(reportPath)
+      mkdirSync(path.dirname(outputPath), { recursive: true })
+      writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
+      console.info(`Test262: wrote report to ${outputPath}`)
+    })
+  }
+
+  for (const testCase of selectedCases) {
     it(`${testCase.description} (${testCase.relativePath})`, async () => {
-      await runCase(testCase.filename, testCase)
+      const result = {
+        path: testCase.relativePath,
+        description: testCase.description,
+        expectedError: testCase.expectedError ?? null,
+        expectedPhase: testCase.expectedPhase ?? null
+      }
+
+      try {
+        await runCase(testCase.filename, testCase)
+        results.push({ ...result, status: "pass" })
+      } catch (error) {
+        results.push({
+          ...result,
+          status: "fail",
+          error: {
+            name: error?.name ?? "Error",
+            message: String(error?.message ?? error).slice(0, 8000)
+          }
+        })
+        throw error
+      }
     })
   }
 })
