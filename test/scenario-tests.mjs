@@ -37,10 +37,23 @@ const envAuto = {
   ESM_OPTIONS: "{cjs:true,mode:'auto'}"
 }
 
+// Third-party CLIs run concurrently and previously reset the parent suite's
+// isolated cache to the shared default. Give each invocation its own disk
+// cache so V8 cached-data writers cannot race across the scenario tests.
+const scenarioCacheRoot = path.resolve("env/native-cache", process.env.ESM_ENV || "default", "scenario")
+let scenarioCacheCounter = 0
+
 function exec(filename, args, env) {
+  const childEnv = env === envAuto
+    ? {
+        ...env,
+        ESM_OPTIONS: `{cache:${JSON.stringify(path.join(scenarioCacheRoot, `${process.pid}-${++scenarioCacheCounter}`))},${envAuto.ESM_OPTIONS.slice(1)}`
+      }
+    : env
+
   return execa(filename, args, {
     cwd: testPath,
-    env
+    env: childEnv
   })
 }
 
@@ -51,6 +64,17 @@ function node(args, env) {
 // These tests execute independent CLI processes. Run a few at a time;
 // keep the PM2 cases serial because they share a daemon and log directory.
 describe("scenario tests", { concurrency: 3 }, () => {
+
+  it("should isolate caches for concurrent external Node processes", () =>
+    Promise.all([
+      node(["-p", "process.env.ESM_OPTIONS"], envAuto),
+      node(["-p", "process.env.ESM_OPTIONS"], envAuto)
+    ]).then(([first, second]) => {
+      assert.match(first.stdout, /cache:/)
+      assert.match(second.stdout, /cache:/)
+      assert.notStrictEqual(first.stdout, second.stdout)
+    })
+  )
 
   it("should work with dual packages", () =>
     [

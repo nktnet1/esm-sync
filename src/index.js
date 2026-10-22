@@ -45,7 +45,6 @@ const { safeGlobal, unsafeGlobal } = shared
 // evaluating modules. Keep this private to test builds; applications use the
 // unchanged public require() API, which continues to evaluate after linking.
 if (process.env.ESM_SYNC_TEST_BUILD) {
-  shared.module.test262ParseErrors = new WeakSet()
   shared.module.test262LinkOnly = (filename, parent) => {
     // Test262's `module` flag must apply even to syntax-free .js fixtures.
     // Scope mode:all to the test graph rather than the harness or host modules.

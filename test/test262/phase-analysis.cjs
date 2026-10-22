@@ -41,7 +41,6 @@ function parseTest(filename, isModule) {
 // the Test262 reporter rather than look like expected resolution failures.
 let linkOnly
 let moduleRequire
-let parseErrors
 
 function getLinkOnly() {
   if (linkOnly) return linkOnly
@@ -57,12 +56,10 @@ function getLinkOnly() {
   const version = require(path.join(root, "package.json")).version
   const shared = ownRequire(Symbol.for(`esm\u200d@${version}:shared`))
   const check = shared?.module?.test262LinkOnly
-  const errors = shared?.module?.test262ParseErrors
-  if (typeof check !== "function" || !(errors instanceof WeakSet)) {
+  if (typeof check !== "function") {
     throw new Error("Test262: esm-sync test-only linker is unavailable")
   }
 
-  parseErrors = errors
   linkOnly = (filename) => check(filename, module)
   moduleRequire = ownRequire
   return linkOnly
@@ -80,7 +77,9 @@ function checkModuleLink(filename) {
     link(filename)
     return { linked: true }
   } catch (error) {
-    return { linked: false, phase: parseErrors.has(error) ? "parse" : "resolution", error }
+    // The root is parsed before instantiation. Syntax errors discovered while
+    // loading dependencies belong to the resolution phase of the root test.
+    return { linked: false, phase: "resolution", error }
   }
 }
 

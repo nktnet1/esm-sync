@@ -18,6 +18,16 @@
   them after explicit preparation and building. Test execution may still clear
   caches and compile the local Node-API native-addon test fixture.
 
+Nested third-party scenario processes (including AVA and Flow tooling) now
+receive **separate disk-cache paths**. Previously their explicit `ESM_OPTIONS`
+reset the surrounding native suite's cache setting, so concurrent processes
+could write V8 cached data into the same default directory. This retains
+caching and all integration assertions rather than disabling either. The
+historic CI log supplied for this issue is from **Windows / Node 26**, not
+macOS, and contains V8 `unreachable code` crashes in the cached scenario
+suite; a cross-platform CI rerun is needed to confirm whether eliminating
+cache contention resolves those runner-specific failures.
+
 Run `pnpm test:conformance` to prepare the pinned Test262 corpus, build the test
 loader, and execute the conformance suite separately from Vitest. Each case runs
 in its own Node subprocess with `--harmony`. The existing Test262 skiplist is
@@ -175,10 +185,11 @@ older pass/failure totals above remain historical rather than a current baseline
 
 The Test262 wrapper parses the root using esm-sync's compiler and now validates
 module graphs through **esm-sync's own parse/link/validate pass** instead of
-creating a separate `vm.SourceTextModule` graph. Parse errors in transitive
-dependencies retain their parse-phase attribution through test-only metadata,
-rather than being misreported as linking errors. A test-build-only private
-bridge invokes the existing loader without its subsequent evaluating load.
+creating a separate `vm.SourceTextModule` graph. The root source is parsed
+before instantiation; syntax errors discovered in transitive dependencies
+belong to the resolution phase of the root Test262 case, including deferred
+module imports. A test-build-only private bridge invokes the existing loader
+without its subsequent evaluating load.
 Module-mode `.js` fixtures use `mode:all` scoped to their own graph. Cyclic
 imports and deep missing/ambiguous exports are therefore checked using the
 same resolver and binding machinery as normal esm-sync imports.

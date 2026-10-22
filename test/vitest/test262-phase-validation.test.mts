@@ -224,16 +224,16 @@ describe("Test262 negative-phase verification", () => {
     )
   })
 
-  it("attributes malformed imported source to parsing, not linking", async () => {
+  it("attributes syntax errors in dependencies to the resolution phase", async () => {
     const result = await executeCase({
       source: 'import "./dependency.mjs"; throw new Error("root evaluated")',
       dependency: "export const = 1",
       isModule: true,
       expectedPhase: "resolution"
     })
-    assertFailure(result, "SyntaxError", "parse")
+    assertFailure(result, "SyntaxError", "resolution")
     assert.throws(
-      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution"),
+      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "parse"),
       /unexpected error phase/
     )
   })
