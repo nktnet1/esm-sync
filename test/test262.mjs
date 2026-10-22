@@ -10,7 +10,12 @@ import test262Parser from "test262-parser"
 
 const require = createRequire(import.meta.url)
 const setupTest262 = require("../script/setup-test262.js")
-const { createReport, selectCases } = require("../script/test262-selection.js")
+const {
+  createReport,
+  detectHostFeatures,
+  getUnsupportedFeatures,
+  selectCases
+} = require("../script/test262-selection.js")
 const testPath = fileURLToPath(new URL("./", import.meta.url))
 const fixturePath = path.join(testPath, "test262")
 const corpusPath = path.join(testPath, "vendor/test262")
@@ -43,6 +48,7 @@ function readCase(filename) {
     expectedPhase: attrs.negative?.phase,
     isAsync: Boolean(attrs.flags.async),
     isModule: Boolean(attrs.flags.module),
+    features: attrs.features || [],
     includes: attrs.includes || []
   }
 }
@@ -90,17 +96,23 @@ if (files.length === 0) {
   throw new Error("No Test262 cases found in the pinned corpus")
 }
 
-const cases = files.map((filename) => ({
-  filename,
-  relativePath: path.relative(corpusPath, filename).split(path.sep).join("/"),
-  skippedReason: skiplist.get(path.normalize(filename)),
-  ...readCase(filename)
-}))
+const hostFeatures = detectHostFeatures()
+const cases = files.map((filename) => {
+  const metadata = readCase(filename)
+  return {
+    filename,
+    relativePath: path.relative(corpusPath, filename).split(path.sep).join("/"),
+    skippedReason: skiplist.get(path.normalize(filename)),
+    unsupportedFeatures: getUnsupportedFeatures(metadata.features, hostFeatures),
+    ...metadata
+  }
+})
 const excluded = cases.filter(({ skippedReason }) => skippedReason !== undefined)
 const filter = process.env.TEST262_FILTER || ""
 const limitValue = process.env.TEST262_LIMIT
 const limit = limitValue ? Number(limitValue) : undefined
 const selectedCases = selectCases(cases, { filter, limit })
+const unsupportedCases = selectedCases.filter(({ unsupportedFeatures }) => unsupportedFeatures.length > 0)
 const reportPath = process.env.TEST262_REPORT
 const results = []
 
@@ -108,7 +120,9 @@ if (excluded.length > 0) {
   console.info(`Test262: excluding ${excluded.length} known cases from test/test262/skiplist`)
 }
 
-console.info(`Test262: selected ${selectedCases.length} of ${cases.length - excluded.length} runnable cases`)
+console.info(
+  `Test262: selected ${selectedCases.length} of ${cases.length - excluded.length} non-excluded cases (${selectedCases.length - unsupportedCases.length} runnable, ${unsupportedCases.length} unsupported)`
+)
 
 describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, () => {
   if (reportPath) {
@@ -127,14 +141,25 @@ describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, (
   }
 
   for (const testCase of selectedCases) {
-    it(`${testCase.description} (${testCase.relativePath})`, async () => {
-      const result = {
-        path: testCase.relativePath,
-        description: testCase.description,
-        expectedError: testCase.expectedError ?? null,
-        expectedPhase: testCase.expectedPhase ?? null
-      }
+    const title = `${testCase.description} (${testCase.relativePath})`
+    const result = {
+      path: testCase.relativePath,
+      description: testCase.description,
+      expectedError: testCase.expectedError ?? null,
+      expectedPhase: testCase.expectedPhase ?? null
+    }
 
+    if (testCase.unsupportedFeatures.length > 0) {
+      results.push({
+        ...result,
+        status: "unsupported",
+        unsupportedFeatures: testCase.unsupportedFeatures
+      })
+      it.skip(title, { skip: `Unsupported host features: ${testCase.unsupportedFeatures.join(", ")}` }, () => {})
+      continue
+    }
+
+    it(title, async () => {
       try {
         await runCase(testCase.filename, testCase)
         results.push({ ...result, status: "pass" })

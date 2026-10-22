@@ -42,9 +42,12 @@ rerun without downloading or rebuilding. The runner accepts these options:
 - `--limit <number>` runs the first N matching, non-excluded cases in stable
   path order. An unmatched filter is an error, never a successful empty run.
 - `--report <file>` writes a JSON report containing the corpus revision, Node
-  runtime, selected and excluded counts, per-case outcomes, error messages,
-  and failing directory groups. The `complete` field indicates whether all
-  selected cases produced results. A failing suite still writes its report.
+  runtime, selected and skiplist-excluded counts, separate passed, failed,
+  and unsupported counts, per-case outcomes, and failing directory groups.
+  Unsupported cases remain selected, have their required host features listed,
+  and appear as skipped in Node's test output. The `complete` field indicates
+  whether all selected cases produced results. A failing suite still writes
+  its report.
 - `--reporter spec|dot|tap` selects a built-in Node test reporter. For a full
   suite, `dot` produces less console output than `spec`.
 
@@ -62,8 +65,8 @@ before interpreting any apparent pass percentage as full ECMAScript conformance.
 
 ### Conformance re-audit (22 October 2026)
 
-On Linux x64 with Node 24.21.0, the pinned revision has **1,739 runnable
-cases: 1,473 pass, 266 fail, and 6 are excluded**. This builds on the
+Before host-feature gating, Linux x64 with Node 24.21.0 reported **1,739
+selected cases: 1,473 pass, 266 fail, and 6 excluded**. This builds on the
 previous deferred-import and module-mode fixes. The latest skiplist review
 re-enabled 15 dynamic-import module tests and 6 module early-error tests:
 all 21 pass in the full suite without regressions. The same restored cases
@@ -81,6 +84,29 @@ cases requiring immutable array buffers, three source-phase binding cases,
 one deferred-namespace evaluation-error identity case, and one private-brand
 case whose host private-field behaviour differs from Test262's expectation.
 They should be investigated individually rather than added to the skiplist.
+
+### Host-feature classification and deferred error recovery
+
+The Test262 runner checks two engine capabilities before running cases that
+require them: `immutable-arraybuffer` and `nonextensible-applies-to-private`.
+A failing capability probe makes the dependent test an **unsupported** Node
+skip, not a conformance failure. These cases remain in the selected count and
+JSON report with `status: "unsupported"` and `unsupportedFeatures`; they are
+not added to the permanent skiplist. A host implementing the feature will run
+those tests normally.
+
+The pinned corpus now reports **1,739 selected: 1,474 passed, 259 failed,
+6 unsupported, and 6 separately excluded** on Node 24.21.0. The one new
+passing case checks that a deferred namespace preserves the exact value
+thrown by an already-errored module rather than rejecting during deferred
+import linking. The other six former failures are accurately classified as
+host-unsupported: five import-bytes tests need immutable ArrayBuffers, and
+one private-brand test requires private fields to respect non-extensibility.
+Node 24.21.0 and 26.12.0 lack both capabilities in the supplied runtimes.
+
+The private-brand behaviour is controlled by the JavaScript engine's private
+field operations and cannot be corrected through proxy traps. These feature
+gates do not skip source-phase or async module evaluation failures.
 
 ## Third-party runner dependencies
 

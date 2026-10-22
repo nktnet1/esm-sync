@@ -1,5 +1,40 @@
 "use strict"
 
+// Test262 feature tags describe engine capabilities, not promises made by the
+// loader. Probe only capabilities whose absence is known to invalidate cases.
+function detectHostFeatures() {
+  const immutableDescriptor = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "immutable")
+  const immutableArrayBuffer =
+    typeof immutableDescriptor?.get === "function" &&
+    typeof ArrayBuffer.prototype.transferToImmutable === "function"
+
+  let nonextensiblePrivate = false
+  try {
+    // Using Function keeps the runner parseable on engines without private
+    // fields, and tests the operation used by Test262, not just syntax.
+    const addPrivateField = new Function(
+      "target",
+      "class Marker extends function (value) { return value } { #brand = true }; return new Marker(target)"
+    )
+    const target = new Proxy(Object.preventExtensions(Object.create(null)), {})
+    addPrivateField(target)
+  } catch (error) {
+    nonextensiblePrivate = error instanceof TypeError
+  }
+
+  return {
+    "immutable-arraybuffer": immutableArrayBuffer,
+    "nonextensible-applies-to-private": nonextensiblePrivate
+  }
+}
+
+function getUnsupportedFeatures(features, hostFeatures) {
+  return features.filter(
+    (feature) =>
+      Object.prototype.hasOwnProperty.call(hostFeatures, feature) && !hostFeatures[feature]
+  )
+}
+
 function selectCases(cases, { filter = "", limit } = {}) {
   const pathFilter = filter.trim().replaceAll("\\", "/").toLowerCase()
 
@@ -60,10 +95,11 @@ function createReport({
     excluded,
     passed: entries.filter(({ status }) => status === "pass").length,
     failed: entries.filter(({ status }) => status === "fail").length,
+    unsupported: entries.filter(({ status }) => status === "unsupported").length,
     complete: entries.length === selected,
     failuresByGroup: failures,
     cases: entries
   }
 }
 
-module.exports = { selectCases, createReport }
+module.exports = { selectCases, createReport, detectHostFeatures, getUnsupportedFeatures }

@@ -466,6 +466,12 @@ function tryRun(entry, filename, fallback) {
     return result
   }
 
+  // Retain the original thrown value after evaluation fails. A subsequent
+  // deferred import must be able to link the already-errored module and
+  // rethrow that same value on namespace access.
+  if (!parsing) {
+    entry.evaluationError = error
+  }
   entry.state = STATE_INITIAL
 
   if (Loader.state.package.default.options.debug || !isStackTraceMaskable(error)) {

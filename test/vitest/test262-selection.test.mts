@@ -3,26 +3,32 @@ import { createRequire } from "node:module"
 import { describe, it } from "vitest"
 
 const require = createRequire(import.meta.url)
-const { selectCases, createReport } = require("../../script/test262-selection.js") as {
-  selectCases: (
-    cases: Array<{ relativePath: string; skippedReason?: string }>,
-    options?: { filter?: string; limit?: number }
-  ) => Array<{ relativePath: string; skippedReason?: string }>
-  createReport: (options: {
-    revision: string
-    selected: number
-    excluded: number
-    results: Array<{ path: string; status: string }>
-    runtime: string
-    platform: string
-  }) => {
-    passed: number
-    failed: number
-    complete: boolean
-    failuresByGroup: Record<string, number>
-    cases: Array<{ path: string; status: string }>
+const { selectCases, createReport, detectHostFeatures, getUnsupportedFeatures } =
+  require("../../script/test262-selection.js") as {
+    detectHostFeatures: () => Record<string, boolean>
+    getUnsupportedFeatures: (features: string[], hostFeatures: Record<string, boolean>) => string[]
+    selectCases: (
+      cases: Array<{ relativePath: string; skippedReason?: string }>,
+      options?: { filter?: string; limit?: number }
+    ) => Array<{ relativePath: string; skippedReason?: string }>
+    createReport: (options: {
+      revision: string
+      selected: number
+      excluded: number
+      results: Array<{ path: string; status: string }>
+      runtime: string
+      platform: string
+    }) => {
+      selected: number
+      excluded: number
+      passed: number
+      failed: number
+      unsupported: number
+      complete: boolean
+      failuresByGroup: Record<string, number>
+      cases: Array<{ path: string; status: string }>
+    }
   }
-}
 
 const cases = [
   { relativePath: "test/language/module-code/ambiguous-export.js" },
@@ -104,5 +110,60 @@ describe("Test262 JSON result reports", () => {
     })
 
     assert.equal(report.complete, false)
+  })
+})
+
+describe("Test262 unsupported engine feature classification", () => {
+  it("probes native capabilities without assuming a particular Node version", () => {
+    const features = detectHostFeatures()
+    assert.equal(typeof features["immutable-arraybuffer"], "boolean")
+    assert.equal(typeof features["nonextensible-applies-to-private"], "boolean")
+  })
+
+  it("only excludes recognized capabilities missing from the host", () => {
+    const features = [
+      "import-attributes",
+      "immutable-arraybuffer",
+      "import-bytes",
+      "nonextensible-applies-to-private"
+    ]
+    assert.deepEqual(
+      getUnsupportedFeatures(features, {
+        "immutable-arraybuffer": false,
+        "nonextensible-applies-to-private": false
+      }),
+      ["immutable-arraybuffer", "nonextensible-applies-to-private"]
+    )
+    assert.deepEqual(
+      getUnsupportedFeatures(features, {
+        "immutable-arraybuffer": true,
+        "nonextensible-applies-to-private": true
+      }),
+      []
+    )
+  })
+
+  it("reports unsupported cases separately from failures and still counts them as selected", () => {
+    const report = createReport({
+      revision: "example-revision",
+      selected: 3,
+      excluded: 6,
+      runtime: "v24.0.0",
+      platform: "linux",
+      results: [
+        { path: "test/language/import/import-bytes/bytes-from-js.js", status: "unsupported" },
+        {
+          path: "test/language/import/import-defer/evaluation-triggers/private.js",
+          status: "unsupported"
+        },
+        { path: "test/language/module-code/exports.js", status: "pass" }
+      ]
+    })
+    assert.equal(report.selected, 3)
+    assert.equal(report.unsupported, 2)
+    assert.equal(report.failed, 0)
+    assert.equal(report.passed, 1)
+    assert.equal(report.complete, true)
+    assert.deepEqual(report.failuresByGroup, {})
   })
 })

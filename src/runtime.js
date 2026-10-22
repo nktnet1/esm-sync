@@ -350,7 +350,7 @@ const Runtime = {
     // loader already supports this split for cyclic module dependencies.
     moduleState.parsing = true
     try {
-      childEntry = esmLoad(request, parentEntry.module, false)
+      childEntry = esmLoad(request, parentEntry.module, false, void 0, true)
     } finally {
       moduleState.parsing = previousParsing
     }
@@ -373,6 +373,7 @@ const Runtime = {
       const eagerNamespace = childEntry.completeNamespace
       const target = Object.create(null)
       let started = false
+      let hasFailure = false
       let failure
 
       // A deferred namespace is distinct from the ordinary namespace and
@@ -390,7 +391,7 @@ const Runtime = {
       Object.preventExtensions(target)
 
       const ensureEvaluated = () => {
-        if (failure !== void 0) throw failure
+        if (hasFailure) throw failure
         if (!readyForSyncExecution(childEntry)) {
           throw new ExTypeError("Deferred module cannot be evaluated synchronously")
         }
@@ -399,6 +400,7 @@ const Runtime = {
         try {
           esmLoad(request, parentEntry.module, false)
         } catch (error) {
+          hasFailure = true
           failure = error
           throw error
         }

@@ -22,7 +22,7 @@ import toExternalFunction from "../../util/to-external-function.js"
 
 const { TYPE_CJS, TYPE_PSEUDO } = ENTRY
 
-function load(request, parent, isMain = false, preload) {
+function load(request, parent, isMain = false, preload, deferErrored = false) {
   const { parsing } = shared.moduleState
   const parentEntry = Entry.get(parent)
   const parentCJS = parentEntry === null ? null : parentEntry.package.options.cjs
@@ -66,6 +66,25 @@ function load(request, parent, isMain = false, preload) {
 
     cache[request] = mod
     Reflect.deleteProperty(scratchCache, request)
+  }
+
+  // Normal imports rethrow cached evaluation failures immediately. Deferred
+  // imports may still link those modules, but must rethrow the exact cached
+  // failure only when their deferred namespace is accessed.
+  if (deferErrored) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(cache, request)
+    const failedEntry = descriptor?.get?.erroredEntry
+
+    if (failedEntry !== void 0) {
+      if (parentEntry !== null) {
+        parentEntry.children[failedEntry.name] = failedEntry
+        parentEntry._lastChild = failedEntry
+      }
+      if (typeof preload === "function") {
+        preload(failedEntry)
+      }
+      return failedEntry
+    }
   }
 
   let loaderCalled = false
@@ -144,12 +163,23 @@ function tryLoader(entry, filename, parentEntry, cache, cacheKey) {
       if (entry.type !== TYPE_CJS) {
         // Unlike CJS, for other module types errors are preserved for
         // subsequent loads.
+        const getCachedError = toExternalFunction(function () {
+          throw error
+        })
+
+        // A completed linking pass followed by a failed evaluation can be
+        // reused by import defer; parse/link failures still reject on import.
+        if (
+          Object.prototype.hasOwnProperty.call(entry, "evaluationError") &&
+          entry.evaluationError === error
+        ) {
+          getCachedError.erroredEntry = entry
+        }
+
         Reflect.defineProperty(cache, cacheKey, {
           configurable: true,
           enumerable: true,
-          get: toExternalFunction(function () {
-            throw error
-          }),
+          get: getCachedError,
           set: toExternalFunction(function (value) {
             setProperty(this, cacheKey, value)
           })

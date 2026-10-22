@@ -56,6 +56,56 @@ describe("dynamic import tests", () => {
     }
   })
 
+  it("should preserve the identity of a cached evaluation error across deferred imports", async () => {
+    const phases = await import("./fixture/phased-dynamic-import.mjs")
+    const originalError = { reason: "original evaluation error" }
+
+    globalThis.esmSyncDeferredOriginalError = originalError
+
+    try {
+      await assert.rejects(import("./fixture/defer-errored-module.mjs"), (error) => error === originalError)
+
+      const namespace = await phases.defer("./defer-errored-module.mjs")
+      assert.strictEqual(namespace[Symbol.toStringTag], "Deferred Module")
+      assert.throws(() => namespace.value, (error) => error === originalError)
+      assert.throws(() => namespace.value, (error) => error === originalError)
+    } finally {
+      delete globalThis.esmSyncDeferredOriginalError
+    }
+  })
+
+  it("should preserve cached undefined evaluation failures on repeated namespace access", async () => {
+    const phases = await import("./fixture/phased-dynamic-import.mjs")
+    let firstFailed = false
+
+    try {
+      await import("./fixture/defer-throws-undefined.mjs")
+    } catch (error) {
+      firstFailed = true
+      assert.strictEqual(error, undefined)
+    }
+    assert.strictEqual(firstFailed, true)
+
+    const namespace = await phases.defer("./defer-throws-undefined.mjs")
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let failed = false
+      try {
+        namespace.value
+      } catch (error) {
+        failed = true
+        assert.strictEqual(error, undefined)
+      }
+      assert.strictEqual(failed, true)
+    }
+  })
+
+  it("should reject a cached linking error rather than return a deferred namespace", async () => {
+    const phases = await import("./fixture/phased-dynamic-import.mjs")
+
+    await assert.rejects(import("./fixture/text-invalid-import.mjs"), SyntaxError)
+    await assert.rejects(phases.defer("./text-invalid-import.mjs"), SyntaxError)
+  })
+
   it("should not evaluate a deferred module while it is already evaluating", async () => {
     try {
       const module = await import("./fixture/defer-self-evaluation.mjs")
