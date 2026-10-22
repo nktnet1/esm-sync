@@ -24,6 +24,7 @@ function init() {
     INVALID_ESCAPED_RESERVED_WORD,
     INVALID_IMPORT_META_ASSIGNMENT,
     INVALID_LEFT_HAND_SIDE_ASSIGNMENT,
+    INVALID_OR_UNEXPECTED_TOKEN,
     UNEXPECTED_IDENTIFIER,
     UNEXPECTED_STRING,
     UNEXPECTED_TOKEN
@@ -44,6 +45,7 @@ function init() {
         parser.checkLValSimple = wrap(parser.checkLValSimple, checkLVal)
       }
       parser.parseExport = wrap(parser.parseExport, parseExport)
+      parser.parseModuleExportName = wrap(parser.parseModuleExportName, parseModuleExportName)
       parser.parseExprAtom = wrap(parser.parseExprAtom, parseExprAtom)
       parser.parseNew = wrap(parser.parseNew, parseNew)
       parser.parseStatement = wrap(parser.parseStatement, parseStatement)
@@ -88,9 +90,9 @@ function init() {
     let finishType = "ExportAllDeclaration"
 
     if (this.eatContextual("as")) {
-      const identifier = this.parseIdent(true)
+      const identifier = this.parseModuleExportName()
 
-      this.checkExport(exported, identifier.name, identifier.start)
+      this.checkExport(exported, identifier.name ?? identifier.value, identifier.start)
 
       const specifier = this.startNodeAt(start, startLoc)
 
@@ -112,6 +114,32 @@ function init() {
     this.semicolon()
 
     return this.finishNode(node, finishType)
+  }
+
+  function parseModuleExportName(func, args) {
+    const name = Reflect.apply(func, this, args)
+
+    if (name.type === "Literal" && hasUnpairedSurrogate(name.value)) {
+      throw new errors.SyntaxError(this, name.start, INVALID_OR_UNEXPECTED_TOKEN)
+    }
+
+    return name
+  }
+
+  function hasUnpairedSurrogate(value) {
+    for (let index = 0; index < value.length; index++) {
+      const code = value.charCodeAt(index)
+
+      if (code >= 0xd800 && code <= 0xdbff) {
+        const next = value.charCodeAt(++index)
+
+        if (!(next >= 0xdc00 && next <= 0xdfff)) return true
+      } else if (code >= 0xdc00 && code <= 0xdfff) {
+        return true
+      }
+    }
+
+    return false
   }
 
   function parseExprAtom(func, args) {

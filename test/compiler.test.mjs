@@ -832,3 +832,94 @@ describe("import assignment target early errors", () => {
     }
   })
 })
+
+describe("arbitrary module namespace names", () => {
+  it("preserves string-literal names in imports, re-exports, and namespace exports", () => {
+    for (const name of ["☿", 'quoted"name', "slash\\name", "😀"]) {
+      const moduleName = JSON.stringify(name)
+      const importCalls = []
+      const importResult = Compiler.compile(`import { ${moduleName} as value } from "fixture"`, {
+        sourceType: MODULE
+      })
+
+      new Function("_", importResult.code)({
+        w(request, setters) {
+          importCalls.push([request, setters])
+        }
+      })
+      assert.equal(importCalls[0][0], "fixture")
+      assert.equal(importCalls[0][1][0][0], name)
+      assert.equal(importCalls[0][1][0][1][0], "value")
+
+      const reExportCalls = []
+      const reExportResult = Compiler.compile(
+        `export { ${moduleName} as ${moduleName} } from "fixture"`,
+        { sourceType: MODULE }
+      )
+
+      new Function("_", reExportResult.code)({
+        f(imported, exported) {
+          return [imported, exported]
+        },
+        w(request, setters) {
+          reExportCalls.push([request, setters])
+        }
+      })
+      assert.equal(reExportCalls[0][1][0][0], name)
+      assert.equal(reExportCalls[0][1][0][2][0], name)
+      assert.equal(reExportCalls[0][1][0][2][1], name)
+
+      const namespaceCalls = []
+      const namespaceResult = Compiler.compile(`export * as ${moduleName} from "fixture"`, {
+        sourceType: MODULE
+      })
+
+      new Function("_", namespaceResult.code)({
+        f(imported, exported) {
+          return [imported, exported]
+        },
+        w(request, setters) {
+          namespaceCalls.push([request, setters])
+        }
+      })
+      assert.equal(namespaceCalls[0][1][0][2][0], "*")
+      assert.equal(namespaceCalls[0][1][0][2][1], name)
+
+      const localExports = []
+      const localExportResult = Compiler.compile(
+        `const value = 42; export { value as ${moduleName} }`,
+        { sourceType: MODULE }
+      )
+
+      new Function("_", localExportResult.code)({
+        x(exports) {
+          localExports.push(...exports)
+        }
+      })
+      assert.equal(localExports[0][0], name)
+      assert.equal(localExports[0][1](), 42)
+    }
+  })
+
+  it("rejects isolated surrogate code units in module export names", () => {
+    for (const name of ['"\\uD83D"', '"\\uDC00"', '"\\uD83D_"']) {
+      for (const source of [
+        `export { value as ${name} }; const value = 1`,
+        `export * as ${name} from "fixture"`,
+        `import { ${name} as value } from "fixture"`
+      ]) {
+        assert.throws(
+          () => Compiler.compile(source, { sourceType: MODULE }),
+          SyntaxError,
+          `Expected invalid module namespace name: ${source}`
+        )
+      }
+    }
+
+    assert.doesNotThrow(() =>
+      Compiler.compile('export { value as "\\uD83D\\uDE00" }; const value = 1', {
+        sourceType: MODULE
+      })
+    )
+  })
+})

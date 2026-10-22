@@ -12,22 +12,12 @@ import preserveLine from "../parse/preserve-line.js"
 import shared from "../shared.js"
 import toStringLiteral from "../util/to-string-literal.js"
 
+function getModuleExportName(node) {
+  return node.type === "Literal" ? String(node.value) : node.name
+}
+
 function getExportedName(specifier) {
-  const exp = specifier.exported
-
-  if (!exp) {
-    return
-  }
-
-  if (exp.type === "Identifier") {
-    return exp.name
-  }
-
-  if (exp.type === "Literal") {
-    return String(exp.value)
-  }
-
-  return
+  return specifier.exported && getModuleExportName(specifier.exported)
 }
 
 function init() {
@@ -65,14 +55,15 @@ function init() {
 
           setterArgsList +=
             (setterArgsList === "" ? "" : ",") +
-            '["' +
-            name +
-            '",' +
-            (name === "*" ? "null" : '["' + localNames.join('","') + '"]') +
+            "[" +
+            toStringLiteral(name) +
+            "," +
+            (name === "*"
+              ? "null"
+              : "[" + localNames.map((localName) => toStringLiteral(localName)).join(",") + "]") +
             ",function(" +
             valueParam +
             "){" +
-            // Multiple local variables become a compound assignment.
             localNames.join("=") +
             "=" +
             valueParam +
@@ -83,15 +74,15 @@ function init() {
           for (const localName of localNames) {
             setterArgsList +=
               (setterArgsList === "" ? "" : ",") +
-              '["' +
-              localName +
-              '",null,' +
+              "[" +
+              toStringLiteral(localName) +
+              ",null," +
               runtimeName +
-              '.f("' +
-              localName +
-              '","' +
-              name +
-              '")]'
+              ".f(" +
+              toStringLiteral(localName) +
+              "," +
+              toStringLiteral(name) +
+              ")]"
           }
         })
 
@@ -202,7 +193,7 @@ function init() {
         let importsName = "*"
 
         if (type === "ImportSpecifier") {
-          importsName = specifier.imported.name
+          importsName = getModuleExportName(specifier.imported)
         } else if (type === "ImportDefaultSpecifier") {
           importsName = "default"
         }
@@ -425,7 +416,9 @@ function init() {
           }
 
           const localName =
-            specifier.type === "ExportNamespaceSpecifier" ? "*" : specifier.local.name
+            specifier.type === "ExportNamespaceSpecifier"
+              ? "*"
+              : getModuleExportName(specifier.local)
 
           localNames.push(localName)
         }
@@ -511,7 +504,13 @@ function init() {
     code += visitor.runtimeName + ".x(["
 
     for (const [exportedName, localName] of pairs) {
-      code += '["' + exportedName + '",()=>' + localName + "]" + (++i === lastIndex ? "" : ",")
+      code +=
+        "[" +
+        toStringLiteral(exportedName) +
+        ",()=>" +
+        localName +
+        "]" +
+        (++i === lastIndex ? "" : ",")
     }
 
     code += "]);"
