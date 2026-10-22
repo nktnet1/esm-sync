@@ -10,6 +10,7 @@ import test262Parser from "test262-parser"
 
 const require = createRequire(import.meta.url)
 const setupTest262 = require("../script/setup-test262.js")
+const { assertTest262Outcome } = require("../script/test262-outcome.js")
 const {
   createReport,
   detectHostFeatures,
@@ -55,10 +56,22 @@ function readCase(filename) {
   }
 }
 
-async function runCase(filename, { expectedError, isAsync, isModule, includes }) {
+async function runCase(filename, { expectedError, expectedPhase, isAsync, isModule, includes }) {
   const { exitCode, stdout, stderr, timedOut } = await execa(
     process.execPath,
-    ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync), JSON.stringify(includes), String(isModule)],
+    [
+      "--harmony",
+      "--experimental-vm-modules",
+      "--disable-warning=ExperimentalWarning",
+      "-r",
+      "../../",
+      wrapperPath,
+      filename,
+      String(isAsync),
+      JSON.stringify(includes),
+      String(isModule),
+      expectedPhase ?? ""
+    ],
     {
       cwd: fixturePath,
       reject: false,
@@ -77,13 +90,7 @@ async function runCase(filename, { expectedError, isAsync, isModule, includes })
   assert.equal(exitCode, 0, `${filename}: ${stderr || stdout}`)
   assert.equal(stderr, "", `${filename}: unexpected stderr`)
 
-  if (stdout.trim()) {
-    const { name } = JSON.parse(stdout)
-    assert.ok(typeof name === "string" && name.length > 0, `${filename}: invalid error report`)
-    assert.equal(name, expectedError, `${filename}: unexpected error type`)
-  } else {
-    assert.equal(expectedError, undefined, `${filename}: expected ${expectedError}, but no error occurred`)
-  }
+  assertTest262Outcome(filename, stdout, expectedError, expectedPhase)
 }
 
 const skiplist = readSkiplist(skiplistPath)

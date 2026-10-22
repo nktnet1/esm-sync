@@ -1,11 +1,13 @@
 import fs from "fs-extra"
-import { registerHooks } from "node:module"
+import { createRequire, registerHooks } from "node:module"
 import { pathToFileURL } from "node:url"
 import path from "path"
 import vm from "vm"
+const requireHelper = createRequire(import.meta.url)
+const { checkModuleLink, parseTest } = requireHelper("./phase-analysis.cjs")
 
 const MAX_WAIT = 1000
-const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true"] = process.argv
+const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = ""] = process.argv
 
 const testPath = path.resolve("../vendor/test262")
 const harnessPath = path.resolve(testPath, "harness")
@@ -38,27 +40,9 @@ const harnessFilenames = new Set([
   ...JSON.parse(extraIncludes)
 ])
 
-function waitForAsyncTest() {
-  const started = Date.now()
-
-  return new Promise(function check(resolvePromise, rejectPromise) {
-    const waited = Date.now() - started
-
-    if (_message !== void 0) {
-      return resolvePromise()
-    } else if (waited > MAX_WAIT) {
-      return rejectPromise("test262: async test timed out.")
-    }
-
-    setTimeout(() => check(resolvePromise, rejectPromise), 100)
-  })
-}
-
-let _message
-
-global.print = function print(value) {
-  _message = String(value)
-}
+// The Test262 harness provides print() but Test262's completion signal is
+// $DONE(), not arbitrary output. Regular print calls must not finish a test.
+global.print = () => {}
 
 for (const filename of harnessFilenames) {
   if (path.basename(filename) !== filename) {
@@ -69,21 +53,48 @@ for (const filename of harnessFilenames) {
   vm.runInThisContext(fs.readFileSync(includePath, "utf-8"), { filename: includePath })
 }
 
-// Suppress logging.
+// Suppress logging from the test without losing its errors.
 const { error, log } = console
 const noop = () => {}
+for (const name of Object.keys(console)) {
+  if (typeof console[name] === "function") console[name] = noop
+}
 
-Object.keys(console).forEach((name) => {
-  if (typeof console[name] === "function") {
-    console[name] = noop
+let complete
+let fail
+let completed = 0
+let waitTimer
+let settleTimer
+const completion = isAsync === "true"
+  ? new Promise((resolve, reject) => {
+    complete = resolve
+    fail = reject
+    waitTimer = setTimeout(() => reject(new Error("test262: async test timed out.")), MAX_WAIT)
+  })
+  : null
+
+// A completion failure and an uncaught rejected promise are observable test
+// failures, never warnings to swallow. A successful $DONE is deferred by one
+// turn so duplicate same-turn completions are detected.
+global.$DONE = (failure) => {
+  if (completion === null) {
+    throw new Error("Test262: $DONE called without the async flag")
   }
-})
+  if (++completed !== 1) {
+    clearImmediate(settleTimer)
+    fail(new Error("Test262: $DONE called more than once"))
+  } else if (failure !== undefined) {
+    fail(failure)
+  } else {
+    settleTimer = setImmediate(complete)
+  }
+}
 
-// Suppress unhandled promise rejection warnings.
-process.on("unhandledRejection", () => {})
+if (completion !== null) {
+  process.on("unhandledRejection", fail)
+  process.on("uncaughtException", fail)
+}
 
-// Script cases must execute as scripts: importing them silently changes their
-// strictness, global bindings, and dynamic-import referrer semantics.
 function runTest() {
   if (isModule === "true") return import(testFilename)
 
@@ -93,56 +104,61 @@ function runTest() {
     filename,
     importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
   })
-  return Promise.resolve(script.runInThisContext())
+  // Script completion values do not become awaited module evaluation results.
+  script.runInThisContext()
 }
 
-Promise.resolve()
-  .then(runTest)
-  .then(() => {
-    if (isAsync === "true") {
-      return waitForAsyncTest()
-        .then(() => {
-          if (_message !== "Test262:AsyncTestComplete") {
-            throw _message
-          }
-        })
-    }
-  })
-  .catch((e) => {
-    let message = ""
-    let name = ""
+function reportFailure(failure, phase) {
+  let name = ""
+  let message = ""
 
-    const type = typeof e
+  if (failure !== null && (typeof failure === "object" || typeof failure === "function")) {
+    name = String(failure.name || failure.constructor?.name || "")
+    message = failure.message === undefined ? "" : String(failure.message)
+  } else {
+    name = "Test262Error"
+    message = String(failure)
+  }
 
-    if (type === "string") {
-      name = e
-    } else if (type === "object" &&
-               e !== null) {
-      const { constructor } = e
-      const errorMessage = e.message
+  log(JSON.stringify({ name, message, phase }))
+}
 
-      const errorName = constructor === void 0
-        ? e.name
-        : constructor.name
+async function main() {
+  let phase = "runtime"
 
-      if (errorMessage !== void 0) {
-        message = String(errorMessage)
+  try {
+    if (expectedPhase) {
+      try {
+        parseTest(path.resolve(testFilename), isModule === "true")
+      } catch (failure) {
+        reportFailure(failure, "parse")
+        return
       }
 
-      if (errorName !== void 0) {
-        name = String(errorName)
+      if (expectedPhase === "parse") return
+
+      if (isModule === "true") {
+        const linkResult = await checkModuleLink(path.resolve(testFilename))
+        phase = linkResult.phase
+        if (phase === "unknown") {
+          throw new Error(`Cannot verify Test262 module error phase: ${linkResult.error?.message}`)
+        }
       }
     }
 
-    log(JSON.stringify({
-      argv: process.argv,
-      name,
-      message
-    }))
-  })
-  .catch((e) => {
-    error(
-      "[last resort catch] something happened in the previous catch block:",
-      e
-    )
-  })
+    // Attach both handlers immediately; an async test may invoke $DONE during
+    // evaluation, before its import() promise settles.
+    if (completion !== null) {
+      await Promise.all([Promise.resolve().then(runTest), completion])
+    } else {
+      await runTest()
+    }
+  } catch (failure) {
+    reportFailure(failure, phase)
+  } finally {
+    clearTimeout(waitTimer)
+    clearImmediate(settleTimer)
+  }
+}
+
+main().catch((failure) => error("Test262 runner failed:", failure))

@@ -59,10 +59,18 @@ pnpm test:conformance:run --filter module-code --limit 20 --report .cache/test26
 ```
 
 A report's group names describe *test file locations*, not proven root causes.
-The existing harness compares thrown error types but does not yet distinguish
-Test262's parse, resolution, and runtime negative-test phases. The selected
-cases, feature support, and Node host behaviour must therefore be evaluated
-before interpreting any apparent pass percentage as full ECMAScript conformance.
+The harness now compares both the declared negative-test **error type and
+phase**. Parse-negative cases are checked without evaluation, using the
+esm-sync compiler for modules and `vm.Script` for scripts. For resolution and
+runtime negatives, an independent, link-only native VM module graph helps
+identify instantiation failures before the test is executed by esm-sync.
+Unknown/unverifiable phases fail closed instead of being counted as passing.
+This preflight does not replace testing the loader itself, nor can a separate
+VM graph prove the precise stage at which esm-sync threw an error; a future
+loader-level phase hook would provide stronger guarantees. Async tests wait
+for `$DONE`, reject its error argument or duplicate calls, and surface
+unhandled rejections and timeouts instead of treating print output as success.
+The complete corpus has not been rerun after these harness changes.
 
 ### Conformance re-audit (22 October 2026)
 
