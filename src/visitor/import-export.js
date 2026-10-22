@@ -198,11 +198,13 @@ function init() {
         return
       }
 
-      // Support dynamic import:
-      // import("mod")
+      // Support dynamic import calls in the evaluation, source and defer
+      // phases. Phase-qualified imports have their own runtime entry points,
+      // rather than invoking a property on an imaginary `import` object.
       this.transforms |= TRANSFORMS_DYNAMIC_IMPORT
 
-      overwrite(this, callee.start, callee.end, this.runtimeName + ".i")
+      const method = callee.phase === "source" ? ".p" : callee.phase === "defer" ? ".q" : ".i"
+      overwrite(this, callee.start, callee.end, this.runtimeName + method)
       path.call(this, "visitWithoutReset", "arguments")
     }
 

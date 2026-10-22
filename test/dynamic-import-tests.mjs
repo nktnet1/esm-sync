@@ -25,6 +25,51 @@ function assertAbcNs(ns) {
 }
 
 describe("dynamic import tests", () => {
+  it("should reject unavailable source-phase modules without evaluating them", async () => {
+    const phases = await import("./fixture/phased-dynamic-import.mjs")
+    const request = "./fixture/export/abc.mjs"
+
+    await assert.rejects(phases.source(request), (error) => error.name === "SyntaxError")
+    await assert.rejects(phases.source(request, { with: {} }), (error) => error.name === "SyntaxError")
+  })
+
+  it("should reject unavailable deferred evaluation without eager execution", async () => {
+    const phases = await import("./fixture/phased-dynamic-import.mjs")
+    const request = "./fixture/defer-unevaluated.mjs"
+
+    globalThis.esmSyncDeferredWasEvaluated = false
+
+    try {
+      await assert.rejects(phases.defer(request), (error) => error.name === "SyntaxError")
+      assert.strictEqual(globalThis.esmSyncDeferredWasEvaluated, false)
+    } finally {
+      delete globalThis.esmSyncDeferredWasEvaluated
+    }
+  })
+
+  it("should preserve ToString errors for phase-qualified dynamic imports", async () => {
+    const phases = await import("./fixture/phased-dynamic-import.mjs")
+    const thrown = new Error("specifier conversion failed")
+    const specifier = { toString() { throw thrown } }
+
+    for (const importCall of [phases.source, phases.defer]) {
+      let result
+
+      assert.doesNotThrow(() => { result = importCall(specifier) })
+      await assert.rejects(result, (error) => error === thrown)
+    }
+  })
+
+  it("should validate phased import options before any loading", async () => {
+    const phases = await import("./fixture/phased-dynamic-import.mjs")
+    const thrown = new Error("options access failed")
+    const options = { get with() { throw thrown } }
+
+    for (const importCall of [phases.source, phases.defer]) {
+      await assert.rejects(importCall("./fixture/export/abc.mjs", options), (error) => error === thrown)
+    }
+  })
+
   it("should load text modules without evaluating the contents as JavaScript", async () => {
     const ns = await import("./fixture/text-module.txt", { with: { type: "text" } })
 

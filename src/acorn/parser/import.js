@@ -180,7 +180,7 @@ function init() {
       const { type } = lookahead(this)
 
       if (type === tt.dot) {
-        return parseImportMetaPropertyAtom(this)
+        return parseImportPropertyAtom(this)
       }
 
       if (type === tt.parenL) {
@@ -203,8 +203,22 @@ function init() {
   function parseNew(func, args) {
     const next = lookahead(this)
 
-    if (next.type === tt._import && lookahead(next).type === tt.parenL) {
-      this.unexpected()
+    if (next.type === tt._import) {
+      const afterImport = lookahead(next)
+
+      if (afterImport.type === tt.parenL) {
+        this.unexpected()
+      }
+
+      if (afterImport.type === tt.dot) {
+        const phase = lookahead(afterImport)
+
+        if (phase.value === "source" || phase.value === "defer") {
+          // `new import.source()` and `new import.defer()` are invalid, but
+          // `new import.meta.foo()` remains a normal constructor expression.
+          this.unexpected()
+        }
+      }
     }
 
     return Reflect.apply(func, this, args)
@@ -213,7 +227,13 @@ function init() {
   function parseSubscript(func, args) {
     const [base, startPos, startLoc] = args
 
-    if (base.type === "Import" && this.type === tt.parenL) {
+    if (base.type === "Import") {
+      // The phase-qualified forms are call expressions, not properties of an
+      // `import` object. `import.source` and `import.defer` alone are invalid.
+      if (this.type !== tt.parenL) {
+        this.unexpected()
+      }
+
       const callExpr = this.startNodeAt(startPos, startLoc)
 
       this.expect(tt.parenL)
@@ -276,18 +296,23 @@ function init() {
     return parser.finishNode(node, "Import")
   }
 
-  function parseImportMetaPropertyAtom(parser) {
+  function parseImportPropertyAtom(parser) {
     const node = parser.startNode()
     const meta = parser.parseIdent(true)
-
-    node.meta = meta
 
     parser.expect(tt.dot)
 
     const { containsEsc } = parser
     const property = parser.parseIdent(true)
 
-    node.property = property
+    if (property.name === "source" || property.name === "defer") {
+      if (containsEsc) {
+        parser.raise(property.start, INVALID_ESCAPED_RESERVED_WORD)
+      }
+
+      node.phase = property.name
+      return parser.finishNode(node, "Import")
+    }
 
     if (property.name !== "meta") {
       parser.raise(property.start, UNEXPECTED_IDENTIFIER)
@@ -296,6 +321,9 @@ function init() {
     } else if (!parser.inModule) {
       parser.raise(meta.start, ILLEGAL_IMPORT_META_OUTSIDE_MODULE)
     }
+
+    node.meta = meta
+    node.property = property
 
     return parser.finishNode(node, "MetaProperty")
   }

@@ -218,6 +218,50 @@ describe("compiler tests", () => {
     }
   })
 
+  it("should compile dynamic source and defer imports as call syntax", () => {
+    for (const phase of ["source", "defer"]) {
+      for (const sourceType of sourceTypes) {
+        const calls = []
+        const code = `import.${phase}((calls.push("specifier"), "fixture"), (calls.push("options"), {}),)`
+        const { code: transformed } = Compiler.compile(code, { sourceType })
+        const runtime = {
+          p(request, options) {
+            calls.push("source")
+            return [request, options]
+          },
+          q(request, options) {
+            calls.push("defer")
+            return [request, options]
+          }
+        }
+
+        const result = new Function("_", "calls", `return ${transformed}`)(runtime, calls)
+
+        assert.deepStrictEqual(result, ["fixture", {}])
+        assert.deepStrictEqual(calls, ["specifier", "options", phase])
+      }
+    }
+  })
+
+  it("should reject invalid phase-qualified import syntax", () => {
+    const lines = [
+      "import.source",
+      "import.defer",
+      'import.foo("fixture")',
+      'import.sour\\u0063e("fixture")',
+      'import.d\\u0065fer("fixture")',
+      "import.source()",
+      'import.source("fixture", {}, {})',
+      "import.defer?.('fixture')",
+      'new import.source("fixture")',
+      'new import.defer("fixture")'
+    ]
+
+    for (const line of lines) {
+      assert.throws(() => Compiler.compile(line, { sourceType: MODULE }), /SyntaxError/, line)
+    }
+  })
+
   it("should transform dynamic import in switch statements", () => {
     const code = [
       "(async () => {",

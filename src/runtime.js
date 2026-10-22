@@ -38,7 +38,12 @@ const {
 
 const { ERR_CONST_ASSIGNMENT, ERR_UNDEFINED_IDENTIFIER } = errors
 
-const { Promise: ExPromise, TypeError: ExTypeError, eval: evalIndirect } = shared.external
+const {
+  Promise: ExPromise,
+  SyntaxError: ExSyntaxError,
+  TypeError: ExTypeError,
+  eval: evalIndirect
+} = shared.external
 
 // Terser can rewrite template-string coercion as `value + ""`, which uses
 // the wrong ToPrimitive hint. Retain String as a callable intrinsic instead.
@@ -315,7 +320,13 @@ const Runtime = {
 
     return code
   },
-  dynamicImport(request, options) {
+  dynamicSourceImport(request, options) {
+    return Runtime.dynamicImport.call(this, request, options, "source")
+  },
+  dynamicDeferImport(request, options) {
+    return Runtime.dynamicImport.call(this, request, options, "defer")
+  },
+  dynamicImport(request, options, phase = "evaluation") {
     const { entry } = this
 
     return new ExPromise((resolvePromise, rejectPromise) => {
@@ -343,6 +354,19 @@ const Runtime = {
 
       setImmediate(() => {
         try {
+          // This loader has no JavaScript ModuleSource representation, so
+          // source-phase imports reject with SyntaxError (as permitted by the
+          // Source Phase Imports host contract). Deferred module evaluation
+          // requires a linked-but-unevaluated module graph: do not fall back
+          // to eager import(), which would run side effects prematurely.
+          if (phase === "source" || phase === "defer") {
+            throw new ExSyntaxError(
+              phase === "source"
+                ? "Module source phase is unavailable"
+                : "Deferred module evaluation is unavailable"
+            )
+          }
+
           let lastValue
           let timerId
 
@@ -418,6 +442,8 @@ const Runtime = {
     runtime.compileEval = boundCompileEval
     runtime.compileGlobalEval = Runtime.compileGlobalEval
     runtime.dynamicImport = Runtime.dynamicImport
+    runtime.dynamicSourceImport = Runtime.dynamicSourceImport
+    runtime.dynamicDeferImport = Runtime.dynamicDeferImport
     runtime.entry = entry
     runtime.global = builtinGlobal
     runtime.globalEval = boundGlobalEval
@@ -442,6 +468,8 @@ const Runtime = {
     runtime.k = identity
     runtime.n = runtime.addNamespaceSetter
     runtime.o = ERROR_GETTER
+    runtime.p = runtime.dynamicSourceImport
+    runtime.q = runtime.dynamicDeferImport
     runtime.r = runtime.run
     runtime.s = runtime.resumeChildren
     runtime.t = runtime.assertUndeclared
