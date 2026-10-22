@@ -44,8 +44,9 @@ rerun without downloading or rebuilding. The runner accepts these options:
 - `--report <file>` writes a JSON report containing the corpus revision, Node
   runtime, selected and skiplist-excluded counts, separate passed, failed,
   and unsupported counts, per-case outcomes, and failing directory groups.
-  Unsupported cases remain selected, have their required host features listed,
-  and appear as skipped in Node's test output. The `complete` field indicates
+  Unsupported cases remain selected, identify missing host and loader features
+  separately (in `unsupportedFeatureSources` and `unsupportedByOrigin`), and
+  appear as skipped in Node's test output. The `complete` field indicates
   whether all selected cases produced results. A failing suite still writes
   its report.
 - `--reporter spec|dot|tap` selects a built-in Node test reporter. For a full
@@ -74,16 +75,17 @@ also pass targeted runs under Node 26.12.0.
 
 At that snapshot, all six remaining exclusions were script-goal
 dynamic-import tests. Script-goal execution and fixture-module loading have
-since restored all six. The runner still checks expected error **types**, not
-their declared parse, resolution, or runtime **phases**, so an apparent pass
-is not a complete conformance guarantee.
+since restored all six. Phase-aware validation was added subsequently, as
+described above; the older conformance totals predate that validation.
 
 Of the 266 failures, 242 live under `top-level-await` and another 14 involve
 async module evaluation elsewhere. The other ten include five import-bytes
 cases requiring immutable array buffers, three source-phase binding cases,
 one deferred-namespace evaluation-error identity case, and one private-brand
 case whose host private-field behaviour differs from Test262's expectation.
-They should be investigated individually rather than added to the skiplist.
+The unsupported host cases and deferred-error identity case were addressed in
+v1.0.4. The source-phase ModuleSource cases are now classified separately as
+unsupported loader capabilities, rather than placed on the permanent skiplist.
 
 ### Host-feature classification and deferred error recovery
 
@@ -106,8 +108,30 @@ one private-brand test requires private fields to respect non-extensibility.
 Node 24.21.0 and 26.12.0 lack both capabilities in the supplied runtimes.
 
 The private-brand behaviour is controlled by the JavaScript engine's private
-field operations and cannot be corrected through proxy traps. These feature
-gates do not skip source-phase or async module evaluation failures.
+field operations and cannot be corrected through proxy traps. The host-feature
+gates do not skip async module evaluation failures.
+
+### Source-phase ModuleSource capability
+
+esm-sync parses source-phase import syntax but does not expose a JavaScript
+`ModuleSource` representation. The runner therefore declares the loader
+capability `source-phase-imports-module-source` unsupported. The feature tag
+also appears on **105 syntax-only tests**, so the runner keeps parsing tests
+(active cases under `/syntax/` and parse-negative tests) enabled even when
+they carry this tag. It also keeps the broader `source-phase-imports` feature
+active. Only three non-syntax cases in the pinned corpus require ModuleSource
+values for named imports, namespace access, and non-ambiguous re-exports;
+those cases appear as unsupported loader cases, not conformance failures or
+passes.
+
+The unsupported declaration belongs in `detectLoaderFeatures()` and should be
+changed only when ModuleSource support is implemented and independently tested.
+The JSON report keeps the existing `unsupportedFeatures` list for compatibility
+and additionally provides per-case `unsupportedFeatureSources` (`host` and
+`loader` arrays) and report-level `unsupportedByOrigin` counts. These counts
+can overlap if a testcase requires both kinds of unavailable capability.
+The full Test262 corpus has **not** been rerun after the harness changes, so
+older pass/failure totals above remain historical rather than a current baseline.
 
 ### Test262 script goal and module fixtures
 

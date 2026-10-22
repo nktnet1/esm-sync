@@ -13,7 +13,9 @@ const setupTest262 = require("../script/setup-test262.js")
 const {
   createReport,
   detectHostFeatures,
+  detectLoaderFeatures,
   getUnsupportedFeatures,
+  getUnsupportedLoaderFeatures,
   selectCases
 } = require("../script/test262-selection.js")
 const testPath = fileURLToPath(new URL("./", import.meta.url))
@@ -97,13 +99,19 @@ if (files.length === 0) {
 }
 
 const hostFeatures = detectHostFeatures()
+const loaderFeatures = detectLoaderFeatures()
 const cases = files.map((filename) => {
   const metadata = readCase(filename)
+  const relativePath = path.relative(corpusPath, filename).split(path.sep).join("/")
   return {
     filename,
-    relativePath: path.relative(corpusPath, filename).split(path.sep).join("/"),
+    relativePath,
     skippedReason: skiplist.get(path.normalize(filename)),
-    unsupportedFeatures: getUnsupportedFeatures(metadata.features, hostFeatures),
+    unsupportedHostFeatures: getUnsupportedFeatures(metadata.features, hostFeatures),
+    unsupportedLoaderFeatures: getUnsupportedLoaderFeatures(
+      { ...metadata, relativePath },
+      loaderFeatures
+    ),
     ...metadata
   }
 })
@@ -112,7 +120,10 @@ const filter = process.env.TEST262_FILTER || ""
 const limitValue = process.env.TEST262_LIMIT
 const limit = limitValue ? Number(limitValue) : undefined
 const selectedCases = selectCases(cases, { filter, limit })
-const unsupportedCases = selectedCases.filter(({ unsupportedFeatures }) => unsupportedFeatures.length > 0)
+const unsupportedCases = selectedCases.filter(
+  ({ unsupportedHostFeatures, unsupportedLoaderFeatures }) =>
+    unsupportedHostFeatures.length > 0 || unsupportedLoaderFeatures.length > 0
+)
 const reportPath = process.env.TEST262_REPORT
 const results = []
 
@@ -149,13 +160,26 @@ describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, (
       expectedPhase: testCase.expectedPhase ?? null
     }
 
-    if (testCase.unsupportedFeatures.length > 0) {
+    const { unsupportedHostFeatures, unsupportedLoaderFeatures } = testCase
+    if (unsupportedHostFeatures.length > 0 || unsupportedLoaderFeatures.length > 0) {
+      const unsupportedFeatureSources = {
+        host: unsupportedHostFeatures,
+        loader: unsupportedLoaderFeatures
+      }
+      const reasons = []
+      if (unsupportedHostFeatures.length > 0) {
+        reasons.push(`Unsupported host features: ${unsupportedHostFeatures.join(", ")}`)
+      }
+      if (unsupportedLoaderFeatures.length > 0) {
+        reasons.push(`Unsupported loader features: ${unsupportedLoaderFeatures.join(", ")}`)
+      }
       results.push({
         ...result,
         status: "unsupported",
-        unsupportedFeatures: testCase.unsupportedFeatures
+        unsupportedFeatures: [...unsupportedHostFeatures, ...unsupportedLoaderFeatures],
+        unsupportedFeatureSources
       })
-      it.skip(title, { skip: `Unsupported host features: ${testCase.unsupportedFeatures.join(", ")}` }, () => {})
+      it.skip(title, { skip: reasons.join("; ") }, () => {})
       continue
     }
 

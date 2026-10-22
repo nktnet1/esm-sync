@@ -28,11 +28,31 @@ function detectHostFeatures() {
   }
 }
 
+// Source-phase imports can be parsed, and unsupported runtime requests can
+// reject correctly, but esm-sync does not expose a ModuleSource object. This
+// loader capability is intentionally separate from native V8/Node features.
+// Update the declaration when the loader implements ModuleSource bindings.
+function detectLoaderFeatures() {
+  return { "source-phase-imports-module-source": false }
+}
+
 function getUnsupportedFeatures(features, hostFeatures) {
   return features.filter(
     (feature) =>
       Object.prototype.hasOwnProperty.call(hostFeatures, feature) && !hostFeatures[feature]
   )
+}
+
+// The ModuleSource feature tag also occurs on syntax-only cases which do
+// not read module source bindings. Keep those parsing cases runnable even
+// though the loader cannot provide a ModuleSource value at runtime.
+function getUnsupportedLoaderFeatures({ features, relativePath, expectedPhase }, loaderFeatures) {
+  const syntaxOnly =
+    expectedPhase === "parse" || relativePath.replaceAll("\\", "/").split("/").includes("syntax")
+  const requiredFeatures = syntaxOnly
+    ? features.filter((feature) => feature !== "source-phase-imports-module-source")
+    : features
+  return getUnsupportedFeatures(requiredFeatures, loaderFeatures)
 }
 
 function selectCases(cases, { filter = "", limit } = {}) {
@@ -96,10 +116,27 @@ function createReport({
     passed: entries.filter(({ status }) => status === "pass").length,
     failed: entries.filter(({ status }) => status === "fail").length,
     unsupported: entries.filter(({ status }) => status === "unsupported").length,
+    unsupportedByOrigin: {
+      host: entries.filter(
+        ({ status, unsupportedFeatureSources }) =>
+          status === "unsupported" && unsupportedFeatureSources?.host?.length > 0
+      ).length,
+      loader: entries.filter(
+        ({ status, unsupportedFeatureSources }) =>
+          status === "unsupported" && unsupportedFeatureSources?.loader?.length > 0
+      ).length
+    },
     complete: entries.length === selected,
     failuresByGroup: failures,
     cases: entries
   }
 }
 
-module.exports = { selectCases, createReport, detectHostFeatures, getUnsupportedFeatures }
+module.exports = {
+  selectCases,
+  createReport,
+  detectHostFeatures,
+  detectLoaderFeatures,
+  getUnsupportedFeatures,
+  getUnsupportedLoaderFeatures
+}
