@@ -86,7 +86,7 @@ const Runtime = {
       }
 
       const childGetters = childEntry.getters
-      const { getters, name } = entry
+      const { getters } = entry
 
       const namespace = childIsLoaded ? childEntry.getExportByName("*", entry) : childEntry.getters
 
@@ -95,26 +95,21 @@ const Runtime = {
           continue
         }
 
-        let ownerName
-        let getter = getters[exportedName]
+        const getter = getters[exportedName]
+        const childGetter = childGetters[exportedName]
 
-        if (getter !== void 0) {
-          ownerName = getter.owner.name
-
-          if (name === ownerName) {
-            continue
-          }
+        // A star export is ambiguous only if the original module or binding
+        // differs. Explicit exports still take precedence over star exports.
+        if (getter !== void 0 && getter.owner === entry) {
+          continue
         }
 
-        const childOwnerName = childGetters[exportedName].owner.name
-
-        if (getter === void 0 || ownerName === childOwnerName) {
+        if (
+          getter === void 0 ||
+          (getter.owner === childGetter.owner && getter.id === childGetter.id)
+        ) {
           entry.addGetterFrom(childEntry, exportedName)
-        }
-
-        ownerName = getters[exportedName].owner.name
-
-        if (ownerName !== name && ownerName !== childOwnerName) {
+        } else {
           entry.addGetter(
             exportedName,
             createAccessor(GETTER_TYPE_STAR_CONFLICT, () => ERROR_STAR)

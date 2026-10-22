@@ -41,7 +41,31 @@ function init() {
           (this.generateVarDeclarations ? "var " : "let ") + [...importedBindings].join(",") + ";"
       }
 
-      code += toModuleExport(this, this.hoistedExports)
+      // Exports of named imports refer to the original imported binding,
+      // not to the intermediate module. Resolve imports after traversal so
+      // an export can legally appear before its corresponding import.
+      const localExports = []
+
+      for (const [exportedName, localName] of this.hoistedExports) {
+        const imported = this.importedBindingMap.get(localName)
+
+        if (imported === void 0) {
+          localExports.push([exportedName, localName])
+          continue
+        }
+
+        const map = this.importSpecifierMap.get(imported.request)
+        let names = map.reExports.get(exportedName)
+
+        if (names === void 0) {
+          names = []
+          map.reExports.set(exportedName, names)
+        }
+
+        names.push(imported.name)
+      }
+
+      code += toModuleExport(this, localExports)
 
       const { runtimeName } = this
 
@@ -109,6 +133,7 @@ function init() {
       this.hoistedExports = null
       this.hoistedImportsString = ""
       this.importSpecifierMap = null
+      this.importedBindingMap = null
       this.magicString = null
       this.possibleIndexes = null
       this.runtimeName = null
@@ -126,6 +151,7 @@ function init() {
         this.generateVarDeclarations = options.generateVarDeclarations
         this.hoistedExports = []
         this.importSpecifierMap = new Map()
+        this.importedBindingMap = new Map()
         this.magicString = magicString
         this.possibleIndexes = options.possibleIndexes
         this.runtimeName = options.runtimeName
@@ -206,6 +232,12 @@ function init() {
         }
 
         const localName = specifier.local.name
+
+        // Namespace imports are not treated as indirect exports here: the
+        // CommonJS mocking hooks can substitute their local namespace value.
+        if (importsName !== "*") {
+          this.importedBindingMap.set(localName, { request, name: importsName })
+        }
 
         localNames.push(localName)
 

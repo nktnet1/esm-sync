@@ -178,7 +178,11 @@ class Entry {
 
   addGetterFrom(otherEntry, importedName, exportedName = importedName) {
     if (importedName === "*") {
-      return this.addGetter(exportedName, () => otherEntry.getExportByName("*", this))
+      const getter = () => otherEntry.getExportByName("*", this)
+      getter.owner = otherEntry
+      getter.id = importedName
+
+      return this.addGetter(exportedName, getter)
     }
 
     const otherGetters = otherEntry.getters
