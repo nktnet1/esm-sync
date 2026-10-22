@@ -3,18 +3,19 @@ import path from "path"
 import vm from "vm"
 
 const MAX_WAIT = 1000
-const [,, testFilename, isAsync] = process.argv
+const [,, testFilename, isAsync, extraIncludes = "[]"] = process.argv
 
 const testPath = path.resolve("../vendor/test262")
 const harnessPath = path.resolve(testPath, "harness")
 
-const harnessFilenames = [
+const harnessFilenames = new Set([
   "assert.js",
   "compareArray.js",
   "doneprintHandle.js",
   "fnGlobalObject.js",
-  "sta.js"
-]
+  "sta.js",
+  ...JSON.parse(extraIncludes)
+])
 
 function waitForAsyncTest() {
   const started = Date.now()
@@ -39,7 +40,12 @@ global.print = function print(value) {
 }
 
 for (const filename of harnessFilenames) {
-  vm.runInThisContext(fs.readFileSync(path.resolve(harnessPath, filename), "utf-8"))
+  if (path.basename(filename) !== filename) {
+    throw new Error(`Invalid Test262 harness include: ${filename}`)
+  }
+
+  const includePath = path.resolve(harnessPath, filename)
+  vm.runInThisContext(fs.readFileSync(includePath, "utf-8"), { filename: includePath })
 }
 
 // Suppress logging.

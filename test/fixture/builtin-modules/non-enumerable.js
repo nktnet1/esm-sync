@@ -1,3 +1,4 @@
-import { _ignoreErrors, log } from "console"
+import { log } from "console"
+import { _stat } from "module"
 
-log("non-enumerable:" + (typeof _ignoreErrors === "boolean"))
+log("non-enumerable:" + (typeof _stat === "function"))

@@ -5,6 +5,7 @@ const fs = require("fs-extra")
 const ignorePaths = require("./ignore-paths.js")
 const setupNativeAddon = require("./setup-native-addon.js")
 const path = require("path")
+const createTestCleanupFilter = require("./test-cleanup-paths.js")
 const terser = require("terser").minify
 const trash = require("./trash.js")
 
@@ -32,7 +33,9 @@ const keptPaths = [
   path.resolve(rootPath, "test/vendor")
 ]
 const jsPaths = [path.resolve(rootPath, "esm.js"), path.resolve(rootPath, "index.js")]
-const trashPaths = ignorePaths.filter(isKept)
+const trashPaths = ignorePaths.filter(
+  createTestCleanupFilter({ keptPaths, nodeModulesPath, sharedCachePath })
+)
 const terserOptions = fs.readJSONSync(path.resolve(rootPath, ".terserrc"))
 
 function assertFixturesReady() {
@@ -44,12 +47,17 @@ function assertFixturesReady() {
   }
 }
 
-function isKept(thePath) {
-  if (thePath.startsWith(nodeModulesPath + path.sep)) {
-    return thePath === sharedCachePath
+async function dispose(paths) {
+  // CI workspaces are disposable; the Windows Recycle Bin helper can fail
+  // when no interactive desktop is available on GitHub-hosted runners.
+  if (isWin && process.env.CI === "true") {
+    for (const thePath of paths) {
+      await fs.remove(thePath)
+    }
+    return
   }
 
-  return thePath.endsWith(".cache") || keptPaths.every((dirname) => !thePath.startsWith(dirname))
+  await trash(paths)
 }
 
 async function cleanJS() {
@@ -69,7 +77,7 @@ async function cleanJS() {
 
 async function setupRepo() {
   // Preserve recoverable cleanup for ignored files while clearing caches.
-  await trash(trashPaths.filter((thePath) => !thePath.endsWith(".cache")))
+  await dispose(trashPaths.filter((thePath) => !thePath.endsWith(".cache")))
 
   for (const cachePath of trashPaths.filter((thePath) => thePath.endsWith(".cache"))) {
     await fs.remove(cachePath)
@@ -87,8 +95,15 @@ async function setupRepo() {
 
 async function setupNode() {
   const basePath = path.resolve(nodePath, isWin ? "" : "..")
-  await trash(basePath)
-  await fs.ensureLink(process.execPath, nodePath)
+  await dispose([basePath])
+  // Windows CI often keeps pnpm's Node runtime and the checkout on different
+  // drives; hard links cannot cross volumes. Copy the executable instead.
+  if (isWin) {
+    await fs.ensureDir(path.dirname(nodePath))
+    await fs.copyFile(process.execPath, nodePath)
+  } else {
+    await fs.ensureLink(process.execPath, nodePath)
+  }
 }
 
 function runTests() {

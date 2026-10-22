@@ -22,6 +22,7 @@
     "test:prod": "pnpm fixtures:prepare && pnpm build --prod --test && pnpm test:run:prod",
     "test:run": "pnpm test:vitest",
     "test:run:prod": "pnpm test:vitest:prod",
+    "test:conformance": "pnpm fixtures:prepare && pnpm build --test && node --test --test-reporter=spec test/test262.mjs",
     "test:packed": "node script/test-packed.js",
     "test:vitest": "node script/test.js",
     "test:vitest:prod": "node script/test.js --prod",

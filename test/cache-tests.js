@@ -4,7 +4,6 @@ import execa from "execa"
 import fs from "fs-extra"
 import path from "path"
 import process from "process"
-import trash from "../script/trash.js"
 
 const isAppVeyor = Reflect.has(process.env, "APPVEYOR")
 
@@ -53,11 +52,10 @@ describe("cache tests", { skip: !canTestCache }, () => {
     move(sharedCachePath, backupSharedCachePath)
   })
 
+  // Cache contents are disposable. Removing them directly avoids Windows
+  // Recycle Bin locking/races when child processes immediately rebuild caches.
   beforeEach(() =>
-    trash([
-      loaderCachePath,
-      fixtureCachePath
-    ])
+    Promise.all([loaderCachePath, fixtureCachePath].map((dirPath) => fs.remove(dirPath)))
   )
 
   after(() => {
@@ -70,7 +68,7 @@ describe("cache tests", { skip: !canTestCache }, () => {
         promise
           .then(() =>
             runMain(mainFilename, {
-              ESM_OPTIONS: '{cache:"' + fixtureCachePath + '"}'
+              ESM_OPTIONS: JSON.stringify({ cache: fixtureCachePath })
             })
           )
           .then(() => assert.strictEqual(countFiles(fixtureCachePath), expectedCacheCount))
@@ -110,7 +108,7 @@ describe("cache tests", { skip: !canTestCache }, () => {
   describe("should support `options.cache` paths", () => {
     it("should work from the `esm` bridge", () =>
       node([fixturePath], {
-        ESM_OPTIONS: '{cache:"' + fixtureCachePath + '"}'
+        ESM_OPTIONS: JSON.stringify({ cache: fixtureCachePath })
       })
       .then(({ stdout }) => assert.ok(stdout.includes("cache:true")))
       .then(() => assert.strictEqual(countFiles(fixtureCachePath), expectedCacheCount))
@@ -118,7 +116,7 @@ describe("cache tests", { skip: !canTestCache }, () => {
 
     it("should work from the Node CLI", () =>
       runMain(mainFilename, {
-        ESM_OPTIONS: '{cache:"' + fixtureCachePath + '"}'
+        ESM_OPTIONS: JSON.stringify({ cache: fixtureCachePath })
       })
       .then(({ stdout }) => assert.ok(stdout.includes("cache:true")))
       .then(() => assert.strictEqual(countFiles(fixtureCachePath), expectedCacheCount))

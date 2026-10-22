@@ -9,10 +9,10 @@ const fixturePath = path.join(rootPath, "test/fixture/scenario/native")
 const sourcePath = path.join(fixturePath, "addon.c")
 const outputPath = path.join(fixturePath, "addon.node")
 const nodeDir = path.dirname(fs.realpathSync(process.execPath))
-const includePath = path.resolve(
-  nodeDir,
-  process.platform === "win32" ? "include/node" : "../include/node"
-)
+const includePath =
+  process.env.ESM_SYNC_NODE_HEADERS ||
+  path.resolve(nodeDir, process.platform === "win32" ? "include/node" : "../include/node")
+const libraryPath = process.env.ESM_SYNC_NODE_LIB || nodeDir
 
 function compile() {
   if (!fs.existsSync(path.join(includePath, "node_api.h"))) {
@@ -30,7 +30,7 @@ function compile() {
         `/Fe:${outputPath}`,
         sourcePath,
         "/link",
-        `/LIBPATH:${nodeDir}`,
+        `/LIBPATH:${libraryPath}`,
         "node.lib"
       ]
     : [

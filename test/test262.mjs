@@ -1,145 +1,113 @@
-import SemVer from "semver"
-
-import assert from "assert"
+import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
+import { describe, it } from "node:test"
 import execa from "execa"
-import fs from "fs-extra"
 import globby from "globby"
-import path from "path"
 import test262Parser from "test262-parser"
 
-const canRunTest262 =
-  process.execArgv.includes("--harmony") &&
-  SemVer.satisfies(process.version, ">=10.3")
+const require = createRequire(import.meta.url)
+const setupTest262 = require("../script/setup-test262.js")
+const testPath = fileURLToPath(new URL("./", import.meta.url))
+const fixturePath = path.join(testPath, "test262")
+const corpusPath = path.join(testPath, "vendor/test262")
+const wrapperPath = path.join(fixturePath, "wrapper.js")
+const skiplistPath = path.join(fixturePath, "skiplist")
 
-const fixturePath = path.resolve("test262")
-const skiplistPath = path.resolve(fixturePath, "skiplist")
-const test262Path = path.resolve("vendor/test262")
-const wrapperPath = path.resolve(fixturePath, "wrapper.js")
-
-const parseRegExp = /^(#.*)\n([^#\n].*)/gm
-const skiplist = parseSkiplist(skiplistPath)
-
-const test262Tests = globby.sync([
-  "test/language/**/*.js",
-  "!**/*_FIXTURE.js"
-], {
-  absolute: true,
-  cwd: test262Path,
-  transform: path.normalize
-})
-
-function node(args, env) {
-  return execa(process.execPath, args, {
-    cwd: fixturePath,
-    env,
-    reject: false
-  })
+if (!setupTest262.isPrepared()) {
+  throw new Error("The pinned Test262 corpus is missing or outdated. Run `pnpm fixtures:test262` first.")
 }
 
-function parseSkiplist(filename) {
-  const content = fs.readFileSync(filename, "utf-8")
-  const result = new Map
+function readSkiplist(filename) {
+  const entries = new Map()
+  const content = readFileSync(filename, "utf8")
+  const entryPattern = /^(#.*)\r?\n([^#\r\n].*)/gm
 
-  let match
-
-  while ((match = parseRegExp.exec(content)) !== null) {
-    let [, comment, filename] = match
-
-    filename = path.resolve(test262Path, filename)
-
-    const reason = comment
-      .slice(1)
-      .trim()
-
-    result.set(filename, {
-      reason
-    })
+  for (const match of content.matchAll(entryPattern)) {
+    const reason = match[1].slice(1).trim()
+    const testFile = path.resolve(corpusPath, match[2].trim())
+    entries.set(testFile, reason)
   }
 
-  return result
+  return entries
 }
 
-function parseTest(filename) {
-  const { attrs } = test262Parser.parseFile(fs.readFileSync(filename, "utf-8"))
-  const { description, negative } = attrs
-
+function readCase(filename) {
+  const { attrs } = test262Parser.parseFile(readFileSync(filename, "utf8"))
   return {
-    description: description.trim(),
-    errorType: negative === void 0 ? void 0 : negative.type,
-    isAsync: !! attrs.flags.async
+    description: attrs.description?.trim() || path.basename(filename),
+    expectedError: attrs.negative?.type,
+    isAsync: Boolean(attrs.flags.async),
+    includes: attrs.includes || []
   }
 }
 
-function runEsm(filename, args, env) {
-  return node([
-    "--harmony",
-    "-r", "../../",
-    filename, ...args
-  ], env)
+async function runCase(filename, { expectedError, isAsync, includes }) {
+  const { exitCode, stdout, stderr, timedOut } = await execa(
+    process.execPath,
+    ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync), JSON.stringify(includes)],
+    {
+      cwd: fixturePath,
+      reject: false,
+      timeout: 20_000,
+      env: {
+        ...process.env,
+        NODE_ENV: "development",
+        ESM_ENV: "development-test",
+        ESM_OPTIONS: "{cjs:false,cache:false}"
+      }
+    }
+  )
+
+  assert.ok(!timedOut, `Test262 subprocess timed out: ${filename}`)
+  assert.equal(exitCode, 0, `${filename}: ${stderr || stdout}`)
+  assert.equal(stderr, "", `${filename}: unexpected stderr`)
+
+  if (stdout.trim()) {
+    const { name } = JSON.parse(stdout)
+    assert.ok(typeof name === "string" && name.length > 0, `${filename}: invalid error report`)
+    assert.equal(name, expectedError, `${filename}: unexpected error type`)
+  } else {
+    assert.equal(expectedError, undefined, `${filename}: expected ${expectedError}, but no error occurred`)
+  }
 }
 
-describe("test262 tests", function () {
-  this.timeout(0)
-
-  before(function () {
-    if (! canRunTest262) {
-      this.skip()
-    }
+const skiplist = readSkiplist(skiplistPath)
+const files = globby
+  .sync(["test/language/**/*.js", "!**/*_FIXTURE.js"], {
+    absolute: true,
+    cwd: corpusPath
   })
+  .sort()
 
-  for (const filename of test262Tests) {
-    const skipped = skiplist.get(filename)
-    const testData = parseTest(filename)
+if (files.length === 0) {
+  throw new Error("No Test262 cases found in the pinned corpus")
+}
 
-    const description =
-      testData.description +
-      " (" + path.basename(filename) + ")" +
-      (skipped
-        ? "; " + skipped.reason
-        : ""
-      )
+const cases = files.map((filename) => ({
+  filename,
+  relativePath: path.relative(corpusPath, filename),
+  skippedReason: skiplist.get(path.normalize(filename)),
+  ...readCase(filename)
+}))
+const excluded = cases.filter(({ skippedReason }) => skippedReason !== undefined)
 
-    it(description, function () {
-      const { isAsync } = testData
+if (excluded.length === cases.length) {
+  throw new Error("No runnable Test262 cases remain after applying the skiplist")
+}
 
-      return runEsm(wrapperPath, [
-        filename,
-        isAsync
-      ], { ESM_OPTIONS: "{cjs:false}" })
-      .then(({ stderr, stdout }) => {
-        if (skipped &&
-            isAsync) {
-          this.skip()
-        }
+if (excluded.length > 0) {
+  console.info(`Test262: excluding ${excluded.length} known cases from test/test262/skiplist`)
+}
 
-        if (stderr) {
-          if (skipped) {
-            this.skip()
-          }
+describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, () => {
+  for (const testCase of cases) {
+    if (testCase.skippedReason !== undefined) continue
 
-          assert.fail(stderr)
-        }
-
-        if (stdout) {
-          const { name } = JSON.parse(stdout)
-          const expected = testData.errorType
-
-          // Known test262 constructors:
-          // ReferenceError, SyntaxError, Test262Error, TypeError
-          if (skipped) {
-            if (name !== expected ||
-                name !== "SyntaxError") {
-              assert.notStrictEqual(name, expected)
-            }
-
-            this.skip()
-          } else {
-            assert.strictEqual(name, expected)
-          }
-        } else if (skipped) {
-          this.skip()
-        }
-      })
+    it(`${testCase.description} (${testCase.relativePath})`, async () => {
+      await runCase(testCase.filename, testCase)
     })
   }
 })

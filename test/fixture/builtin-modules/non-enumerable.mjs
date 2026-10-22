@@ -1,3 +1,3 @@
-import { _ignoreErrors, log } from "console"
+import { _stat } from "module"
 
-log("non-enumerable:false")
+console.log("unexpected named export:" + typeof _stat)

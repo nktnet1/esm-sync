@@ -1,4 +1,4 @@
-const { describe, it, beforeEach, afterEach } = globalThis.__esmSyncNativeTest
+const { describe, it, before, after, afterEach } = globalThis.__esmSyncNativeTest
 import SemVer from "semver"
 
 import assert from "assert"
@@ -532,42 +532,101 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
   describe("should work with pm2", { skip: !canTestPM2, concurrency: false }, () => {
 
-    beforeEach(beforeAndAfterEach)
-    afterEach(beforeAndAfterEach)
+    // Keep the daemon alive across cases so the next app cannot connect to a
+    // daemon that is still shutting down on Windows.
+    before(beforeAndAfter)
+    after(beforeAndAfter)
+    afterEach(() => pm2(["delete", "all"]))
 
     const MAX_WAIT = 10000
 
     const logsPath = path.resolve("env/home/.pm2/logs")
-    const stderrPath = path.resolve(logsPath, "pm2-error.log")
-    const stdoutPath = path.resolve(logsPath, "pm2-out.log")
-
+    const pm2Path = path.resolve("../node_modules/pm2/bin/pm2")
     const defaultPM2Args = [
       "start",
       "--no-autorestart",
-      "--name", "pm2"
+      "--wait-ready",
+      // PM2 recognizes "node", but not an absolute "node.exe", as the
+      // interpreter that needs its Node container on Windows.
+      "--interpreter", "node"
     ]
 
-    function beforeAndAfterEach() {
-      return exec("pm2", ["kill"])
+    // Keep monitoring enabled in bridge cases and exercise explicit Node
+    // preloads without the optional PMX hook in the CLI cases.
+    const preloadPM2Args = ["--no-pmx"]
+
+    // PM2 checks process.env.pmx in ProcessContainerFork before loading the
+    // application. Preload the guard explicitly: CLI --no-pmx alone does not
+    // consistently disable the monitoring hook on Windows.
+    const pmxGuardPath = path.resolve("fixture/scenario/pm2-cli-preload.cjs")
+      .replace(/\\/g, "/")
+
+    function pm2(args) {
+      const env = { ...process.env }
+      const pathKeys = Object.keys(env)
+        .filter((key) => isWin ? key.toLowerCase() === "path" : key === "PATH")
+        .sort()
+      const inheritedPath = pathKeys.length ? env[pathKeys[0]] : ""
+
+      // Use the actual test executable for both the CLI and its applications.
+      // A runtime launcher on PATH may not forward the application's IPC pipe.
+      for (const key of pathKeys) {
+        delete env[key]
+      }
+      env.PATH = [path.dirname(nodePath), inheritedPath].filter(Boolean).join(path.delimiter)
+
+      return execa(nodePath, defaultNodeArgs.concat(pm2Path, args), {
+        cwd: testPath,
+        env,
+        // Do not merge an inherited Windows "Path" back beside our "PATH".
+        extendEnv: false
+      })
+    }
+
+    function beforeAndAfter() {
+      return pm2(["kill"])
+        .then(() => {
+          const pidPath = path.resolve("env/home/.pm2/pm2.pid")
+          const started = Date.now()
+
+          // PM2's Windows kill command can return on a timeout. The daemon
+          // removes its PID file after closing both the RPC and PUB sockets.
+          return new Promise(function check(resolve, reject) {
+            if (!fs.existsSync(pidPath)) {
+              resolve()
+            } else if (Date.now() - started >= MAX_WAIT) {
+              reject(new Error(`PM2 did not finish shutting down: ${pidPath}`))
+            } else {
+              setTimeout(() => check(resolve, reject), 100)
+            }
+          })
+        })
         .then(() => trash(logsPath))
     }
 
-    function waitForLogs(stderrPath, stdoutPath) {
+    function readLogs(name) {
+      const stderrPath = path.resolve(logsPath, `${name}-error.log`)
+      const stdoutPath = path.resolve(logsPath, `${name}-out.log`)
+
+      return {
+        stderr: fs.existsSync(stderrPath)
+          ? fs.readFileSync(stderrPath, "utf8")
+          : "",
+        stdout: fs.existsSync(stdoutPath)
+          ? fs.readFileSync(stdoutPath, "utf8")
+          : ""
+      }
+    }
+
+    function waitForLogs(name, expected) {
       const started = Date.now()
 
       return new Promise(function check(resolve) {
         const waited = Date.now() - started
-
-        const stderr = fs.existsSync(stderrPath)
-          ? fs.readFileSync(stderrPath, "utf8")
-          : ""
-
-        const stdout = fs.existsSync(stdoutPath)
-          ? fs.readFileSync(stdoutPath, "utf8")
-          : ""
+        const { stderr, stdout } = readLogs(name)
 
         if (stderr ||
-            stdout ||
+            stdout.split(/\r?\n/).includes(expected) ||
             waited > MAX_WAIT) {
           resolve({ stderr, stdout })
         } else {
@@ -576,69 +635,81 @@ describe("scenario tests", { concurrency: 3 }, () => {
       })
     }
 
-    it("should work from the `esm` bridge", () => {
-      const pm2Args = defaultPM2Args.concat(
-        "--node-args", defaultNodeArgs.join(" "),
-        path.resolve("fixture/scenario/pm2")
-      )
-
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
+    function runPM2(name, args, expected) {
+      return pm2(defaultPM2Args.concat("--name", name, args))
+        .then(() => waitForLogs(name, expected))
         .then(({ stderr, stdout }) => {
           assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2:true"))
+          assert.ok(stdout.split(/\r?\n/).includes(expected),
+            `${name} did not acknowledge PM2 IPC readiness:\n${stdout}`)
+          return pm2(["jlist"])
         })
+        .then(({ stdout }) => {
+          const app = JSON.parse(stdout).find((app) => app.name === name)
+
+          assert.ok(app, `PM2 did not register ${name}`)
+          assert.strictEqual(app.pm2_env.status, "online")
+          assert.ok(app.pid > 0, `${name} did not stay alive until PM2 stopped it`)
+          // ProcessContainerFork sends node_version before loading the fixture.
+          // This checks that the startup message reached the daemon as well.
+          assert.strictEqual(app.pm2_env.node_version, process.versions.node)
+          return pm2(["stop", name])
+        })
+        .then(() => {
+          // Read again after stopping the app so late errors cannot be hidden
+          // by the first success marker or by daemon teardown.
+          const { stderr, stdout } = readLogs(name)
+
+          assert.strictEqual(stderr, "")
+          assert.ok(stdout.split(/\r?\n/).includes(expected), stdout)
+        })
+    }
+
+    it("should work from the `esm` bridge", () => {
+      const pm2Args = [
+        "--node-args", defaultNodeArgs.join(" "),
+        path.resolve("fixture/scenario/pm2")
+      ]
+
+      return runPM2("pm2-bridge", pm2Args, "pm2:true")
     })
 
     it("should work from the Node CLI", () => {
       const nodeArgs = defaultNodeArgs.concat(
-        "-r", pkgPath
+        "-r", pmxGuardPath,
+        "-r", pkgPath.replace(/\\/g, "/")
       )
 
-      const pm2Args = defaultPM2Args.concat(
+      const pm2Args = preloadPM2Args.concat(
         "--node-args", nodeArgs.join(" "),
         path.resolve("fixture/scenario/pm2/main.js")
       )
 
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
-        .then(({ stderr, stdout }) => {
-          assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2:true"))
-        })
+      return runPM2("pm2-cli", pm2Args, "pm2:true")
     })
 
     it("should work with babel/register from the `esm` bridge", () => {
-      const pm2Args = defaultPM2Args.concat(
+      const pm2Args = [
         "--node-args", defaultNodeArgs.join(" "),
         path.resolve("fixture/scenario/pm2-babel")
-      )
+      ]
 
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
-        .then(({ stderr, stdout }) => {
-          assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2-babel:true"))
-        })
+      return runPM2("pm2-babel-bridge", pm2Args, "pm2-babel:true")
     })
 
     it("should work with babel/register from the Node CLI", () => {
       const nodeArgs = defaultNodeArgs.concat(
-        "-r", pkgPath,
+        "-r", pmxGuardPath,
+        "-r", pkgPath.replace(/\\/g, "/"),
         "-r", "@babel/register"
       )
 
-      const pm2Args = defaultPM2Args.concat(
+      const pm2Args = preloadPM2Args.concat(
         "--node-args", nodeArgs.join(" "),
         path.resolve("fixture/scenario/pm2-babel/main.js")
       )
 
-      return exec("pm2", pm2Args)
-        .then(() => waitForLogs(stderrPath, stdoutPath))
-        .then(({ stderr, stdout }) => {
-          assert.strictEqual(stderr, "")
-          assert.ok(stdout.includes("pm2-babel:true"))
-        })
+      return runPM2("pm2-babel-cli", pm2Args, "pm2-babel:true")
     })
   })
 

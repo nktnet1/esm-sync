@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import consoleModule from "node:console"
+import Module from "node:module"
 import { fileURLToPath } from "node:url"
 import { describe, it } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.mts"
@@ -17,7 +17,7 @@ for (const esmEnv of testEnvironments) {
         esmEnv,
         {},
         {
-          cacheNamespace: "builtin-modules"
+          cacheNamespace: "builtin-modules-console"
         }
       )
 
@@ -27,36 +27,44 @@ for (const esmEnv of testEnvironments) {
     })
 
     it("does not expose non-enumerable built-in properties as exports", async () => {
-      assert.equal(
-        Object.getOwnPropertyDescriptor(consoleModule, "_ignoreErrors")?.enumerable,
-        false
-      )
+      assert.equal(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable, false)
 
       const filename = `${fixturePath}non-enumerable.mjs`
       const { exitCode, stdout, stderr } = await runNode(
-        ["-r", "../index.js", filename],
+        ["-r", `${fixturePath}report-error.cjs`, "-r", "../index.js", filename],
         esmEnv,
         envAuto,
-        { cacheNamespace: "builtin-modules" }
+        { cacheNamespace: "builtin-modules-negative" }
       )
 
-      assert.notEqual(exitCode, 0, "Expected named import to fail")
-      assert.ok(stderr.includes("does not provide an export"), stderr)
+      const diagnostic =
+        stderr.length > 8192
+          ? `${stderr.slice(0, 4096)}\n[... truncated ...]\n${stderr.slice(-4096)}`
+          : stderr
+      const report = /^builtin-error:(.+)$/m.exec(stderr)
+
+      assert.equal(exitCode, 1, diagnostic)
+      assert.ok(report, diagnostic)
+      assert.deepEqual(
+        JSON.parse(report[1]),
+        {
+          name: "SyntaxError",
+          message: "The requested module 'module' does not provide an export named '_stat'"
+        },
+        diagnostic
+      )
       assert.equal(stdout, "")
     })
 
     it("exposes non-enumerable built-in properties with cjs.namedExports", async () => {
-      assert.equal(
-        Object.getOwnPropertyDescriptor(consoleModule, "_ignoreErrors")?.enumerable,
-        false
-      )
+      assert.equal(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable, false)
 
       const filename = `${fixturePath}non-enumerable.js`
       const { exitCode, stdout, stderr } = await runNode(
         ["-r", "../index.js", filename],
         esmEnv,
         envAuto,
-        { cacheNamespace: "builtin-modules" }
+        { cacheNamespace: "builtin-modules-positive" }
       )
 
       assert.equal(exitCode, 0, stderr)

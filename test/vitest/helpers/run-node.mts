@@ -59,8 +59,16 @@ export function runNode(
   {
     timeout = 20_000,
     executable = process.execPath,
-    cacheNamespace
-  }: { timeout?: number; executable?: string; cacheNamespace?: string } = {}
+    cacheNamespace,
+    input,
+    keepStdinOpen = false
+  }: {
+    timeout?: number
+    executable?: string
+    cacheNamespace?: string
+    input?: string
+    keepStdinOpen?: boolean
+  } = {}
 ): Promise<NodeResult> {
   return new Promise((resolve, reject) => {
     const effectiveOptions = cacheNamespace
@@ -89,9 +97,17 @@ export function runNode(
     const child = spawn(executable, args, {
       cwd: testPath,
       env,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: "pipe",
       timeout
     })
+    // An interactive Node REPL needs stdin to stay open until the test
+    // fixture finishes its asynchronous evaluations and exits.
+    if (keepStdinOpen) {
+      if (input !== undefined) child.stdin.write(input)
+    } else {
+      child.stdin.end(input)
+    }
+
     let stdout = ""
     let stderr = ""
 

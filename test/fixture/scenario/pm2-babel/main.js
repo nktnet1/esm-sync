@@ -4,4 +4,11 @@ class Console {
   static log = log
 }
 
-Console.log("pm2-babel:true")
+// Let PM2 stop the fixture after it has verified the startup IPC exchange.
+process.channel.ref()
+process.send("ready", (error) => {
+  if (error) {
+    throw error
+  }
+  Console.log("pm2-babel:true")
+})

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { readFile, rm } from "node:fs/promises"
 import path from "node:path"
+import JSON6 from "json-6"
 import { describe, it } from "vitest"
 import { isolateLoaderCache, nodeEnv, runNode, testPath } from "./helpers/run-node.mts"
 
@@ -31,8 +32,14 @@ describe("isolated native Node loader caches", () => {
     const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
     const uncached = isolateLoaderCache(options, plainEnv, "main-hook")
     const cached = isolateLoaderCache(options, cachedEnv, "main-hook")
-    assert.ok(uncached.ESM_OPTIONS?.includes(`${plainEnv}/vitest-main-hook`))
-    assert.ok(cached.ESM_OPTIONS?.includes(`${cachedEnv}/vitest-main-hook`))
+    assert.equal(
+      (JSON6.parse(uncached.ESM_OPTIONS || "{}") as { cache?: string }).cache,
+      path.join(testPath, "env/native-cache", plainEnv, "vitest-main-hook")
+    )
+    assert.equal(
+      (JSON6.parse(cached.ESM_OPTIONS || "{}") as { cache?: string }).cache,
+      cachePath("main-hook")
+    )
     assert.notEqual(uncached.ESM_OPTIONS, cached.ESM_OPTIONS)
     assert.equal(options.ESM_OPTIONS, "{cjs:false,mode:'auto'}")
   })
@@ -42,8 +49,25 @@ describe("isolated native Node loader caches", () => {
     const main = isolateLoaderCache(options, cachedEnv, "main-hook")
     const evalHook = isolateLoaderCache(options, cachedEnv, "eval-hook")
 
-    assert.equal(main.ESM_OPTIONS, `{cache:'${cachePath("main-hook")}',cjs:0,mode:all}`)
-    assert.equal(evalHook.ESM_OPTIONS, `{cache:'${cachePath("eval-hook")}',cjs:0,mode:all}`)
+    // mode:all is intentionally a bare legacy option, accepted by esm-sync's
+    // fallback parser but not by JSON6 itself. Check the original spelling,
+    // then parse only a quoted copy to verify Windows path escaping.
+    for (const [namespace, isolated] of [
+      ["main-hook", main],
+      ["eval-hook", evalHook]
+    ] as const) {
+      const source = isolated.ESM_OPTIONS
+      assert.ok(source)
+      assert.ok(source.endsWith(",cjs:0,mode:all}"))
+      const parsed = JSON6.parse(source.replace("mode:all", "mode:'all'")) as {
+        cache: string
+        cjs: number
+        mode: string
+      }
+      assert.equal(parsed.cache, cachePath(namespace))
+      assert.equal(parsed.cjs, 0)
+      assert.equal(parsed.mode, "all")
+    }
     assert.notEqual(main.ESM_OPTIONS, evalHook.ESM_OPTIONS)
     assert.equal(options.ESM_OPTIONS, "{cjs:0,mode:all}")
   })

@@ -64,14 +64,15 @@ function checkErrorStack(error, startsWith) {
     throw error
   }
 
-  if (assert.match) {
-    assert.match(stack, new RegExp(`^(SyntaxError:|${startsWith.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`))
-  } else {
-    assert.ok(
-      stack.startsWith(startsWith) ||
-      stack.startsWith("SyntaxError:")
-    )
-  }
+  // Windows Node may omit the caret line from VM SyntaxError stacks. Still
+  // require the filename, line number, source text, and SyntaxError itself.
+  const noCaret = startsWith.replace(/^[ \t]*\^\n/gm, "")
+  assert.ok(
+    stack.startsWith(startsWith) ||
+      stack.startsWith("SyntaxError:") ||
+      (isWin && stack.startsWith(noCaret) && stack.includes("SyntaxError:")),
+    stack
+  )
 }
 
 function checkLegacyErrorProps(error, code) {
