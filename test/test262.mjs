@@ -42,11 +42,12 @@ function readCase(filename) {
     expectedError: attrs.negative?.type,
     expectedPhase: attrs.negative?.phase,
     isAsync: Boolean(attrs.flags.async),
+    isModule: Boolean(attrs.flags.module),
     includes: attrs.includes || []
   }
 }
 
-async function runCase(filename, { expectedError, isAsync, includes }) {
+async function runCase(filename, { expectedError, isAsync, isModule, includes }) {
   const { exitCode, stdout, stderr, timedOut } = await execa(
     process.execPath,
     ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync), JSON.stringify(includes)],
@@ -58,7 +59,8 @@ async function runCase(filename, { expectedError, isAsync, includes }) {
         ...process.env,
         NODE_ENV: "development",
         ESM_ENV: "development-test",
-        ESM_OPTIONS: "{cjs:false,cache:false}"
+        // Test262 marks modules explicitly, even when they have no import/export syntax.
+        ESM_OPTIONS: isModule ? "{cjs:false,cache:false,mode:'all'}" : "{cjs:false,cache:false}"
       }
     }
   )

@@ -3,6 +3,7 @@ const { describe, it } = globalThis.__esmSyncNativeTest
 import Compiler from "../build/compiler.js"
 
 import assert from "assert"
+import { readFileSync } from "fs"
 import createNamespace from "./create-namespace.js"
 import path from "path"
 import url from "url"
@@ -13,6 +14,7 @@ const fileProtocol = "file://" + (isWin ? "/" : "")
 
 const abcPath = path.resolve("fixture/export/abc.mjs")
 const abcURL = fileProtocol + abcPath.replace(/\\/g, "/")
+const textFixtureContents = readFileSync(path.resolve("fixture/text-module.txt"), "utf8")
 const abcNs = createNamespace({
   a: "a",
   b: "b",
@@ -110,14 +112,15 @@ describe("dynamic import tests", () => {
   it("should load text modules without evaluating the contents as JavaScript", async () => {
     const ns = await import("./fixture/text-module.txt", { with: { type: "text" } })
 
-    assert.strictEqual(ns.default, "A text module is not { executable JavaScript }.\n")
+    assert.match(textFixtureContents, /^A text module is not \{ executable JavaScript \}\.\r?\n$/)
+    assert.strictEqual(ns.default, textFixtureContents)
     assert.deepStrictEqual(Object.keys(ns), ["default"])
   })
 
   it("should import, re-export, and forward text modules with static attributes", async () => {
     const mod = await import("./fixture/text-consumer.mjs")
 
-    assert.strictEqual(mod.text, "A text module is not { executable JavaScript }.\n")
+    assert.strictEqual(mod.text, textFixtureContents)
     assert.strictEqual(mod.namespace.default, mod.text)
     assert.deepStrictEqual(Object.keys(mod.namespace), ["default"])
     assert.strictEqual(mod.reExported, mod.text)
