@@ -19,9 +19,9 @@ const {
     loaderFeatures: Record<string, boolean>
   ) => string[]
   selectCases: (
-    cases: Array<{ relativePath: string; skippedReason?: string }>,
-    options?: { filter?: string; limit?: number }
-  ) => Array<{ relativePath: string; skippedReason?: string }>
+    cases: Array<{ relativePath: string; skippedReason?: string; features?: string[] }>,
+    options?: { filter?: string; limit?: number; excludeFeatures?: string[] }
+  ) => Array<{ relativePath: string; skippedReason?: string; features?: string[] }>
   createReport: (options: {
     revision: string
     selected: number
@@ -70,6 +70,52 @@ describe("Test262 case selection", () => {
     assert.deepEqual(
       selected.map(({ relativePath }) => relativePath),
       [cases[1].relativePath]
+    )
+  })
+
+  it("excludes only explicitly tagged features before applying the limit", () => {
+    const tagged = [
+      { relativePath: "test/language/defer/sync.js", features: ["import-defer"] },
+      {
+        relativePath: "test/language/defer/async.js",
+        features: ["import-defer", "top-level-await"]
+      },
+      { relativePath: "test/language/defer/untagged.js" },
+      { relativePath: "test/language/defer/extra.js", features: ["async-iteration"] }
+    ]
+
+    assert.deepEqual(
+      selectCases(tagged, {
+        filter: "defer/",
+        excludeFeatures: ["top-level-await"],
+        limit: 2
+      }).map(({ relativePath }) => relativePath),
+      [tagged[0].relativePath, tagged[2].relativePath]
+    )
+    assert.equal(selectCases(tagged).length, 4)
+    assert.deepEqual(
+      selectCases(tagged, { excludeFeatures: ["top-level-await", "async-iteration"] }).map(
+        ({ relativePath }) => relativePath
+      ),
+      [tagged[0].relativePath, tagged[2].relativePath]
+    )
+  })
+
+  it("rejects empty feature filters instead of succeeding with no tests", () => {
+    assert.throws(
+      () => selectCases(cases, { excludeFeatures: [""] }),
+      /excluded features must be non-empty/
+    )
+    assert.throws(
+      () => selectCases(cases, { filter: "not-present", excludeFeatures: ["top-level-await"] }),
+      /No runnable Test262 cases match the path filter/
+    )
+    assert.throws(
+      () =>
+        selectCases([{ relativePath: "one.js", features: ["top-level-await"] }], {
+          excludeFeatures: ["top-level-await"]
+        }),
+      /No runnable Test262 cases remain/
     )
   })
 

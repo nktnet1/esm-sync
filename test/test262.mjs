@@ -138,9 +138,10 @@ const cases = files.map((filename) => {
 })
 const excluded = cases.filter(({ skippedReason }) => skippedReason !== undefined)
 const filter = process.env.TEST262_FILTER || ""
+const excludeFeatures = JSON.parse(process.env.TEST262_EXCLUDE_FEATURES || "[]")
 const limitValue = process.env.TEST262_LIMIT
 const limit = limitValue ? Number(limitValue) : undefined
-const selectedCases = selectCases(cases, { filter, limit })
+const selectedCases = selectCases(cases, { filter, limit, excludeFeatures })
 const unsupportedCases = selectedCases.filter(
   ({ unsupportedHostFeatures, unsupportedLoaderFeatures }) =>
     unsupportedHostFeatures.length > 0 || unsupportedLoaderFeatures.length > 0

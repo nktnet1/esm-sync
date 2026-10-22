@@ -41,6 +41,10 @@ rerun without downloading or rebuilding. The runner accepts these options:
   supplied text, ignoring case. This works with either `/` or `\` separators.
 - `--limit <number>` runs the first N matching, non-excluded cases in stable
   path order. An unmatched filter is an error, never a successful empty run.
+- `--exclude-feature <name>` excludes cases with the exact Test262 feature tag
+  from this run (repeatable). This is selection only: excluded-by-feature cases
+  are not marked passing, unsupported, or permanently skipped. The default
+  run still selects all features.
 - `--report <file>` writes a JSON report containing the corpus revision, Node
   runtime, selected and skiplist-excluded counts, separate passed, failed,
   and unsupported counts, per-case outcomes, and failing directory groups.
@@ -57,6 +61,20 @@ For example, a targeted rerun without a rebuild:
 ```sh
 pnpm test:conformance:run --filter module-code --limit 20 --report .cache/test262-module-code.json
 ```
+
+The nine deferred-import error cases without top-level await can be checked separately
+from the three top-level-await-dependent cases with:
+
+```sh
+pnpm test:conformance:run --filter import/import-defer/errors/ --exclude-feature top-level-await
+```
+
+The three await-dependent cases remain runnable without the filter, and
+are not reclassified as unsupported. As of v1.0.10, the complete 12-case
+deferred-error group passes 9 and fails 3, all three tagged
+`top-level-await`. Two older deferred-error failures already pass after the
+earlier runtime and harness fixes; no additional synchronous runtime defect
+was reproduced in this group.
 
 The regular Vitest suite also runs the 76 pinned `module-code/instn-` cases as
 a focused conformance regression. It requires all 58 positive cases and 18

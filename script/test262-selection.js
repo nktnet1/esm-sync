@@ -55,24 +55,37 @@ function getUnsupportedLoaderFeatures({ features, relativePath, expectedPhase },
   return getUnsupportedFeatures(requiredFeatures, loaderFeatures)
 }
 
-function selectCases(cases, { filter = "", limit } = {}) {
+function selectCases(cases, { filter = "", limit, excludeFeatures = [] } = {}) {
   const pathFilter = filter.trim().replaceAll("\\", "/").toLowerCase()
+
+  if (
+    !Array.isArray(excludeFeatures) ||
+    excludeFeatures.some((feature) => typeof feature !== "string" || feature.trim() === "")
+  ) {
+    throw new TypeError("Test262 excluded features must be non-empty strings")
+  }
+  const excludedFeatures = new Set(excludeFeatures.map((feature) => feature.trim()))
 
   if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) {
     throw new RangeError("Test262 limit must be a positive integer")
   }
 
-  const matches = cases.filter(
+  const pathMatches = cases.filter(
     ({ relativePath, skippedReason }) =>
       skippedReason === undefined &&
       relativePath.replaceAll("\\", "/").toLowerCase().includes(pathFilter)
   )
+  const matches = pathMatches.filter(
+    ({ features = [] }) => !features.some((feature) => excludedFeatures.has(feature))
+  )
 
   if (matches.length === 0) {
     throw new Error(
-      pathFilter
-        ? `No runnable Test262 cases match the path filter: ${filter}`
-        : "No runnable Test262 cases remain after applying the skiplist"
+      pathMatches.length === 0
+        ? pathFilter
+          ? `No runnable Test262 cases match the path filter: ${filter}`
+          : "No runnable Test262 cases remain after applying the skiplist"
+        : "No runnable Test262 cases remain after applying feature filters"
     )
   }
 
