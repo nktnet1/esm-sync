@@ -6,8 +6,10 @@ import Loader from "./loader.js"
 import builtinGlobal from "./builtin/global.js"
 import errors from "./errors.js"
 import esmImport from "./module/esm/import.js"
+import esmLoad from "./module/esm/load.js"
 import getURLFromFilePath from "./util/get-url-from-file-path.js"
 import has from "./util/has.js"
+import { readFileSync } from "./safe/fs.js"
 import hasPragma from "./parse/has-pragma.js"
 import identity from "./util/identity.js"
 import isFileOrigin from "./util/is-file-origin.js"
@@ -320,6 +322,116 @@ const Runtime = {
 
     return code
   },
+  importDeferred(request, setterArgsList) {
+    const parentEntry = this.entry
+    const { moduleState } = shared
+    const previousParsing = moduleState.parsing
+    const previousChildren = new Set(Object.values(parentEntry.children))
+    let childEntry
+
+    // Link and validate exports without starting the module body. The
+    // loader already supports this split for cyclic module dependencies.
+    moduleState.parsing = true
+    try {
+      childEntry = esmLoad(request, parentEntry.module, false)
+    } finally {
+      moduleState.parsing = previousParsing
+    }
+
+    // The normal CJS fallback postpones parsing untransformed scripts until
+    // execution. Deferred module requests still require link-time syntax
+    // errors, so validate those scripts without running their bodies.
+    if (childEntry.type === TYPE_CJS && typeof childEntry.filename === "string") {
+      new Function(readFileSync(childEntry.filename, "utf8"))
+    }
+
+    // A deferred child must not be resumed by the parent's regular eager
+    // dependency traversal. It is evaluated on its first export operation.
+    if (!previousChildren.has(childEntry) && parentEntry.children[childEntry.name] === childEntry) {
+      delete parentEntry.children[childEntry.name]
+    }
+
+    let namespace = childEntry.deferredNamespace
+    if (namespace === void 0) {
+      const eagerNamespace = childEntry.completeNamespace
+      const target = Object.create(null)
+      let started = false
+      let failure
+
+      // A deferred namespace is distinct from the ordinary namespace and
+      // has its own non-configurable @@toStringTag. Proxying the ordinary
+      // namespace directly would violate Proxy invariants for that property.
+      for (const name of Object.keys(childEntry.getters).sort()) {
+        Object.defineProperty(target, name, {
+          configurable: false,
+          enumerable: true,
+          writable: true,
+          value: void 0
+        })
+      }
+      Object.defineProperty(target, Symbol.toStringTag, { value: "Deferred Module" })
+      Object.preventExtensions(target)
+
+      const ensureEvaluated = () => {
+        if (failure !== void 0) throw failure
+        if (started) return
+        started = true
+        try {
+          esmLoad(request, parentEntry.module, false)
+        } catch (error) {
+          failure = error
+          throw error
+        }
+      }
+
+      // Ordinary export-key operations trigger synchronous evaluation.
+      // Avoid promise thenable assimilation for deferred namespaces.
+      const shouldEvaluate = (name) => typeof name === "string" && name !== "then"
+      namespace = new Proxy(target, {
+        get(target, name) {
+          if (shouldEvaluate(name)) {
+            ensureEvaluated()
+            return Reflect.get(eagerNamespace, name)
+          }
+          return Reflect.get(target, name)
+        },
+        getOwnPropertyDescriptor(target, name) {
+          if (shouldEvaluate(name)) {
+            ensureEvaluated()
+            const descriptor = Reflect.getOwnPropertyDescriptor(target, name)
+            if (descriptor !== void 0) {
+              descriptor.value = Reflect.get(eagerNamespace, name)
+            }
+            return descriptor
+          }
+          return Reflect.getOwnPropertyDescriptor(target, name)
+        },
+        has(target, name) {
+          if (shouldEvaluate(name)) ensureEvaluated()
+          return Reflect.has(target, name)
+        },
+        ownKeys(target) {
+          ensureEvaluated()
+          return Reflect.ownKeys(target)
+        },
+        defineProperty(_target, name) {
+          if (shouldEvaluate(name)) ensureEvaluated()
+          return false
+        },
+        deleteProperty(target, name) {
+          if (shouldEvaluate(name)) ensureEvaluated()
+          return Reflect.deleteProperty(target, name)
+        },
+        set() {
+          return false
+        }
+      })
+      childEntry.deferredNamespace = namespace
+    }
+    for (const [, , setter] of setterArgsList) {
+      setter(namespace, childEntry)
+    }
+  },
   dynamicSourceImport(request, options) {
     return Runtime.dynamicImport.call(this, request, options, "source")
   },
@@ -359,12 +471,22 @@ const Runtime = {
           // Source Phase Imports host contract). Deferred module evaluation
           // requires a linked-but-unevaluated module graph: do not fall back
           // to eager import(), which would run side effects prematurely.
-          if (phase === "source" || phase === "defer") {
-            throw new ExSyntaxError(
-              phase === "source"
-                ? "Module source phase is unavailable"
-                : "Deferred module evaluation is unavailable"
-            )
+          if (phase === "defer") {
+            let namespace
+            Runtime.importDeferred.call(this, request, [
+              [
+                "*",
+                null,
+                (value) => {
+                  namespace = value
+                }
+              ]
+            ])
+            resolvePromise(namespace)
+            return
+          }
+          if (phase === "source") {
+            throw new ExSyntaxError("Module source phase is unavailable")
           }
 
           let lastValue
@@ -448,6 +570,7 @@ const Runtime = {
     runtime.global = builtinGlobal
     runtime.globalEval = boundGlobalEval
     runtime.import = Runtime.import
+    runtime.importDeferred = Runtime.importDeferred
     runtime.initBindings = Runtime.initBindings
     runtime.resumeChildren = Runtime.resumeChildren
     runtime.run = Runtime.run
@@ -477,6 +600,7 @@ const Runtime = {
     runtime.v = evalIndirect
     runtime.w = runtime.import
     runtime.x = runtime.addExportGetters
+    runtime.y = runtime.importDeferred
 
     return (entry.runtime = runtime)
   },

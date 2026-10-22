@@ -79,7 +79,7 @@ function init() {
       const { runtimeName } = this
 
       this.importSpecifierMap.forEach((map) => {
-        code += runtimeName + ".w(" + toStringLiteral(map.request)
+        code += runtimeName + (map.phase === "defer" ? ".y(" : ".w(") + toStringLiteral(map.request)
 
         let setterArgsList = ""
 
@@ -481,7 +481,9 @@ function init() {
       ({ key }) => (key.type === "Identifier" ? key.name : key.value) === "type"
     )
     const moduleType = attribute?.value.value === "text" ? "text" : void 0
-    const key = moduleType === "text" ? request + "\0text" : request
+    const phase = node.phase === "defer" ? "defer" : "evaluation"
+    const key =
+      request + (moduleType === "text" ? "\0text" : "") + (phase === "defer" ? "\0defer" : "")
 
     let map = maps.get(key)
 
@@ -490,6 +492,7 @@ function init() {
       map.key = key
       map.request = request
       map.moduleType = moduleType
+      map.phase = phase
       maps.set(key, map)
     }
 

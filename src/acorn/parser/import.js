@@ -48,6 +48,7 @@ function init() {
         parser.parseWithClause = wrap(parser.parseWithClause, parseWithClause)
       }
       parser.parseExport = wrap(parser.parseExport, parseExport)
+      parser.parseImport = wrap(parser.parseImport, parseImport)
       parser.parseModuleExportName = wrap(parser.parseModuleExportName, parseModuleExportName)
       parser.parseExprAtom = wrap(parser.parseExprAtom, parseExprAtom)
       parser.parseNew = wrap(parser.parseNew, parseNew)
@@ -75,6 +76,27 @@ function init() {
     }
 
     return Reflect.apply(func, this, args)
+  }
+
+  function parseImport(func, args) {
+    // The contextual `defer` modifier is only recognised before a namespace
+    // import. `import defer from "mod"` still imports a default binding named defer.
+    const ahead = lookahead(this)
+    if (ahead.value !== "defer" || lookahead(ahead).type !== tt.star) {
+      return Reflect.apply(func, this, args)
+    }
+
+    const [node] = args
+    this.next()
+    this.next()
+    node.phase = "defer"
+    node.specifiers = [this.parseImportNamespaceSpecifier()]
+    this.expectContextual("from")
+    if (this.type !== tt.string) this.unexpected()
+    node.source = this.parseExprAtom()
+    node.attributes = this.options.ecmaVersion >= 16 ? this.parseWithClause() : []
+    this.semicolon()
+    return this.finishNode(node, "ImportDeclaration")
   }
 
   function parseExport(func, args) {
