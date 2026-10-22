@@ -38,7 +38,39 @@ const {
 
 const { ERR_CONST_ASSIGNMENT, ERR_UNDEFINED_IDENTIFIER } = errors
 
-const { Promise: ExPromise, eval: evalIndirect } = shared.external
+const { Promise: ExPromise, TypeError: ExTypeError, eval: evalIndirect } = shared.external
+
+// Terser can rewrite template-string coercion as `value + ""`, which uses
+// the wrong ToPrimitive hint. Retain String as a callable intrinsic instead.
+const ImportString = String
+
+function validateDynamicImportOptions(options) {
+  if (options === void 0) {
+    return
+  }
+
+  if (options === null || (typeof options !== "object" && typeof options !== "function")) {
+    throw new ExTypeError("Dynamic import options must be an object")
+  }
+
+  const attributes = options.with
+
+  if (attributes === void 0) {
+    return
+  }
+
+  if (attributes === null || (typeof attributes !== "object" && typeof attributes !== "function")) {
+    throw new ExTypeError("Dynamic import attributes must be an object")
+  }
+
+  // EnumerableOwnProperties collects string keys before looking up their
+  // values. In particular, ignore symbols and non-enumerable properties.
+  for (const key of Object.keys(attributes)) {
+    if (typeof attributes[key] !== "string") {
+      throw new ExTypeError("Dynamic import attribute values must be strings")
+    }
+  }
+}
 
 function isCyclicStarReExport(getter, entry, exportedName) {
   const seen = new Set()
@@ -273,19 +305,33 @@ const Runtime = {
 
     return code
   },
-  dynamicImport(request) {
+  dynamicImport(request, options) {
     const { entry } = this
 
     return new ExPromise((resolvePromise, rejectPromise) => {
-      setImmediate(() => {
-        try {
-          // Section 2.2.1: Runtime Semantics: Evaluation
-          // Step 6: Coerce request to a string.
-          // https://tc39.github.io/proposal-dynamic-import/#sec-import-call-runtime-semantics-evaluation
-          if (typeof request !== "string") {
-            request = request + ""
+      // EvaluateImportCall converts the specifier and processes import
+      // attributes before returning its promise. Errors reject the promise
+      // through its executor instead of escaping from import().
+      try {
+        if (typeof request !== "string") {
+          if (typeof request === "symbol") {
+            throw new ExTypeError("Cannot convert a Symbol value to a string")
           }
 
+          request = ImportString(request)
+        }
+
+        validateDynamicImportOptions(options)
+      } catch (error) {
+        // A failed ToString can originate inside the bundled runtime. Expose
+        // the caller's error constructors without replacing a thrown value.
+        toExternalError(error)
+        rejectPromise(error)
+        return
+      }
+
+      setImmediate(() => {
+        try {
           let lastValue
           let timerId
 

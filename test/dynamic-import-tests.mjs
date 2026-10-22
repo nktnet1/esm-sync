@@ -170,6 +170,97 @@ describe("dynamic import tests", () => {
     }
   })
 
+  it("should reject invalid import options without throwing synchronously", async () => {
+    for (const options of [null, false, 23, "", Symbol("options")]) {
+      let promise
+
+      assert.doesNotThrow(() => {
+        promise = import(abcPath, options)
+      })
+
+      await assert.rejects(promise, TypeError)
+    }
+
+    for (const withValue of [null, false, 23, "", Symbol("attributes")]) {
+      await assert.rejects(import(abcPath, { with: withValue }), TypeError)
+    }
+
+    for (const value of [undefined, null, false, 23, Symbol("value")]) {
+      await assert.rejects(import(abcPath, { with: { type: value } }), TypeError)
+    }
+  })
+
+  it("should reject non-coercible specifiers using the caller's TypeError", async () => {
+    const symbolLike = { [Symbol.toPrimitive]() { return Symbol("specifier") } }
+
+    for (const request of [import.meta, Symbol("specifier"), symbolLike]) {
+      await assert.rejects(import(request), (error) => error.constructor === TypeError)
+    }
+  })
+
+  it("should reject the original abrupt completion from import attributes", async () => {
+    const thrown = new Error("import attribute access failed")
+
+    const options = [
+      { get with() { throw thrown } },
+      { with: new Proxy({}, { ownKeys() { throw thrown } }) },
+      { with: new Proxy({ type: "json" }, { getOwnPropertyDescriptor() { throw thrown } }) },
+      { with: { get type() { throw thrown } } }
+    ]
+
+    for (const option of options) {
+      let promise
+
+      assert.doesNotThrow(() => {
+        promise = import(abcPath, option)
+      })
+
+      await assert.rejects(promise, (error) => error === thrown)
+    }
+  })
+
+  it("should process import attributes synchronously after coercing the specifier", async () => {
+    const log = []
+    const request = {
+      [Symbol.toPrimitive](hint) {
+        log.push(`specifier:${hint}`)
+        return abcPath
+      }
+    }
+    const withValue = new Proxy({}, {
+      ownKeys() {
+        log.push("keys")
+        return ["hidden", Symbol("ignored")]
+      },
+      getOwnPropertyDescriptor(_target, key) {
+        log.push(typeof key === "symbol" ? "symbol" : key)
+        return { configurable: true, enumerable: false, value: "ignored" }
+      },
+      get() {
+        throw new Error("Non-enumerable attributes must not be read")
+      }
+    })
+    const options = {
+      get with() {
+        log.push("with")
+        return withValue
+      }
+    }
+
+    const promise = import(request, options)
+
+    assert.deepStrictEqual(log, ["specifier:string", "with", "keys", "hidden"])
+    await promise.then(assertAbcNs)
+  })
+
+  it("should accept callable options and attribute objects", async () => {
+    const attributes = function attributes() {}
+    const options = function options() {}
+    options.with = attributes
+
+    await import(abcPath, options).then(assertAbcNs)
+  })
+
   it("should reject invalid argument lists", () => {
     const lines = [
       "import()",
