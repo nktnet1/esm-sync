@@ -60,6 +60,28 @@ Test262's parse, resolution, and runtime negative-test phases. The selected
 cases, feature support, and Node host behaviour must therefore be evaluated
 before interpreting any apparent pass percentage as full ECMAScript conformance.
 
+### Conformance re-audit (22 October 2026)
+
+On Linux x64 with Node 24.21.0, the pinned revision has **1,739 runnable
+cases: 1,473 pass, 266 fail, and 6 are excluded**. This builds on the
+previous deferred-import and module-mode fixes. The latest skiplist review
+re-enabled 15 dynamic-import module tests and 6 module early-error tests:
+all 21 pass in the full suite without regressions. The same restored cases
+also pass targeted runs under Node 26.12.0.
+
+All six remaining exclusions are script-goal dynamic-import tests. They need
+a script-aware harness instead of importing the test file as a module. The
+runner also checks expected error **types**, not their declared parse,
+resolution, or runtime **phases**, so an apparent pass is not a complete
+conformance guarantee.
+
+Of the 266 failures, 242 live under `top-level-await` and another 14 involve
+async module evaluation elsewhere. The other ten include five import-bytes
+cases requiring immutable array buffers, three source-phase binding cases,
+one deferred-namespace evaluation-error identity case, and one private-brand
+case whose host private-field behaviour differs from Test262's expectation.
+They should be investigated individually rather than added to the skiplist.
+
 ## Third-party runner dependencies
 
 The following are deliberately retained for **external host interoperability**,
