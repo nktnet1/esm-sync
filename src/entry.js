@@ -71,10 +71,7 @@ const {
 
 const {
   ERR_EXPORT_STAR_CONFLICT,
-  ERR_NS_ASSIGNMENT,
   ERR_NS_DEFINITION,
-  ERR_NS_DELETION,
-  ERR_NS_EXTENSION,
   ERR_NS_REDEFINITION,
   ERR_UNDEFINED_IDENTIFIER
 } = errors
@@ -778,27 +775,18 @@ function assignImmutableNamespaceHandlerTraps(handler, entry) {
   }
 
   handler.deleteProperty = (namespace, name) => {
-    if (Reflect.deleteProperty(namespace, name)) {
-      return true
-    }
-
-    if (!isCalledFromStrictCode()) {
-      return false
-    }
-
-    throw new ERR_NS_DELETION(entry.module, name)
+    // Module namespace [[Delete]] returns false for exported names. The
+    // operation itself cannot determine the caller's strictness: `delete`
+    // throws in strict code, while Reflect.deleteProperty and sloppy code
+    // observe false directly.
+    return Reflect.deleteProperty(namespace, name)
   }
 
-  handler.set = (namespace, name) => {
-    if (!isCalledFromStrictCode()) {
-      return false
-    }
-
-    if (has(namespace, name)) {
-      throw new ERR_NS_ASSIGNMENT(entry.module, name)
-    }
-
-    throw new ERR_NS_EXTENSION(entry.module, name)
+  handler.set = () => {
+    // Module namespace [[Set]] always returns false. Let the caller's
+    // assignment expression throw in strict mode instead of inspecting
+    // stack frames to guess its strictness.
+    return false
   }
 }
 

@@ -39,6 +39,46 @@ describe("dynamic import tests", () => {
     })
   )
 
+  it("should return false for module namespace writes in sloppy code", async () => {
+    const ns = await import(abcPath)
+    const assign = Function("ns", `
+      const existing = (ns.a = "changed")
+      const added = (ns.added = "new")
+      return [existing, added]
+    `)
+
+    assert.deepStrictEqual(assign(ns), ["changed", "new"])
+    assert.strictEqual(Reflect.set(ns, "a", "changed"), false)
+    assert.strictEqual(Reflect.set(ns, "added", "new"), false)
+    assert.strictEqual(Reflect.set(ns, Symbol("extra"), "new"), false)
+    assert.strictEqual(ns.a, "a")
+    assert.strictEqual(Reflect.has(ns, "added"), false)
+  })
+
+  it("should return false for module namespace deletes in sloppy code", async () => {
+    const ns = await import(abcPath)
+    const remove = Function("ns", "return [delete ns.a, delete ns.missing]")
+
+    assert.deepStrictEqual(remove(ns), [false, true])
+    assert.strictEqual(Reflect.deleteProperty(ns, "a"), false)
+    assert.strictEqual(Reflect.deleteProperty(ns, "missing"), true)
+    assert.strictEqual(Reflect.deleteProperty(ns, Symbol.toStringTag), false)
+    assert.strictEqual(ns.a, "a")
+  })
+
+  it("should throw a TypeError for module namespace writes and deletes in strict code", async () => {
+    const ns = await import(abcPath)
+    const assignExisting = Function("ns", '"use strict"; ns.a = "changed"')
+    const assignMissing = Function("ns", '"use strict"; ns.added = "new"')
+    const deleteExisting = Function("ns", '"use strict"; delete ns.a')
+
+    assert.throws(() => assignExisting(ns), TypeError)
+    assert.throws(() => assignMissing(ns), TypeError)
+    assert.throws(() => deleteExisting(ns), TypeError)
+    assert.strictEqual(ns.a, "a")
+    assert.strictEqual(Reflect.has(ns, "added"), false)
+  })
+
   it("should accept a variable", () =>
     import(abcPath)
       .then(assertAbcNs)
