@@ -536,15 +536,19 @@ describe("scenario tests", { concurrency: 3 }, () => {
     // daemon that is still shutting down on Windows.
     before(beforeAndAfter)
     after(beforeAndAfter)
-    afterEach(() => exec("pm2", ["delete", "all"]))
+    afterEach(() => pm2(["delete", "all"]))
 
     const MAX_WAIT = 10000
 
     const logsPath = path.resolve("env/home/.pm2/logs")
+    const pm2Path = path.resolve("../node_modules/pm2/bin/pm2")
     const defaultPM2Args = [
       "start",
       "--no-autorestart",
-      "--wait-ready"
+      "--wait-ready",
+      // PM2 recognizes "node", but not an absolute "node.exe", as the
+      // interpreter that needs its Node container on Windows.
+      "--interpreter", "node"
     ]
 
     // Keep monitoring enabled in bridge cases and exercise explicit Node
@@ -557,8 +561,30 @@ describe("scenario tests", { concurrency: 3 }, () => {
     const pmxGuardPath = path.resolve("fixture/scenario/pm2-cli-preload.cjs")
       .replace(/\\/g, "/")
 
+    function pm2(args) {
+      const env = { ...process.env }
+      const pathKeys = Object.keys(env)
+        .filter((key) => isWin ? key.toLowerCase() === "path" : key === "PATH")
+        .sort()
+      const inheritedPath = pathKeys.length ? env[pathKeys[0]] : ""
+
+      // Use the actual test executable for both the CLI and its applications.
+      // A runtime launcher on PATH may not forward the application's IPC pipe.
+      for (const key of pathKeys) {
+        delete env[key]
+      }
+      env.PATH = [path.dirname(nodePath), inheritedPath].filter(Boolean).join(path.delimiter)
+
+      return execa(nodePath, defaultNodeArgs.concat(pm2Path, args), {
+        cwd: testPath,
+        env,
+        // Do not merge an inherited Windows "Path" back beside our "PATH".
+        extendEnv: false
+      })
+    }
+
     function beforeAndAfter() {
-      return exec("pm2", ["kill"])
+      return pm2(["kill"])
         .then(() => {
           const pidPath = path.resolve("env/home/.pm2/pm2.pid")
           const started = Date.now()
@@ -610,13 +636,13 @@ describe("scenario tests", { concurrency: 3 }, () => {
     }
 
     function runPM2(name, args, expected) {
-      return exec("pm2", defaultPM2Args.concat("--name", name, args))
+      return pm2(defaultPM2Args.concat("--name", name, args))
         .then(() => waitForLogs(name, expected))
         .then(({ stderr, stdout }) => {
           assert.strictEqual(stderr, "")
           assert.ok(stdout.split(/\r?\n/).includes(expected),
             `${name} did not acknowledge PM2 IPC readiness:\n${stdout}`)
-          return exec("pm2", ["jlist"])
+          return pm2(["jlist"])
         })
         .then(({ stdout }) => {
           const app = JSON.parse(stdout).find((app) => app.name === name)
@@ -627,7 +653,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
           // ProcessContainerFork sends node_version before loading the fixture.
           // This checks that the startup message reached the daemon as well.
           assert.strictEqual(app.pm2_env.node_version, process.versions.node)
-          return exec("pm2", ["stop", name])
+          return pm2(["stop", name])
         })
         .then(() => {
           // Read again after stopping the app so late errors cannot be hidden

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import path from "node:path"
 import { rm } from "node:fs/promises"
-import { afterAll, beforeAll, describe, it } from "vitest"
+import { beforeAll, describe, it } from "vitest"
 import { collectNativeCases, location } from "./native-cases.mts"
 import { runNode, testEnvironments, testPath, type NodeResult } from "./helpers/run-node.mts"
 
@@ -171,13 +171,10 @@ async function executeQueuedSuites() {
   for (const job of cacheJobs) await executeNativeSuite(job)
 }
 
-let activeRuns: Promise<void> | undefined
-beforeAll(() => {
-  activeRuns = executeQueuedSuites()
-})
-afterAll(async () => {
-  await activeRuns
-}, 600_000)
+// Wait for the whole queue before starting per-suite hooks. Cache suites run
+// last, so their own hook timeout must not include time spent waiting on other
+// suites. Each subprocess still has its separate execution timeout.
+beforeAll(executeQueuedSuites, 600_000)
 
 for (const esmEnv of testEnvironments) {
   describe(`native Node integration (${esmEnv})`, () => {
