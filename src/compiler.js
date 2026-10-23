@@ -17,6 +17,7 @@ import setDeferred from "./util/set-deferred.js"
 import shared from "./shared.js"
 import stripShebang from "./util/strip-shebang.js"
 import temporalVisitor from "./visitor/temporal.js"
+import topLevelAwaitVisitor from "./visitor/top-level-await.js"
 import undeclaredVisitor from "./visitor/undeclared.js"
 import requireDeclarationVisitor, {
   getEsmRequireReplacementName
@@ -59,6 +60,7 @@ function init() {
       importExportVisitor.reset()
       requireVisitor.reset()
       temporalVisitor.reset()
+      topLevelAwaitVisitor.reset()
       undeclaredVisitor.reset()
       requireDeclarationVisitor.reset()
 
@@ -301,7 +303,16 @@ function init() {
         })
       }
 
+      if (sourceType === SOURCE_TYPE_MODULE && top.firstAwaitOutsideFunction !== null) {
+        topLevelAwaitVisitor.visit(rootPath, {
+          magicString,
+          possibleIndexes: findIndexes(code, ["await"]),
+          runtimeName
+        })
+      }
+
       result.transforms =
+        topLevelAwaitVisitor.transforms |
         evalVisitor.transforms |
         globalsVisitor.transforms |
         importExportTransforms |

@@ -25,9 +25,9 @@ clear error rather than hanging or returning incomplete exports otherwise.
 - [ ] Trace TLA through parsing, linking, and evaluation (`src/entry.js` and
       `src/module/internal/compile.js`); classify direct/transitive async graphs
       and cycles before execution.
-- [ ] Investigate sync-compatible transformations and native event-loop/microtask
-      progress. Evaluate correctness, re-entrancy, overhead, and failure cases;
-      do not require workers or a new consumer API by default.
+- [ ] Extend microtask-settled TLA support to timers, filesystem, and network
+      I/O where safe; validate re-entrancy, runtime portability, and overhead
+      without workers or consumer API changes.
 - [ ] Implement graph-aware evaluation, dependency ordering, rejection handling,
       and caching without breaking the existing synchronous loader.
 - [ ] Handle unsatisfiable or never-settling async dependencies without deadlocks,

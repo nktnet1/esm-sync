@@ -16,6 +16,7 @@ import isFileOrigin from "./util/is-file-origin.js"
 import isPath from "./util/is-path.js"
 import isStackTraceMaskable from "./util/is-stack-trace-maskable.js"
 import makeRequireFunction from "./module/internal/make-require-function.js"
+import { makeAwait } from "./module/internal/sync-await.js"
 import maskStackTrace from "./error/mask-stack-trace.js"
 import setDeferred from "./util/set-deferred.js"
 import { setImmediate } from "./safe/timers.js"
@@ -596,6 +597,7 @@ const Runtime = {
     runtime.initBindings = Runtime.initBindings
     runtime.resumeChildren = Runtime.resumeChildren
     runtime.run = Runtime.run
+    runtime.syncAwait = makeAwait
     runtime.runResult = void 0
     runtime.throwConstAssignment = Runtime.throwConstAssignment
     runtime.updateBindings = Runtime.updateBindings
@@ -610,6 +612,7 @@ const Runtime = {
     runtime.g = runtime.global
     runtime.i = runtime.dynamicImport
     runtime.j = runtime.initBindings
+    runtime.h = runtime.syncAwait
     runtime.k = identity
     runtime.n = runtime.addNamespaceSetter
     runtime.o = ERROR_GETTER

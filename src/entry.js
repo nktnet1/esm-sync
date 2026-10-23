@@ -30,6 +30,7 @@ import keys from "./util/keys.js"
 import ownPropertyNames from "./util/own-property-names.js"
 import proxyExports from "./util/proxy-exports.js"
 import readFile from "./fs/read-file.js"
+import { resumeSync } from "./module/internal/sync-await.js"
 import setDeferred from "./util/set-deferred.js"
 import setPrototypeOf from "./util/set-prototype-of.js"
 import shared from "./shared.js"
@@ -558,9 +559,16 @@ class Entry {
         if (runResult !== void 0 && childEntry.state < STATE_EXECUTION_STARTED) {
           childEntry.state = STATE_EXECUTION_STARTED
           childEntry.running = true
-          runResult.next()
-          childEntry.module.loaded = true
-          childEntry.running = false
+          try {
+            if (childEntry.compileData.firstAwaitOutsideFunction === null) {
+              runResult.next()
+            } else {
+              resumeSync(runResult)
+            }
+            childEntry.module.loaded = true
+          } finally {
+            childEntry.running = false
+          }
         }
 
         if (typeof childEntry._finalize === "function") {
