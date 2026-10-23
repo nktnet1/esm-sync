@@ -334,6 +334,50 @@ cases, and three other runtime cases), nine deferred imports, and 241
 `top-level-await` cases. Async module graphs and ModuleSource support remain
 out of scope.
 
+### Remaining runtime conformance investigation (v1.0.20)
+
+The complete pinned v1.0.19 report on Linux / Node 26.12.0 still has **265
+failures**, nine independently reported unsupported cases, and no exclusions.
+The remaining failures do **not** all indicate incomplete synchronous import
+linking:
+
+| Test262 area | Failures | Observed constraint |
+| --- | ---: | --- |
+| `module-code/top-level-await` | 241 | Async module evaluation is outside the synchronous loader's scope. |
+| `import/import-defer` | 9 | Eight tests explicitly require async module graphs; `deferred-namespace-object/identity.js` also contains a top-level `await import.defer(...)`. |
+| `expressions/dynamic-import` / deferred async dependencies or errored async cycle | 5 | Require top-level await in imported modules or async-cycle evaluation. |
+| `expressions/dynamic-import` / `for-await-resolution-and-error*` | 3 | Pass unchanged on Node 24.21.0; fail under the Node 26.12.0 Test262 `vm.Script`/native dynamic-import execution path. |
+| `expressions/dynamic-import` / script grammar and `syntax/valid` runtime cases | 6 | An unobserved runtime import in `assignment-expression/unary-expr.js`, and five observable `with`/constructor tests. Native resolution of deliberately invalid specifiers causes rejected promises. |
+| `expressions/dynamic-import` / `import-attributes/2nd-param-with-type-text.js` | 1 | Host text-module support is required; the Node 26 run throws `TypeError`. |
+
+The Test262 deferred namespace identity case is **not** a synchronous identity
+regression: the source contains top-level `await`. A separate required
+phase-validation regression checks the equivalent synchronous graph without
+that dependency: repeated static imports, an import through a different
+module, and `import.defer()` all share one deferred namespace, distinct from
+the ordinary eager namespace. This passes on Node 24.21.0 and Node 26.12.0,
+and keeps the actual Test262 case active and failing as before.
+
+The three `for await` failures are reproducible on Node 26 and their stderr
+starts at `node:internal/modules/esm/module_job:702` (`evaluateSync`). The
+same pinned files, wrapper, and esm-sync build pass on Node 24. Replacing
+native script `import()` with esm-sync's dynamic-import runtime was tested
+locally but **did not** preserve all the cases' error/assertion behaviour, so
+that broad harness replacement was discarded. A Node 26 host-loader or
+harness interaction remains to investigate; neither an esm-sync root cause
+nor a safe fix has been established. No assertions, error checks, or
+unhandled-rejection handling were relaxed.
+
+The five `syntax/valid` failures with runtime assertions must **not** be
+reclassified as grammar-only merely because their filenames contain
+`syntax/valid`: their `with` and constructor expressions inspect actual
+Promise objects. Similarly, ignoring unhandled rejections would hide runtime
+failures. ModuleSource and text-import host support are not added by this
+patch. All 1,745 selected cases continue to be reported, with no new skip or
+unsupported classifications. This investigation adds a synchronous identity
+regression and documentation only; it does not claim a higher Test262 pass
+count or change production loader behaviour.
+
 ## Third-party runner dependencies
 
 The following are deliberately retained for **external host interoperability**,

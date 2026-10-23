@@ -550,6 +550,32 @@ describe("Test262 negative-phase verification", () => {
     assert.equal(runtime.stdout, "")
   })
 
+  it("reuses deferred namespace identity across static and dynamic imports without top-level await", async () => {
+    const result = await executeCase({
+      source: `
+import * as eager from "./dependency.mjs";
+import defer * as first from "./dependency.mjs";
+import defer * as second from "./dependency.mjs";
+import { fromBridge } from "./bridge.mjs";
+assert.sameValue(first, second, "repeated static imports share a deferred namespace");
+assert.sameValue(first, fromBridge, "different importers share a deferred namespace");
+assert.notSameValue(first, eager, "deferred and eager namespaces are distinct");
+import.defer("./dependency.mjs")
+  .then((dynamic) => {
+    assert.sameValue(first, dynamic, "static and dynamic deferred namespaces are identical");
+    assert.sameValue(dynamic.value, 42);
+  })
+  .then($DONE, $DONE);`,
+      dependencies: {
+        "dependency.mjs": "export const value = 42;",
+        "bridge.mjs": 'import defer * as ns from "./dependency.mjs"; export const fromBridge = ns;'
+      },
+      isModule: true,
+      isAsync: true
+    })
+    assert.equal(result.stdout, "")
+  })
+
   it("classifies actual dependency evaluation failures as runtime errors", async () => {
     const result = await executeCase({
       source: 'import "./dependency.mjs"',
