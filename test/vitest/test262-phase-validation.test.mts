@@ -24,6 +24,7 @@ type TestCaseOptions = {
   source: string
   isModule?: boolean
   moduleFilename?: string
+  packageType?: "commonjs" | "module"
   isAsync?: boolean
   expectedPhase?: string
   syntaxOnly?: boolean
@@ -40,6 +41,12 @@ async function executeCase(options: TestCaseOptions) {
       options.moduleFilename ?? (isModule ? "case.mjs" : "case.js")
     )
     await writeFile(filename, options.source)
+    if (options.packageType) {
+      await writeFile(
+        path.join(directory, "package.json"),
+        JSON.stringify({ type: options.packageType })
+      )
+    }
     if (options.dependency !== undefined) {
       await writeFile(path.join(directory, "dependency.mjs"), options.dependency)
     }
@@ -288,9 +295,50 @@ describe("Test262 negative-phase verification", () => {
 
   it("enforces the Test262 module goal for syntax-free .js files", async () => {
     const result = await executeCase({
-      source: 'if (this !== undefined) throw new SyntaxError("executed as CommonJS")',
+      source:
+        'if (this !== undefined || typeof require !== "undefined" || typeof module !== "undefined") throw new SyntaxError("executed as CommonJS")',
       moduleFilename: "case.js",
+      packageType: "commonjs",
       isModule: true
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("uses the module goal for syntax-free .js dependencies", async () => {
+    const result = await executeCase({
+      source:
+        'import "./dependency.js"; if (this !== undefined) throw new SyntaxError("root was CommonJS")',
+      dependencies: {
+        "dependency.js": 'if (this !== undefined) throw new SyntaxError("dependency was CommonJS")'
+      },
+      moduleFilename: "case.js",
+      packageType: "commonjs",
+      isModule: true
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("checks the resolution of syntax-free .js modules without running their bodies", async () => {
+    const result = await executeCase({
+      source: 'throw new SyntaxError("evaluated instead of linked")',
+      moduleFilename: "case.js",
+      packageType: "commonjs",
+      isModule: true,
+      expectedPhase: "resolution"
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("links syntax-free .js dependencies without executing them", async () => {
+    const result = await executeCase({
+      source: 'import "./dependency.js"; throw new SyntaxError("root evaluated")',
+      dependencies: {
+        "dependency.js": 'throw new SyntaxError("dependency evaluated during linking")'
+      },
+      moduleFilename: "case.js",
+      packageType: "commonjs",
+      isModule: true,
+      expectedPhase: "resolution"
     })
     assert.equal(result.stdout, "")
   })

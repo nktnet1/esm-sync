@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url"
 import path from "path"
 import vm from "vm"
 const requireHelper = createRequire(import.meta.url)
-const { checkModuleLink, getCompiler, getLinkOnly, parseTest, runModule } = requireHelper("./phase-analysis.cjs")
+const { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule } = requireHelper("./phase-analysis.cjs")
 
 const MAX_WAIT = 1000
 const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = "", syntaxOnly = "false"] = process.argv
@@ -130,7 +130,7 @@ async function main() {
   // phases. Initialise outside the test-error handler to prevent false passes.
   if (needsParsing) getCompiler()
   if (isModule === "true" && expectedPhase !== "parse" && syntaxOnly !== "true") {
-    getLinkOnly()
+    getModuleLoader()
   }
 
   const phase = "runtime"

@@ -39,11 +39,10 @@ function parseTest(filename, isModule) {
 // Use the loader's own parse/link path, not a second implementation based on
 // vm.SourceTextModule. Compiler and bridge bootstrap errors must escape
 // the Test262 reporter rather than look like expected resolution failures.
-let linkOnly
-let moduleRequire
+let moduleLoader
 
-function getLinkOnly() {
-  if (linkOnly) return linkOnly
+function getModuleLoader() {
+  if (moduleLoader) return moduleLoader
 
   const root = path.resolve(__dirname, "../..")
   const esm = require(root)
@@ -55,26 +54,27 @@ function getLinkOnly() {
   const ownRequire = esm(ownModule)
   const version = require(path.join(root, "package.json")).version
   const shared = ownRequire(Symbol.for(`esm\u200d@${version}:shared`))
-  const check = shared?.module?.test262LinkOnly
-  if (typeof check !== "function") {
-    throw new Error("Test262: esm-sync test-only linker is unavailable")
+  const load = shared?.module?.test262Load
+  if (typeof load !== "function") {
+    throw new Error("Test262: esm-sync test-only module loader is unavailable")
   }
 
-  linkOnly = (filename) => check(filename, module)
-  moduleRequire = ownRequire
-  return linkOnly
+  moduleLoader = (filename, linkOnly) => load(filename, module, linkOnly)
+  return moduleLoader
 }
 
 function runModule(filename) {
-  getLinkOnly()
-  return moduleRequire(filename)
+  // Instantiate and evaluate via the same esm-sync loader used for the
+  // resolution check. Requiring a syntax-free .js file can instead run Node's
+  // CommonJS loader, which does not respect Test262's module flag.
+  return getModuleLoader()(filename, false)
 }
 
 function checkModuleLink(filename) {
-  const link = getLinkOnly()
+  const link = getModuleLoader()
 
   try {
-    link(filename)
+    link(filename, true)
     return { linked: true }
   } catch (error) {
     // The root is parsed before instantiation. Syntax errors discovered while
@@ -83,4 +83,4 @@ function checkModuleLink(filename) {
   }
 }
 
-module.exports = { checkModuleLink, getCompiler, getLinkOnly, parseTest, runModule }
+module.exports = { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule }

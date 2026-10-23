@@ -41,15 +41,15 @@ const { ERR_INVALID_ARG_TYPE } = errors
 
 const { safeGlobal, unsafeGlobal } = shared
 
-// The Test262 harness observes the real loader's linking pass without
-// evaluating modules. Keep this private to test builds; applications use the
-// unchanged public require() API, which continues to evaluate after linking.
+// The Test262 harness observes the real loader's linking pass and uses the
+// same loader for evaluation. Keep this private to test builds; applications
+// continue using the unchanged public require() API.
 if (process.env.ESM_SYNC_TEST_BUILD) {
-  shared.module.test262LinkOnly = (filename, parent) => {
+  shared.module.test262Load = (filename, parent, linkOnly) => {
     // Test262's `module` flag must apply even to syntax-free .js fixtures.
     // Scope mode:all to the test graph rather than the harness or host modules.
     Package.from(filename, { cache: false, cjs: false, mode: "all" })
-    return esmParseLoad(filename, parent, false, true)
+    return esmParseLoad(filename, parent, false, linkOnly)
   }
 }
 

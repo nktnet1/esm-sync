@@ -110,7 +110,7 @@ execution and tagged `syntaxOnly: true` in JSON reports. Other `syntax/valid`
 cases still execute their assertions. Async
 tests wait for `$DONE`, reject its error argument or duplicate calls, and
 surface unhandled rejections and timeouts instead of treating print output as
-success. The complete corpus has not been rerun after these harness changes.
+success. The follow-up full-corpus results are recorded in the 23 October audit below.
 
 ### Conformance re-audit (22 October 2026)
 
@@ -197,9 +197,12 @@ same resolver and binding machinery as normal esm-sync imports.
 A resolution-negative case **stops after linking**, regardless of success;
 a body throwing the expected error type cannot disguise a successful link.
 Positive module cases and runtime-negative module cases are linked first and
-only then evaluated using esm-sync's normal require hook. This keeps runtime
-error attribution on the same loader as link validation, rather than letting
-a second, native Node linking pass masquerade as a runtime error. An inability
+only then evaluated using the **same internal esm-sync loader**. The Test262
+bridge does not pass syntax-free `.js` modules through Node's `require()`
+entry point, which could execute them as CommonJS instead of respecting
+Test262's module goal. This also keeps runtime error attribution on the
+same loader as link validation, rather than letting a second, native Node
+linking pass masquerade as a runtime error. An inability
 to initialise the private validation bridge fails the runner rather than
 masquerading as a Test262 error. The JSON report schema and unsupported
 feature classifications are unchanged. Top-level await and ModuleSource
@@ -218,7 +221,40 @@ including ordinary application CommonJS modules.
 After the script-goal change restored one excluded case, the fixture-loading
 fix restores the other five dynamic-import namespace cases. The skiplist is
 now empty. These cases are covered by targeted Vitest subprocess regressions;
-the complete Test262 corpus has not been rerun after the script-goal changes.
+a full-corpus rerun after these changes is recorded in the 23 October audit below.
+
+The Test262 `module` flag also requires syntax-free `.js` files to retain
+module semantics inside a `"type": "commonjs"` package. In particular, the
+loader must not delegate a zero-transform `.js` file to Node's native
+CommonJS extension handler when `mode: all` is explicitly set. The same rule
+prevents dependencies from evaluating during resolution-only checks. Ordinary
+CommonJS extension passthrough remains available outside that forced mode.
+
+### Test262 conformance audit (23 October 2026)
+
+The complete pinned selection on **Linux / Node 26.12.0**, both before
+and after the module-goal bridge correction, recorded **1,745 selected:
+1,352 passed, 384 failed, 9 unsupported, 0 excluded**. The failing cases fall
+into four source-path groups: 242 under `module-code/top-level-await`, 111
+under `expressions/dynamic-import`, 22 other `module-code` failures, and 9
+under `import/import-defer`. Directory groups do not establish individual
+root causes: the dynamic-import group includes deferred-import and
+source-phase cases, while most of the remaining import-defer failures
+involve top-level await.
+
+The 22 non-await `module-code` failures are all **parse-negative** tests.
+The compiler-only preflight currently accepts their invalid module sources;
+instantiating the graph may detect these errors later, but that is too late
+to satisfy a parse-phase assertion. This needs a reliable module-goal
+*parse-only* validation path, not a separate linker or an error-name-only
+match. The nine unsupported cases are reported separately (five immutable
+ArrayBuffer, one private-field host-semantic, three ModuleSource-binding).
+
+After the module-goal bridge correction, **108/108** `instn-` cases and
+**341/366** module-code cases selected without the `top-level-await`
+feature pass; the latter has the same 22 parse-phase failures and three
+unsupported cases. The final full-corpus rerun reproduced the same 1,745-case
+totals, with no new regressions or additional exclusions.
 
 ## Third-party runner dependencies
 
