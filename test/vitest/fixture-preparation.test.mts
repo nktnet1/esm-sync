@@ -17,7 +17,9 @@ const dirs = [
   "test/language/expressions/dynamic-import",
   "test/language/expressions/import.meta",
   "test/language/import",
-  "test/language/module-code"
+  "test/language/module-code",
+  "test/language/statements/using",
+  "test/language/statements/await-using"
 ]
 
 const created: string[] = []
@@ -59,5 +61,15 @@ describe("Test262 fixture provenance", () => {
     await writeFile(path.join(directory, ".prepared-revision"), setupTest262.revision + "\n")
     await rm(path.join(directory, "test/language/module-code"), { recursive: true })
     assert.equal(setupTest262.isPrepared(directory), false)
+  })
+
+  it("requires the pinned resource-management groups in an already marked corpus", async () => {
+    const directory = await makeCorpus()
+    await writeFile(path.join(directory, ".prepared-revision"), setupTest262.revision + "\n")
+    for (const name of ["using", "await-using"]) {
+      await rm(path.join(directory, "test/language/statements", name), { recursive: true })
+      assert.equal(setupTest262.isPrepared(directory), false)
+      await mkdir(path.join(directory, "test/language/statements", name))
+    }
   })
 })

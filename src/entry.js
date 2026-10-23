@@ -345,6 +345,9 @@ class Entry {
     this.builtin = false
     // The child entries of the module.
     this.children = { __proto__: null }
+    // Preserve request order and phase once a deferred import is encountered.
+    // Ordinary modules keep using children directly, without allocating a list.
+    this.moduleRequests = null
     // The circular import indicator.
     this.circular = false
     // The module dirname.

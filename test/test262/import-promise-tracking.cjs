@@ -6,7 +6,7 @@ const { Parser, tokenizer } = require("acorn")
 // Test262 synchronous scripts can inspect that Promise without awaiting it;
 // only that Promise's unobserved rejection is outside their completion signal.
 // Annotate those expressions without replacing their values or import loader.
-function instrumentNativeImports(source, observerName) {
+function instrumentNativeImports(source, observerName, runtimeName) {
   const tokens = []
   const reader = tokenizer(source, { ecmaVersion: "latest", sourceType: "script" })
   let token
@@ -47,7 +47,10 @@ function instrumentNativeImports(source, observerName) {
     if (!node || typeof node !== "object") return
     if (
       node.type === "ImportExpression" ||
-      (node.type === "CallExpression" && sourceCalls.has(node.start))
+      (node.type === "CallExpression" && (sourceCalls.has(node.start) ||
+        (runtimeName !== undefined && node.callee.type === "MemberExpression" &&
+          !node.callee.computed && node.callee.object.type === "Identifier" &&
+          node.callee.object.name === runtimeName && ["i", "p", "q"].includes(node.callee.property.name))))
     ) {
       bounds.push([node.start, node.end])
     }

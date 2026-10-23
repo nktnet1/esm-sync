@@ -19,11 +19,16 @@ import makeRequireFunction from "./module/internal/make-require-function.js"
 import { makeAwait } from "./module/internal/sync-await.js"
 import { asyncIterator, resources } from "./module/internal/async-syntax.js"
 import {
+  gatherAsynchronousDependencies,
+  requestedDependencies
+} from "./module/internal/evaluation-dependencies.js"
+import {
   isAsyncEvaluating,
-  observeAsyncFailure,
+  observeAsyncCompletion,
   queueAsyncImport
 } from "./module/internal/async-graph.js"
 import maskStackTrace from "./error/mask-stack-trace.js"
+import promiseThen from "./util/promise-then.js"
 import setDeferred from "./util/set-deferred.js"
 import { setImmediate } from "./safe/timers.js"
 import shared from "./shared.js"
@@ -44,6 +49,7 @@ const {
   TYPE_CJS,
   TYPE_ESM,
   TYPE_PSEUDO,
+  UPDATE_TYPE_INIT,
   UPDATE_TYPE_LIVE
 } = ENTRY
 
@@ -121,10 +127,12 @@ function readyForSyncExecution(entry, seen = new Set()) {
   if (isAsyncEvaluating(entry, true)) return false
   if (seen.has(entry) || entry.state === STATE_EXECUTION_COMPLETED) return true
   if (entry.state === STATE_EXECUTION_STARTED || entry.running) return false
+  if (entry.compileData?.firstAwaitOutsideFunction != null) return false
 
   seen.add(entry)
-  for (const name in entry.children) {
-    if (!readyForSyncExecution(entry.children[name], seen)) return false
+  const children = requestedDependencies(entry)
+  for (const name in children) {
+    if (!readyForSyncExecution(children[name], seen)) return false
   }
 
   return true
@@ -355,7 +363,7 @@ const Runtime = {
 
     return code
   },
-  importDeferred(request, setterArgsList) {
+  importDeferred(request, setterArgsList, isDynamic = false) {
     const parentEntry = this.entry
     const { moduleState } = shared
     const previousParsing = moduleState.parsing
@@ -383,6 +391,15 @@ const Runtime = {
     if (!previousChildren.has(childEntry) && parentEntry.children[childEntry.name] === childEntry) {
       delete parentEntry.children[childEntry.name]
     }
+    if (!isDynamic) {
+      if (parentEntry.moduleRequests === null) {
+        parentEntry.moduleRequests = Object.values(parentEntry.children).map((entry) => ({
+          entry,
+          deferred: false
+        }))
+      }
+      parentEntry.moduleRequests.push({ entry: childEntry, deferred: true })
+    }
 
     let namespace = childEntry.deferredNamespace
     if (namespace === void 0) {
@@ -408,8 +425,11 @@ const Runtime = {
 
       const ensureEvaluated = () => {
         if (hasFailure) throw failure
+        if (has(childEntry, "evaluationError")) throw childEntry.evaluationError
         if (!readyForSyncExecution(childEntry)) {
-          throw new ExTypeError("Deferred module cannot be evaluated synchronously")
+          const error = new ExTypeError("Deferred module cannot be evaluated synchronously")
+          error.code = "ERR_ESM_SYNC_ASYNC_REENTRANT"
+          throw error
         }
         if (started) return
         started = true
@@ -469,6 +489,7 @@ const Runtime = {
     for (const [, , setter] of setterArgsList) {
       setter(namespace, childEntry)
     }
+    return childEntry
   },
   dynamicSourceImport(request, options) {
     return Runtime.dynamicImport.call(this, request, options, "source")
@@ -511,16 +532,32 @@ const Runtime = {
           // to eager import(), which would run side effects prematurely.
           if (phase === "defer") {
             let namespace
-            Runtime.importDeferred.call(this, request, [
+            const imported = Runtime.importDeferred.call(
+              this,
+              request,
               [
-                "*",
-                null,
-                (value) => {
-                  namespace = value
-                }
-              ]
-            ])
-            resolvePromise(namespace)
+                [
+                  "*",
+                  null,
+                  (value) => {
+                    namespace = value
+                  }
+                ]
+              ],
+              true
+            )
+            const dependencies = [...gatherAsynchronousDependencies(imported).values()]
+            let remaining = dependencies.length
+            if (remaining === 0) resolvePromise(namespace)
+            for (const dependency of dependencies) {
+              promiseThen(
+                Runtime.dynamicImport.call(this, dependency.filename),
+                () => {
+                  if (--remaining === 0) resolvePromise(namespace)
+                },
+                rejectPromise
+              )
+            }
             return
           }
           if (phase === "source") {
@@ -528,7 +565,6 @@ const Runtime = {
           }
 
           let lastValue
-          let timerId
 
           const setterArgsList = [
             [
@@ -537,12 +573,6 @@ const Runtime = {
               createAccessor(SETTER_TYPE_DYNAMIC_IMPORT, (value, childEntry) => {
                 if (childEntry._loaded === LOAD_COMPLETED) {
                   lastValue = value
-
-                  if (timerId === void 0) {
-                    const finish = () => resolvePromise(lastValue)
-                    timerId = queueAsyncImport(finish) ? true : setImmediate(finish)
-                  }
-
                   return true
                 }
               })
@@ -554,7 +584,22 @@ const Runtime = {
           moduleState.asyncImport = true
           try {
             const imported = esmImport(request, entry, setterArgsList, true, moduleType)
-            observeAsyncFailure(imported, rejectPromise)
+            const finish = () => {
+              try {
+                if (imported !== void 0) {
+                  imported.loaded()
+                  imported.updateBindings(null, UPDATE_TYPE_INIT)
+                }
+                resolvePromise(lastValue)
+              } catch (error) {
+                rejectPromise(error)
+              }
+            }
+            // Promise resolution already schedules reactions asynchronously.
+            // An extra setImmediate lets a later import reject before earlier
+            // successful imports have fulfilled. Async cycles wait for their
+            // root, including members whose own body has already completed.
+            if (!observeAsyncCompletion(imported, finish, rejectPromise)) finish()
           } finally {
             moduleState.asyncImport = previousImport
           }

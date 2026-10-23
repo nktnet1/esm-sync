@@ -29,6 +29,8 @@ and single evaluation. Rejected modules retain the original thrown value, even
 `undefined`, `null`, or another primitive. Subsequent imports of failed modules
 and their affected importers rethrow that value. A failed cycle retains its
 failure across its members.
+Rejection propagation finishes before graph cleanup, so a later import of a
+previously completed cycle member rejects with that same error object.
 
 Awaited dynamic imports join the evaluator without recursively polling the event
 loop. Unawaited dynamic imports keep running asynchronously after the requested
@@ -45,6 +47,27 @@ member whose own body has finished while its async root is still pending. The
 linking lookup used by `esmRequire` applies the same boundary. Nested and failed
 loads restore the caller's parsing state and balance its require depth.
 
+## Deferred imports
+
+Static `import defer` and dynamic `import.defer()` gather asynchronous
+dependencies in request order. A target containing TLA executes eagerly;
+otherwise its asynchronous dependencies finish first and its synchronous body
+stays deferred until an export operation. Shared dependencies execute once,
+and an in-flight async cycle is complete only when its root finishes.
+Dependencies are deduplicated by module identity, preserving separate text and
+JavaScript records for the same file.
+
+Reading a deferred namespace while its module or dependencies are evaluating
+throws a `TypeError` with `code: "ERR_ESM_SYNC_ASYNC_REENTRANT"`. The namespace
+can be read after evaluation finishes. Evaluation failures retain their
+original values and identities.
+
+Successful dynamic imports resolve when their evaluation completes, without an
+extra event-loop turn that could let a later failed import reject first. Await,
+async iteration, disposal, and deferred-import aggregation use captured Promise
+intrinsics rather than user-replaced `Promise.prototype.then`, `Promise.resolve`,
+or `Promise.reject` methods.
+
 ## Async iteration and resource management
 
 Module-body `for await...of` supports synchronous and asynchronous iterables,
@@ -56,7 +79,8 @@ in the body retain precedence over errors from iterator cleanup. Errors in
 
 Module-body `await using` and related synchronous `using` declarations preserve
 module, block, switch, and loop scopes and dispose resources in reverse
-registration order. Async disposal finishes before the loader returns the module's exports. Export getters
+registration order. Async disposal finishes before the loader returns the
+module's exports. Export getters
 and hoisted functions remain in the same lexical scope as their declarations,
 including in cycles. Per-iteration resources finish disposal before the next
 iteration or iterator close.
@@ -73,6 +97,8 @@ Node 22's disposal symbols are resolved through its `nodejs.dispose` and
 Await/using syntax inside functions and class static blocks retains the host
 runtime's behavior. The new lowering applies to module execution, including
 its nested statements, rather than changing exported async functions.
+Those function/static-block declarations require native syntax support;
+unsupported host syntax produces a `SyntaxError` before execution.
 
 ## Timers and I/O
 
@@ -101,8 +127,10 @@ nested asynchronous graph or observe a pending namespace.
 Extending synchronous I/O to callbacks is blocked on a supported Node/libuv
 mechanism. Removing the guards would recursively enter an executing loop; moving
 the work to a different loop/thread would change the execution context and
-module identity. This patch keeps that roadmap item open and adds coverage of
-each calling context instead of claiming that recursive polling is safe.
+module identity. This is a documented unsupported capability under the current
+runtime APIs, with regression-tested errors in JavaScript and the native poll
+entry point. The roadmap records that support decision as resolved; it does
+not claim that synchronous callback I/O has been implemented.
 
 The install script attempts to compile the bridge using matching Node headers
 and a C++20 compiler. Builds used for testing require compilation to succeed.
@@ -131,6 +159,11 @@ one millisecond between nonblocking polls.
 | `ERR_ESM_SYNC_ASYNC_PENDING` | No active event-loop work can resolve an outstanding await, or the required native bridge is unavailable. |
 | `ERR_ESM_SYNC_ASYNC_REENTRANT` | The caller would need unsafe recursive loop/microtask execution, or would observe an unfinished async module through synchronous re-entry. |
 | `ERR_ESM_SYNC_ASYNC_TIMEOUT` | The polling deadline expired, or its environment setting is invalid. |
+
+An unavailable bridge includes the original module-load failure as its
+non-enumerable `cause`, preserving missing-binary and ABI/load diagnostics.
+Deferred namespace access uses `TypeError` plus the re-entry code; the ordinary
+synchronous loader and direct native poll guard use `Error` with that code.
 
 A loader failure is not thrown into the module's generator as a rejected await:
 module code cannot catch it and manufacture a successful partial namespace. The
@@ -199,30 +232,57 @@ The Test262 phase checker validates native await syntax before execution-time
 yield lowering; module tests start the synchronous loader outside a Promise
 reaction. No corpus exclusions or assertions are relaxed.
 
+`test/vitest/test262-async-followup.test.mts` makes the twelve reported failures,
+three dynamic-import/for-await cases, waiting-module import order, script text
+imports, and all ten module-goal resource-management cases required regressions.
+Each cached case runs twice in fresh processes. Fixture preparation includes
+both `statements/using` and `statements/await-using` at the existing pinned SHA
+and rejects an older prepared subset missing either directory.
+
+Script-goal cases keep `vm.Script` global scope and grammar while their import
+calls use esm-sync's runtime. This tests the loader and avoids Node/V8's fatal
+errored-cycle evaluation path. Returned import Promises retain their identity;
+unrelated unhandled rejections remain failures. The wrapper also uses captured
+Promise methods so its own completion observation cannot affect assertions
+about patched `Promise.prototype.then`.
+
+The phase checker validates resource grammar with strict Acorn, then uses
+`const` declarations only in its non-executed validation text for Node's other
+early-error checks. Node 22 can therefore validate declarations that the loader
+supports even though the host parser cannot parse that syntax natively.
+
 ## Recorded validation
 
 Linux x64 runs used the supplied Node **22.23.4**, **24.21.0**, and **26.12.0**
-executables. Each runtime passed **148 async checks in development and 148 in
-production**, including cached and uncached cases: **888 checks** in total.
-The packed CommonJS consumer and CLI preload passed on all three runtimes with
-native timer awaits, async iteration/disposal, namespace identity, and live
-bindings. Package contents were checked without installing dependencies.
+executables. The final source passed **96 targeted development checks on each
+runtime**, covering 21 async-syntax scenarios and 27 pinned upstream cases in
+cached and uncached modes. Cached cases run twice in fresh processes.
 
-The complete Node 26 development and production runs and Node 24 production run
-each passed **1,058 tests**, with **no failures or skips**. All four PM2 scenarios
-passed in both cache modes with real daemons and IPC. The cache concurrency
-regression and missing-bridge regression passed. Biome and both TypeScript
-projects passed. Native bridge builds succeeded for all three supplied Node ABIs.
+The complete production suites on Node 24 and 26 each passed **1,122 tests in
+25 files**, with no failures or skips. Node 22 passed **277 focused production
+checks in nine files**, including all async, phase-validation, fixture, and
+selection regressions. All four PM2 scenarios passed in both cache modes with
+real daemons and IPC. The cache concurrency and missing-bridge regressions
+passed. Native bridge builds succeeded for all three supplied Node ABIs.
+The packed CommonJS consumer and CLI preload passed on all three runtimes,
+including native awaits, iteration/disposal, deferred dependencies, namespace
+identity, and live bindings. Package contents were checked without installing
+dependencies. Biome and both TypeScript projects passed.
 Windows/macOS execution remains covered by the configured CI matrix, not by
 these Linux-only local runs; the reported Node 26.12.1 runtime was not supplied.
 
-The unchanged pinned `module-code/top-level-await` group passes **250/250** cases,
-including all twelve previously failing top-level `for await...of` cases, with
-no exclusions or unsupported cases. All three related dynamic-import/for-await
-cases also pass. Both fulfillment/rejection ordering cases and the concurrent
-async-evaluation ordering case pass. The supplied corpus has
-no explicit-resource-management group; adding those upstream cases remains a
-roadmap item alongside the required disposal regression scenarios.
+The complete pinned Test262 selection on the final Node 24 production build
+reports **1,755 selected: 1,746 passed, 0 failed, 9 unsupported, 0 excluded**.
+All twelve reported failures pass without weakening their
+assertions, expected errors, or phases. The selection retains every original
+case and adds all ten upstream module-goal resource-management cases at the
+same pinned revision. All **250/250** top-level-await cases pass.
+
+The nine unsupported cases are explicit capabilities: five require immutable
+ArrayBuffers, one requires private fields to respect non-extensibility, and
+three require a JavaScript ModuleSource representation. The first six depend
+on host behavior; unsupported source-phase runtime requests throw `SyntaxError`.
+No async failure is hidden by an unsupported classification.
 
 ## Benchmark procedure
 
@@ -243,16 +303,16 @@ as unsupported.
 
 Node 24.21.0 on Linux x64, seven fresh-process pairs per case, with 5,000 warm
 requires per process. Pair order alternates to limit ordering bias. Both loaders
-use production builds; the baseline is the v1.0.0 patch state (source tree
-`11a009924ad80d21448ef76ff6610307b007815b`). These local medians remain sensitive
-to host scheduling. Warm differences vary by case, from a 0.53 µs improvement
-to a 0.82 µs increase; this run does not establish a general speed improvement.
+use production builds; the baseline is the v1.0.1 patch state (source tree
+`cffa63e5c2815d49930e8866b4c3b1217f3c2564`). These local medians remain sensitive
+to host scheduling. Warm differences vary by case, from a 1.50 µs improvement
+to a 1.05 µs increase; this run does not establish a general speed improvement.
 
 | Case | Baseline cold (ms) | Current cold (ms) | Baseline warm (µs) | Current warm (µs) |
 | --- | ---: | ---: | ---: | ---: |
-| sync | 14.799 | 14.695 | 7.754 | 7.821 |
-| sync-graph | 20.449 | 19.755 | 7.706 | 8.528 |
-| sync-chain | 39.993 | 41.816 | 8.559 | 8.365 |
-| microtask | 18.284 | 17.410 | 7.327 | 7.962 |
-| transitive | 21.170 | 23.636 | 7.699 | 8.400 |
-| timer | 22.786 | 21.386 | 7.938 | 7.411 |
+| sync | 16.151 | 15.966 | 7.651 | 8.207 |
+| sync-graph | 18.056 | 18.557 | 7.082 | 8.132 |
+| sync-chain | 38.814 | 38.391 | 9.116 | 7.619 |
+| microtask | 17.010 | 18.558 | 7.898 | 8.546 |
+| transitive | 21.243 | 21.324 | 7.335 | 7.371 |
+| timer | 24.178 | 22.460 | 8.716 | 7.696 |

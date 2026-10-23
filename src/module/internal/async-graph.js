@@ -3,19 +3,24 @@ import ENTRY from "../../constant/entry.js"
 import has from "../../util/has.js"
 import isObjectEmpty from "../../util/is-object-empty.js"
 import shared from "../../shared.js"
+import promiseThen, { promiseResolve } from "../../util/promise-then.js"
+import { evaluationDependencies } from "./evaluation-dependencies.js"
 import { setImmediate } from "../../safe/timers.js"
 import validateShallow from "../esm/validate-shallow.js"
 import { asyncError, awaitDeadline, drainMicrotasks, isAwait, poll } from "./sync-await.js"
 
 const { STATE_INITIAL, STATE_EXECUTION_STARTED, STATE_EXECUTION_COMPLETED, UPDATE_TYPE_INIT } =
   ENTRY
-const { Promise: NativePromise } = shared.external
 
 // Linking has already suspended every ESM generator at its body boundary.
 // Classify the entire reachable graph before any of those bodies execute.
 function trace(root) {
   if (root.async !== null && !root.async.direct && !root.async.transitive) return false
-  if (root.compileData?.firstAwaitOutsideFunction === null && isObjectEmpty(root.children)) {
+  if (
+    root.moduleRequests === null &&
+    root.compileData?.firstAwaitOutsideFunction === null &&
+    isObjectEmpty(root.children)
+  ) {
     return false
   }
   const nodes = new Map()
@@ -34,8 +39,9 @@ function trace(root) {
     stack.push(node)
     hasAwait = hasAwait || direct
 
-    for (const name in entry.children) {
-      const child = entry.children[name]
+    const dependencies = evaluationDependencies(entry)
+    for (const name in dependencies) {
+      const child = dependencies[name]
       const existing = nodes.get(child)
       const next = visit(child)
       if (next !== void 0 && next.stacked) {
@@ -55,8 +61,9 @@ function trace(root) {
 
       let async = component.some((item) => item.direct)
       for (const item of component) {
-        for (const name in item.entry.children) {
-          const child = nodes.get(item.entry.children[name])
+        const dependencies = evaluationDependencies(item.entry)
+        for (const name in dependencies) {
+          const child = nodes.get(dependencies[name])
           if (child !== void 0 && child.component !== component && child.entry.async !== null) {
             async = async || child.entry.async.transitive || child.entry.async.direct
           }
@@ -64,8 +71,8 @@ function trace(root) {
       }
       for (const item of component) {
         let cyclic = component.length > 1
-        for (const name in item.entry.children)
-          cyclic = cyclic || item.entry.children[name] === item.entry
+        const dependencies = evaluationDependencies(item.entry)
+        for (const name in dependencies) cyclic = cyclic || dependencies[name] === item.entry
         item.entry.async = {
           direct: item.direct,
           transitive: async && !item.direct,
@@ -88,6 +95,7 @@ class Evaluation {
     if (shared.moduleState.asyncEvaluationOrder === void 0)
       shared.moduleState.asyncEvaluationOrder = 0
     this.active = true
+    this.rejecting = 0
     this.deadline = null
     this.imports = []
     this.importing = false
@@ -120,6 +128,7 @@ class Evaluation {
       failed: false,
       error: void 0,
       rejectionHandlers: [],
+      fulfillmentHandlers: [],
       notified: false,
       value: void 0
     }
@@ -128,8 +137,9 @@ class Evaluation {
     this.stack.push(record)
     entry.state = STATE_EXECUTION_STARTED
 
-    for (const name in entry.children) {
-      let child = this.visit(entry.children[name])
+    const dependencies = evaluationDependencies(entry)
+    for (const name in dependencies) {
+      let child = this.visit(dependencies[name])
       if (child === null) continue
       if (child.failed) {
         this.reject(record, child.error)
@@ -165,8 +175,9 @@ class Evaluation {
   }
 
   finalizeChildren(entry) {
-    for (const name in entry.children) {
-      const child = entry.children[name]
+    const dependencies = evaluationDependencies(entry)
+    for (const name in dependencies) {
+      const child = dependencies[name]
       const record = this.records.get(child)
       if (record !== void 0 && !record.done) continue
       if (typeof child._finalize === "function") child._finalize()
@@ -200,12 +211,15 @@ class Evaluation {
         if (record.direct) {
           // Like an async module's execution promise, completion notifies
           // importing modules in a subsequent Promise reaction.
-          NativePromise.resolve()
-            .then(() => this.finish(record))
-            .catch((error) => this.reject(record, error))
+          promiseThen(
+            promiseThen(promiseResolve(), () => this.finish(record)),
+            void 0,
+            (error) => this.reject(record, error)
+          )
         } else this.finish(record)
       } else if (isAwait(step.value)) {
-        NativePromise.resolve(step.value.value).then(
+        promiseThen(
+          promiseResolve(step.value.value),
           (resolved) => this.run(record, false, resolved),
           (error) => this.run(record, true, error)
         )
@@ -216,7 +230,7 @@ class Evaluation {
         )
       }
     } catch (error) {
-      if (record.direct) NativePromise.resolve().then(() => this.reject(record, error))
+      if (record.direct) promiseThen(promiseResolve(), () => this.reject(record, error))
       else this.reject(record, error)
     } finally {
       entry.running = false
@@ -254,6 +268,7 @@ class Evaluation {
     entry.module.loaded = true
     entry.loaded()
     entry.updateBindings(null, UPDATE_TYPE_INIT)
+    for (const fulfill of record.fulfillmentHandlers) fulfill()
     const ready = []
     this.gather(record, ready)
     ready.sort((left, right) => left.order - right.order)
@@ -263,25 +278,30 @@ class Evaluation {
 
   reject(record, error) {
     if (!this.active || record.failed) return
-    record.failed = true
-    record.error = error
-    record.entry.evaluationError = error
-    record.entry.state = STATE_INITIAL
-    // Notify dynamic importers before walking static ancestors: rejection
-    // reactions must be enqueued in dependency-to-importer order.
-    for (const reject of record.rejectionHandlers) reject(error)
-    for (const parent of [...record.parents]) parent.evaluation.reject(parent, error)
-    if (record.root !== null) {
-      for (const member of [...this.records.values()]) {
-        if (member.root === record.root && member !== record) this.reject(member, error)
+    this.rejecting++
+    try {
+      record.failed = true
+      record.error = error
+      record.entry.evaluationError = error
+      record.entry.state = STATE_INITIAL
+      // Notify dynamic importers before walking static ancestors: rejection
+      // reactions must be enqueued in dependency-to-importer order.
+      for (const reject of record.rejectionHandlers) reject(error)
+      for (const parent of [...record.parents]) parent.evaluation.reject(parent, error)
+      if (record.root !== null) {
+        for (const member of [...this.records.values()]) {
+          if (member.root === record.root && member !== record) this.reject(member, error)
+        }
       }
+    } finally {
+      if (--this.rejecting === 0) this.stopIfComplete()
     }
-    this.stopIfComplete()
   }
 
   stopIfComplete() {
     if (
       this.detached &&
+      this.rejecting === 0 &&
       this.imports.length === 0 &&
       [...this.records.values()].every((record) => record.done || record.failed)
     ) {
@@ -408,12 +428,18 @@ function queueAsyncImport(callback) {
   return true
 }
 
-function observeAsyncFailure(entry, reject) {
+function observeAsyncCompletion(entry, fulfill, reject) {
   const record = entry?.asyncEvaluation?.records.get(entry)
-  if (record !== void 0) {
-    if (record.failed) reject(record.error)
-    else record.rejectionHandlers.push(reject)
+  if (record === void 0) return false
+  const root = record.root || record
+  if (record.failed || root.failed) {
+    reject(record.failed ? record.error : root.error)
+  } else {
+    record.rejectionHandlers.push(reject)
+    if (root.done) fulfill()
+    else root.fulfillmentHandlers.push(fulfill)
   }
+  return true
 }
 
 function isAsyncEvaluating(entry, includeCycle = false) {
@@ -426,4 +452,4 @@ function isAsyncEvaluating(entry, includeCycle = false) {
   )
 }
 
-export { evaluateAsyncGraph, isAsyncEvaluating, observeAsyncFailure, queueAsyncImport }
+export { evaluateAsyncGraph, isAsyncEvaluating, observeAsyncCompletion, queueAsyncImport }

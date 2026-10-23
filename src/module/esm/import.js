@@ -34,7 +34,15 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false, modu
   let finalizeCalled = false
 
   const addChild = (entry, childEntry, name = childEntry.name) => {
-    if (!isDynamic) entry.children[name] = childEntry
+    if (!isDynamic) {
+      entry.children[name] = childEntry
+      if (
+        entry.moduleRequests !== null &&
+        !entry.moduleRequests.some((request) => !request.deferred && request.entry === childEntry)
+      ) {
+        entry.moduleRequests.push({ entry: childEntry, deferred: false })
+      }
+    }
     childEntry.addSetters(setterArgsList, entry)
   }
 

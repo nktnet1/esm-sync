@@ -1,7 +1,6 @@
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
-import { Script } from "node:vm"
 import os from "node:os"
 import path from "node:path"
 import execa from "execa"
@@ -20,18 +19,6 @@ const { assertTest262Outcome } = require("../../script/test262-outcome.js") as {
 
 const wrapperDirectory = path.join(testPath, "test262")
 const wrapperFile = path.join(wrapperDirectory, "wrapper.js")
-
-// Script-goal cases run through Node's native vm.Script parser. Older Node
-// releases (including Node 22) cannot parse import.source(), even with --harmony.
-const supportsNativeSourceImport = (() => {
-  try {
-    new Script('import.source("<module source>")')
-    return true
-  } catch (error) {
-    if (error instanceof SyntaxError) return false
-    throw error
-  }
-})()
 
 type TestCaseOptions = {
   source: string
@@ -130,6 +117,23 @@ function assertFailure(result: { filename: string; stdout: string }, name: strin
 }
 
 describe("Test262 negative-phase verification", () => {
+  it("validates resource grammar and duplicate bindings without running disposers", async () => {
+    for (const declaration of ["using", "await using"]) {
+      const invalid = await executeCase({
+        source: `${declaration} value = null; let value;`,
+        isModule: true,
+        expectedPhase: "parse"
+      })
+      assertFailure(invalid, "SyntaxError", "parse")
+      const valid = await executeCase({
+        source: `${declaration} value = { [Symbol.dispose]() { throw new Error("ran disposer") } };`,
+        isModule: true,
+        syntaxOnly: true
+      })
+      assert.equal(valid.stdout, "")
+    }
+  })
+
   it("parses negative scripts without running their bodies", async () => {
     const parse = await executeCase({ source: "const = 1", expectedPhase: "parse" })
     assertFailure(parse, "SyntaxError", "parse")
@@ -208,18 +212,15 @@ assert.sameValue(import("another-absent-native-import").constructor, Promise);`
 
   // Source-phase calls use the same native Promise completion semantics, but
   // their syntax is not supported by every Node version or stock Acorn.
-  it.skipIf(!supportsNativeSourceImport)(
-    "tracks the native import.source() Promise without changing its observable identity",
-    async () => {
-      const sourceImport = await executeCase({
-        source: `
+  it("tracks the import.source() Promise without changing its observable identity", async () => {
+    const sourceImport = await executeCase({
+      source: `
 const source = import.source("<module source>");
 assert.sameValue(source.constructor, Promise);
 assert.sameValue(source.then, Promise.prototype.then);`
-      })
-      assert.equal(sourceImport.stdout, "")
-    }
-  )
+    })
+    assert.equal(sourceImport.stdout, "")
+  })
 
   it("does not mistake an unrelated Promise for the tracked import Promise", async () => {
     const sameError = await executeCase({

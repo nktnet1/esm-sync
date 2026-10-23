@@ -92,8 +92,9 @@ async function runCase(filename, { expectedError, expectedPhase, isAsync, isModu
         ...process.env,
         NODE_ENV: "development",
         ESM_ENV: "development-test",
-        // Test262 marks modules explicitly, even when they have no import/export syntax.
-        ESM_OPTIONS: isModule ? "{cjs:false,cache:false,mode:'all'}" : "{cjs:false,cache:false}"
+        // The case itself still runs with its declared Script/Module goal.
+        // Imported fixtures are modules even without import/export syntax.
+        ESM_OPTIONS: "{cjs:false,cache:false,mode:'all'}"
       }
     }
   )

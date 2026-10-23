@@ -62,21 +62,30 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
       Run those assertions alongside unrelated bootstrap-cache writers.
 - [x] Make the missing-native-bridge regression recognize Windows paths through
       generated subprocess source, and assert that the bridge was intercepted.
-- [ ] Extend synchronous I/O support beyond the initial CommonJS startup stack
-      when Node/libuv provide a supported execution mechanism. **Blocked:**
+- [x] Define and enforce the limit on synchronous I/O beyond the initial
+      CommonJS startup stack. **Unsupported with current Node/libuv APIs:**
       [libuv forbids recursive `uv_run()` calls from callbacks](https://docs.libuv.org/en/v1.x/loop.html#c.uv_run),
       and V8 cannot recursively drain an already-running microtask queue.
-      Callback/microtask/worker and nested-load regressions preserve explicit
-      failure instead of recursively polling or returning unfinished exports.
-- [ ] Add the explicit-resource-management Test262 group when it is included in
-      the pinned fixture set; the supplied subset currently includes TLA and
-      dynamic-import groups. Keep the required disposal regression cases enabled
-      on Node 22/24/26 in the meantime.
+      Callback/microtask/worker and nested-load regressions require
+      `ERR_ESM_SYNC_ASYNC_REENTRANT`; the native poll guard uses the same code.
+      Missing bridges preserve their load error as `cause` on
+      `ERR_ESM_SYNC_ASYNC_PENDING`. This resolves the support decision without
+      claiming that callback I/O can be completed synchronously.
+- [x] Include both pinned explicit-resource-management groups in fixture
+      preparation and require all ten module-goal cases in cached and uncached
+      Node 22/24/26 tests. Reject older prepared subsets missing these groups.
+- [x] Evaluate async dependencies of static/dynamic deferred imports in request
+      order, wait for pending cycle roots, and defer only synchronous bodies.
+      Reject premature namespace access with a coded `TypeError`.
+- [x] Preserve intrinsic Promise behavior and import completion order; record
+      cycle failures before teardown and retain their original error identity.
+      Run script-goal imports through esm-sync while retaining script semantics.
 
 ## Other outstanding work
 
-- [ ] Triage remaining Test262 failures (including dynamic imports, syntax errors,
-      and ambiguous exports) without broadening exclusions; rerun the pinned corpus.
+- [x] Resolve the remaining Test262 failures without broadening exclusions.
+      The expanded pinned selection has no failures or exclusions; nine cases
+      retain explicit host/ModuleSource unsupported classifications.
 - [ ] Verify Node 22/24/26 CI on Linux, macOS, and Windows, including production
       builds, Node internals, and packed-package integration tests.
 - [ ] Complete pnpm 12 reproducible installs and frozen-lockfile CI; review

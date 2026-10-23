@@ -1,11 +1,49 @@
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { describe, it } from "vitest"
-import { runNode, testEnvironments, testPath } from "./helpers/run-node.mts"
+import { runNode, testEnvironments } from "./helpers/run-node.mts"
 
 type Scenario = { name: string; source: string; files?: Record<string, string>; verify?: string }
 const scenarios: Scenario[] = [
+  {
+    name: "retains distinct module identities for text and JavaScript beside deferred imports",
+    files: {
+      "dual.mjs":
+        "globalThis.__dualRuns = (globalThis.__dualRuns || 0) + 1; export const value = await Promise.resolve(42)\n",
+      "lazy.mjs": "globalThis.__lazyRan = true; export const value = 7\n"
+    },
+    source: `import {value} from './dual.mjs'
+import text from './dual.mjs' with {type: 'text'}
+import defer * as lazy from './lazy.mjs'
+await Promise.resolve()
+assert.equal(value, 42)
+assert.match(text, /export const value/)
+assert.equal(globalThis.__dualRuns, 1)
+assert.equal(globalThis.__lazyRan, undefined)
+assert.equal(lazy.value, 7)
+assert.equal(globalThis.__lazyRan, true)
+export const result = value
+`
+  },
+  {
+    name: "uses Promise intrinsics for iteration and disposal after user overrides",
+    source: `const originalThen = Promise.prototype.then, originalResolve = Promise.resolve
+let calls = 0
+Promise.prototype.then = function(...args) {calls++; return Reflect.apply(originalThen, this, args)}
+Promise.resolve = function(...args) {calls++; return Reflect.apply(originalResolve, this, args)}
+try {
+  for await (const value of [42]) assert.equal(value, 42)
+  {await using resource = {[Symbol.asyncDispose]() {}}}
+} finally {
+  Promise.prototype.then = originalThen
+  Promise.resolve = originalResolve
+}
+assert.equal(calls, 0)
+export const result = 42
+`
+  },
   {
     name: "iterates synchronous promises and asynchronous values with the correct receivers",
     source: `let total = 0
@@ -289,7 +327,7 @@ for (const esmEnv of testEnvironments) {
   describe(`async syntax (${esmEnv})`, () => {
     for (const [index, scenario] of scenarios.entries()) {
       it(scenario.name, async () => {
-        const directory = await mkdtemp(path.join(testPath, "fixture/async-syntax-"))
+        const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-async-syntax-"))
         try {
           const files = {
             ...scenario.files,

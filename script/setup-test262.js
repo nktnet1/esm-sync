@@ -27,7 +27,9 @@ const testDirs = [
   "test/language/expressions/dynamic-import",
   "test/language/expressions/import.meta",
   "test/language/import",
-  "test/language/module-code"
+  "test/language/module-code",
+  "test/language/statements/using",
+  "test/language/statements/await-using"
 ]
 
 function git(cwd, args) {

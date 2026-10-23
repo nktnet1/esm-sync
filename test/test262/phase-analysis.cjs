@@ -1,6 +1,7 @@
 const { readFileSync } = require("node:fs")
 const path = require("node:path")
 const vm = process.getBuiltinModule("node:vm")
+const { Parser } = require("acorn")
 
 // The compiler bundle normally receives this binding from esm-sync's loader.
 // The standalone Test262 phase checker needs the same compiler configuration.
@@ -45,19 +46,44 @@ function parseTest(filename, isModule) {
     // Construction parses a module, but does not link or evaluate it. In
     // particular, it cannot turn a resolution or runtime error into a parse
     // error by loading a dependency or running a module body.
-    new vm.SourceTextModule(compiled.code, { identifier: filename })
+    new vm.SourceTextModule(resourceValidationCode(compiled.code, true), { identifier: filename })
   } else {
-    new vm.Script(compiled.code, { filename })
+    new vm.Script(resourceValidationCode(compiled.code, false), { filename })
   }
 }
 
-// Native vm.Script does not yet parse dynamic import.defer() on all supported
-// Node versions. Run script-goal cases through esm-sync's existing compiler
-// and dynamic-import runtime, without wrapping them as CommonJS or modules.
+// Node 22 cannot parse using declarations, even though esm-sync lowers them
+// at module scope. First validate their full grammar with strict Acorn (not
+// the loader's tolerant parser), then retain their lexical bindings as const
+// for the engine's remaining early-error checks. Never execute this text.
+function resourceValidationCode(code, isModule) {
+  if (!/\busing\b/.test(code)) return code
+  const ast = Parser.parse(code, { ecmaVersion: "latest", sourceType: isModule ? "module" : "script" })
+  const edits = []
+  function visit(node) {
+    if (node === null || typeof node !== "object") return
+    if (node.type === "VariableDeclaration" && (node.kind === "using" || node.kind === "await using")) {
+      edits.push([node.start, node.declarations[0].id.start])
+    }
+    for (const value of Object.values(node)) {
+      if (Array.isArray(value)) value.forEach(visit)
+      else if (value?.type) visit(value)
+    }
+  }
+  visit(ast)
+  for (const [start, end] of edits.sort((left, right) => right[0] - left[0])) {
+    code = code.slice(0, start) + "const " + code.slice(end)
+  }
+  return code
+}
+
+// Keep script-goal execution in vm.Script, while imports use the loader being
+// tested. This also avoids native Node/V8 module-evaluation bugs and permits
+// import.defer() on hosts whose own parser does not yet support it.
 // Each Test262 case gets its own subprocess, so this temporary runtime binding
 // cannot leak between cases or change another case's global environment.
 const SCRIPT_RUNTIME_NAME = "__esmSyncTest262ScriptRuntime__"
-const deferredCallPattern = /\bimport\s*\.\s*defer\s*\(/
+const importCallPattern = /\bimport\b/
 
 function getScriptRuntime(filename) {
   const { Module } = require("node:module")
@@ -87,7 +113,7 @@ function runScript(filename, trackNativeImports = false) {
   const source = readFileSync(filename, "utf8")
   let code = source
 
-  if (deferredCallPattern.test(source)) {
+  if (importCallPattern.test(source)) {
     const compiled = getCompiler().compile(source, {
       hint: 1,
       pragmas: false,
@@ -95,10 +121,10 @@ function runScript(filename, trackNativeImports = false) {
       sourceType: 1
     })
 
-    // A string or comment mentioning import.defer must not change the
-    // execution path: only the compiler's actual deferred-import transform
+    // A string or comment mentioning import must not change the
+    // execution path: only the compiler's actual dynamic-import transform
     // opts into esm-sync's runtime.
-    if (compiled.code.includes(`${SCRIPT_RUNTIME_NAME}.q(`)) {
+    if (["i", "p", "q"].some(method => compiled.code.includes(`${SCRIPT_RUNTIME_NAME}.${method}(`))) {
       if (Object.hasOwn(globalThis, SCRIPT_RUNTIME_NAME)) {
         throw new Error("Test262: script runtime binding already exists")
       }
@@ -117,13 +143,13 @@ function runScript(filename, trackNativeImports = false) {
   // Always validate the original grammar before instrumenting a runtime test.
   // An import Promise observer must never turn invalid Test262 syntax into valid code.
   const original = new vm.Script(code, options)
-  if (!trackNativeImports || code !== source) return original.runInThisContext()
+  if (!trackNativeImports) return original.runInThisContext()
 
   const { instrumentNativeImports } = require("./import-promise-tracking.cjs")
   const observerName = `__test262_native_import_${require("node:crypto").randomUUID().replaceAll("-", "_")}`
   let instrumented
   try {
-    instrumented = instrumentNativeImports(source, observerName)
+    instrumented = instrumentNativeImports(code, observerName, SCRIPT_RUNTIME_NAME)
   } catch (failure) {
     // Acorn may not recognize a newer host grammar production. In that case,
     // keep the original VM execution instead of changing its parse result.

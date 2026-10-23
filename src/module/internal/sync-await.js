@@ -6,6 +6,7 @@ import shared from "../../shared.js"
 const AWAIT_MARKER = Symbol("esm-sync:top-level-await")
 const hrtime = realProcess.hrtime
 let bridge
+let bridgeFailure
 
 function now() {
   const time = Reflect.apply(hrtime, realProcess, [])
@@ -20,9 +21,12 @@ function isAwait(value) {
   return value != null && value[AWAIT_MARKER] === true
 }
 
-function asyncError(code, message) {
+function asyncError(code, message, cause) {
   const error = new shared.external.Error(message)
   error.code = code
+  if (cause !== void 0) {
+    Object.defineProperty(error, "cause", { configurable: true, writable: true, value: cause })
+  }
   return error
 }
 
@@ -34,7 +38,9 @@ function getBridge() {
       bridge = realRequire(
         ESM.PACKAGE_DIRNAME + "/native/" + platform + "-" + arch + "-" + versions.modules + ".node"
       )
-    } catch {}
+    } catch (error) {
+      bridgeFailure = error
+    }
   }
   return bridge
 }
@@ -61,7 +67,8 @@ function poll(deadline) {
   if (native === null) {
     throw asyncError(
       "ERR_ESM_SYNC_ASYNC_PENDING",
-      "Top-level await needs timers or I/O, but the native await bridge is unavailable"
+      "Top-level await needs timers or I/O, but the native await bridge is unavailable",
+      bridgeFailure
     )
   }
   if (!native.canPoll()) {

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { describe, it } from "vitest"
-import { runNode, testEnvironments, testPath } from "./helpers/run-node.mts"
+import { runNode, testEnvironments } from "./helpers/run-node.mts"
 
 const contexts = [
   ["timer", "setTimeout(run, 0)", false],
@@ -19,6 +20,19 @@ const contexts = [
 
 const fixtures = {
   "microtask.mjs": "export const value = await Promise.resolve(42)\n",
+  "deferred-self.mjs": `import defer * as self from './deferred-self.mjs'
+await Promise.resolve()
+try {self.value} catch (error) {globalThis.__deferredError = error}
+export const value = 42
+export {self}
+`,
+  "failed-cycle-entry.mjs": "import './failed-cycle-root.mjs'\n",
+  "failed-cycle-root.mjs":
+    "import './failed-cycle-leaf.mjs'; await Promise.resolve(); throw globalThis.__cycleFailure\n",
+  "failed-cycle-leaf.mjs":
+    "import './failed-cycle-root.mjs'; globalThis.__leafRuns = (globalThis.__leafRuns || 0) + 1; await Promise.resolve(); export const value = 42\n",
+  "deferred-factory.mjs":
+    "export function later() {return import.defer('./failed-cycle-leaf.mjs')}\n",
   "timer.mjs": `export const value = await new Promise(resolve => setTimeout(() => resolve(42), 2))
 globalThis.__continued = true
 `,
@@ -39,7 +53,7 @@ export const value = 42
 }
 
 async function scenario(esmEnv: string, code: string, name: string) {
-  const directory = await mkdtemp(path.join(testPath, "fixture/async-contexts-"))
+  const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-async-contexts-"))
   try {
     await Promise.all(
       Object.entries(fixtures).map(([file, source]) =>
@@ -70,6 +84,35 @@ ${code}
 
 for (const esmEnv of testEnvironments) {
   describe(`async execution contexts (${esmEnv})`, () => {
+    it("rethrows the cycle error from a deferred namespace of a completed failed member", async () => {
+      await scenario(
+        esmEnv,
+        `globalThis.__cycleFailure = new Error('cycle failure')
+assert.throws(() => load('failed-cycle-entry.mjs'), error => error === globalThis.__cycleFailure)
+const later = load('deferred-factory.mjs').later
+later().then(ns => {
+  assert.throws(() => ns.value, error => error === globalThis.__cycleFailure)
+  return later().then(again => {
+    assert.strictEqual(again, ns)
+    assert.throws(() => again.value, error => error === globalThis.__cycleFailure)
+    assert.equal(globalThis.__leafRuns, 1)
+    console.log('async-context:ok')
+  })
+}).catch(error => {console.error(error); process.exitCode = 1})`,
+        "deferred-failure"
+      )
+    })
+    it("throws a coded TypeError for deferred access to an evaluating module", async () => {
+      await scenario(
+        esmEnv,
+        `const ns = load('deferred-self.mjs')
+assert.ok(globalThis.__deferredError instanceof TypeError)
+assert.equal(globalThis.__deferredError.code, 'ERR_ESM_SYNC_ASYNC_REENTRANT')
+assert.equal(ns.self.value, 42)
+console.log('async-context:ok')`,
+        "deferred-self"
+      )
+    })
     for (const [name, schedule, microtask] of contexts) {
       it(`guards synchronous I/O and unfinished modules in a ${name}`, async () => {
         await scenario(
@@ -77,6 +120,9 @@ for (const esmEnv of testEnvironments) {
           `function run() {
   if (${microtask}) assert.throws(() => load('microtask.mjs'), {code: 'ERR_ESM_SYNC_ASYNC_REENTRANT'})
   else assert.equal(load('microtask.mjs').value, 42)
+  const bridge = require(path.resolve('../native', process.platform+'-'+process.arch+'-'+process.versions.modules+'.node'))
+  assert.equal(bridge.canPoll(), false)
+  assert.throws(() => bridge.poll(), {code: 'ERR_ESM_SYNC_ASYNC_REENTRANT'})
   let first
   for (let i = 0; i < 2; i++) assert.throws(() => load('timer.mjs'), error => {
     assert.equal(error.code, 'ERR_ESM_SYNC_ASYNC_REENTRANT')

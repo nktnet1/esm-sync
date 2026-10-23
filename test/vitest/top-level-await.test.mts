@@ -1,8 +1,9 @@
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { describe, it } from "vitest"
-import { runNode, testEnvironments, testPath } from "./helpers/run-node.mts"
+import { runNode, testEnvironments } from "./helpers/run-node.mts"
 
 const fixtures = {
   "direct.mjs": `export let count = await Promise.resolve(40)
@@ -145,7 +146,9 @@ await Promise.reject(globalThis.__failure)
 }
 
 async function withFixtures(run: (directory: string) => Promise<void>) {
-  const directory = await mkdtemp(path.join(testPath, "fixture/async-top-level-await-"))
+  // Keep short-lived fixtures outside workspace watchers/synchronizers, which
+  // can recreate files while recursive cleanup is removing the directory.
+  const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-top-level-await-"))
 
   try {
     await Promise.all(
@@ -478,7 +481,12 @@ Module._extensions['.node'] = (mod, filename) => {
 assert.equal(load('ordinary.mjs').value, 21)
 assert.equal(load('direct.mjs').count, 40)
 assert.equal(bridgeAttempts, 0)
-assert.throws(() => load('timer.mjs'), { code: 'ERR_ESM_SYNC_ASYNC_PENDING' })
+assert.throws(() => load('timer.mjs'), error => {
+  assert.equal(error.code, 'ERR_ESM_SYNC_ASYNC_PENDING')
+  assert.equal(error.cause.message, 'bridge absent')
+  assert.equal(Object.getOwnPropertyDescriptor(error, 'cause').enumerable, false)
+  return true
+})
 assert.equal(bridgeAttempts, 1)
 console.log('fallback:ok')
 `

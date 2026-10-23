@@ -24,4 +24,15 @@ const syntax = esmRequire("./async-syntax.mjs")
 assert.equal(syntax.value, 42)
 assert.strictEqual(syntax, esmRequire("./async-syntax.mjs"))
 
-console.log(`Packed CommonJS consumer passed on ${process.version}`)
+const deferred = esmRequire("./deferred.mjs")
+assert.deepEqual(deferred.events, ["async:start", "async:done"])
+assert.equal(deferred.read(), 42)
+assert.deepEqual(deferred.events, ["async:start", "async:done", "body"])
+deferred.later().then((namespace) => {
+  assert.strictEqual(namespace, deferred.dependency)
+  assert.equal(namespace.value, 42)
+  console.log(`Packed CommonJS consumer passed on ${process.version}`)
+}).catch((error) => {
+  console.error(error)
+  process.exitCode = 1
+})

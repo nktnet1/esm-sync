@@ -1,4 +1,5 @@
 import shared from "../../shared.js"
+import promiseThen, { promiseResolve, promiseReject } from "../../util/promise-then.js"
 import { makeAwait } from "./sync-await.js"
 
 const { Promise: NativePromise, TypeError: NativeTypeError, Error: NativeError } = shared.external
@@ -41,7 +42,8 @@ function asyncIterator(value) {
     object(result)
     const done = Boolean(result.done)
     const value = result.value
-    return NativePromise.resolve(value).then(
+    return promiseThen(
+      promiseResolve(value),
       (value) => ({ done, value }),
       (error) => {
         // AsyncFromSyncIteratorContinuation closes a sync generator when its
@@ -65,7 +67,7 @@ function asyncIterator(value) {
       try {
         return fromSync(apply(next, iterator, []), true)
       } catch (error) {
-        return NativePromise.reject(error)
+        return promiseReject(error)
       }
     },
     *close() {
@@ -78,7 +80,7 @@ function asyncIterator(value) {
               ? { done: true, value: void 0 }
               : fromSync(apply(close, iterator, []), false)
         } catch (error) {
-          result = NativePromise.reject(error)
+          result = promiseReject(error)
         }
         object(yield makeAwait(result))
         return

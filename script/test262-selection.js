@@ -114,17 +114,10 @@ function getUnsupportedFeatures(features, hostFeatures) {
   )
 }
 
-// Static text imports run through esm-sync's loader, which already handles
-// these cases. Only runtime script-goal imports use Node's native vm.Script
-// dynamic-import loader. Parse-only cases never need host module resolution.
-function getUnsupportedHostFeatures(
-  { features, isModule, expectedPhase, syntaxOnly },
-  hostFeatures
-) {
-  const needsNativeTextImport = !isModule && expectedPhase !== "parse" && !syntaxOnly
-  const requiredFeatures = needsNativeTextImport
-    ? features
-    : features.filter((feature) => feature !== "import-text")
+// Both module- and script-goal imports run through esm-sync's import runtime.
+// Text modules therefore do not require Node's native import-text support.
+function getUnsupportedHostFeatures({ features }, hostFeatures) {
+  const requiredFeatures = features.filter((feature) => feature !== "import-text")
   return getUnsupportedFeatures(requiredFeatures, hostFeatures)
 }
 
