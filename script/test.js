@@ -97,14 +97,10 @@ async function setupRepo() {
 async function setupNode() {
   const basePath = path.resolve(nodePath, isWin ? "" : "..")
   await dispose([basePath])
-  // Windows CI often keeps pnpm's Node runtime and the checkout on different
-  // drives; hard links cannot cross volumes. Copy the executable instead.
-  if (isWin) {
-    await fs.ensureDir(path.dirname(nodePath))
-    await fs.copyFile(process.execPath, nodePath)
-  } else {
-    await fs.ensureLink(process.execPath, nodePath)
-  }
+  // Keep the fixture executable independent of the selected runtime. Copying
+  // also works when pnpm's runtime and the checkout are on different volumes.
+  await fs.ensureDir(path.dirname(nodePath))
+  await fs.copyFile(process.execPath, nodePath)
 }
 
 function runTests() {

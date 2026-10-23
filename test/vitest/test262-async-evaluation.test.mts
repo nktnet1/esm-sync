@@ -24,7 +24,21 @@ const cases = [
   ["module-import-resolution.js", true],
   ["pending-async-dep-from-cycle.js", true],
   ["rejection-order.js", true],
-  ["unobservable-global-async-evaluation-count-reset.js", true]
+  ["unobservable-global-async-evaluation-count-reset.js", true],
+  ...[
+    "array-literal",
+    "func-expression",
+    "identifier",
+    "literal-number",
+    "literal-string",
+    "nested",
+    "new-expr",
+    "null",
+    "obj-literal",
+    "regexp",
+    "template-literal",
+    "this"
+  ].map((name) => [`syntax/for-await-await-expr-${name}.js`, false] as const)
 ] as const
 
 for (const esmEnv of testEnvironments) {

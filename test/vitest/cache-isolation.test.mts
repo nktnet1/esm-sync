@@ -138,4 +138,50 @@ describe("isolated native Node loader caches", () => {
       }
     })
   })
+
+  it.skipIf(Reflect.has(process.env, "APPVEYOR"))(
+    "runs default-cache tests while unrelated consumers write the bootstrap cache",
+    async () => {
+      const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
+      const suite = runNode(
+        [
+          "--test-reporter=./native-test-reporter.cjs",
+          "-r",
+          "./native-test-bootstrap.cjs",
+          "-r",
+          "../index.js",
+          "./native-suite.cjs",
+          "cache-tests.js"
+        ],
+        cachedEnv,
+        options,
+        { cacheNamespace: "cache-suite-race", timeout: 60_000 }
+      )
+
+      // options.cache:false disables module caching, but esm.js still writes its
+      // fixed package-relative bootstrap cache on exit. Those independent writers
+      // must not race with the cache suite's removal/creation assertions.
+      const writers = async () => {
+        for (let index = 0; index < 6; index++) {
+          const result = await runNode(["./fixture/cache/index.js"], cachedEnv, {
+            ESM_OPTIONS: "{cache:false,cjs:false,mode:'auto'}"
+          })
+          assert.equal(result.exitCode, 0, result.stderr)
+          assert.ok(result.stdout.includes("cache:true"), result.stdout)
+        }
+      }
+      const [result] = await Promise.all([suite, writers()])
+      assert.equal(result.exitCode, 0, result.stderr || result.stdout)
+      const summary = result.stdout
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("ESM_SYNC_TEST_EVENT "))
+        .map((line) => JSON.parse(line.slice("ESM_SYNC_TEST_EVENT ".length)))
+        .find((record) => record.kind === "summary")
+      assert.ok(summary, result.stdout)
+      assert.equal(summary.success, true, result.stdout)
+      assert.ok(summary.counts.passed > 0, result.stdout)
+      assert.equal(summary.counts.failed, 0, result.stdout)
+    },
+    90_000
+  )
 })

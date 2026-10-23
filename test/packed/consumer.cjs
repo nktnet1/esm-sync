@@ -20,4 +20,8 @@ assert.equal(awaited.increment(), 42)
 assert.equal(awaited.counter, 42)
 assert.equal(typeof awaited.later().then, "function")
 
+const syntax = esmRequire("./async-syntax.mjs")
+assert.equal(syntax.value, 42)
+assert.strictEqual(syntax, esmRequire("./async-syntax.mjs"))
+
 console.log(`Packed CommonJS consumer passed on ${process.version}`)

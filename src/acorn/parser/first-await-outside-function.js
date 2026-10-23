@@ -9,6 +9,7 @@ function init() {
       parser.firstAwaitOutsideFunction = null
       parser.parseAwait = wrap(parser.parseAwait, parseAwait)
       parser.parseForStatement = wrap(parser.parseForStatement, parseForStatement)
+      parser.parseVar = wrap(parser.parseVar, parseVar)
 
       return parser
     }
@@ -36,6 +37,13 @@ function init() {
     }
 
     return result
+  }
+
+  function parseVar(func, args) {
+    if (args[2] === "await using" && !this.inFunction && this.firstAwaitOutsideFunction === null) {
+      this.firstAwaitOutsideFunction = getLineInfo(this.input, args[0].start)
+    }
+    return Reflect.apply(func, this, args)
   }
 
   return Plugin

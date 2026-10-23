@@ -28,7 +28,8 @@ export const thenable = await { then(resolve) { resolve(17) } }
     "export const value = await new Promise(resolve => setTimeout(() => resolve(42), 2))\n",
   "pending-parent.mjs":
     'import { unreachable } from "./pending.mjs"\nexport const result = unreachable\n',
-  "for-await.mjs": "for await (const item of []) {}\nexport const unreachable = 1\n",
+  "for-await.mjs":
+    "export let sum = 0; for await (const item of [Promise.resolve(20), 22]) { sum += item }\n",
   "ordinary.mjs": "export const value = 21\n",
   "direct.js": "export const value = await Promise.resolve(42)\n",
   "io.mjs": `import { readFile } from 'node:fs/promises'
@@ -459,13 +460,26 @@ setImmediate(() => {
         `
 const Module = require('node:module')
 const native = Module._extensions['.node']
+const bridgeDirectory = path.resolve('../native')
+let bridgeAttempts = 0
+function isAwaitBridge(filename, paths = path, directory = bridgeDirectory) {
+  return paths.dirname(filename) === directory
+}
+// Exercise Windows separators through this generated -e source on every OS.
+assert.equal(isAwaitBridge(path.win32.join('C:/repo', 'native', 'bridge.node'), path.win32, path.win32.join('C:/repo', 'native')), true)
+assert.equal(isAwaitBridge(path.win32.join('C:/repo', 'unrelated', 'addon.node'), path.win32, path.win32.join('C:/repo', 'native')), false)
 Module._extensions['.node'] = (mod, filename) => {
-  if (/[\\/]native[\\/]/.test(filename)) throw new Error('bridge absent')
+  if (isAwaitBridge(filename)) {
+    bridgeAttempts++
+    throw new Error('bridge absent')
+  }
   return native(mod, filename)
 }
 assert.equal(load('ordinary.mjs').value, 21)
 assert.equal(load('direct.mjs').count, 40)
+assert.equal(bridgeAttempts, 0)
 assert.throws(() => load('timer.mjs'), { code: 'ERR_ESM_SYNC_ASYNC_PENDING' })
+assert.equal(bridgeAttempts, 1)
 console.log('fallback:ok')
 `
       )
@@ -513,14 +527,11 @@ console.log('disk-cache:ok')
       })
     })
 
-    it("reports unsupported top-level for-await loops instead of running incomplete modules", async () => {
+    it("returns completed exports from top-level for-await loops", async () => {
       await withFixtures(async (directory) => {
         const code = `const assert = require('node:assert/strict')
 const esmRequire = require('../index.js')(module)
-assert.throws(
-  () => esmRequire(process.argv[1]),
-  /Top-level for await\\.\\.\\.of is not yet supported/
-)
+assert.equal(esmRequire(process.argv[1]).sum, 42)
 console.log('tla-for-await:ok')
 `
         const result = await runNode(

@@ -17,7 +17,12 @@ import isPath from "./util/is-path.js"
 import isStackTraceMaskable from "./util/is-stack-trace-maskable.js"
 import makeRequireFunction from "./module/internal/make-require-function.js"
 import { makeAwait } from "./module/internal/sync-await.js"
-import { observeAsyncFailure, queueAsyncImport } from "./module/internal/async-graph.js"
+import { asyncIterator, resources } from "./module/internal/async-syntax.js"
+import {
+  isAsyncEvaluating,
+  observeAsyncFailure,
+  queueAsyncImport
+} from "./module/internal/async-graph.js"
 import maskStackTrace from "./error/mask-stack-trace.js"
 import setDeferred from "./util/set-deferred.js"
 import { setImmediate } from "./safe/timers.js"
@@ -113,6 +118,7 @@ function isCyclicStarReExport(getter, entry, exportedName) {
 // already on the stack, even when the target module itself is only linked.
 // This follows the synchronous part of ReadyForSyncExecution.
 function readyForSyncExecution(entry, seen = new Set()) {
+  if (isAsyncEvaluating(entry, true)) return false
   if (seen.has(entry) || entry.state === STATE_EXECUTION_COMPLETED) return true
   if (entry.state === STATE_EXECUTION_STARTED || entry.running) return false
 
@@ -125,6 +131,14 @@ function readyForSyncExecution(entry, seen = new Set()) {
 }
 
 const Runtime = {
+  importedTarget(name) {
+    const runtime = this
+    return {
+      set value(value) {
+        runtime.b(name, "=", value)
+      }
+    }
+  },
   addDefaultValue(value) {
     this.addExportGetters([["default", () => value]])
 
@@ -624,6 +638,9 @@ const Runtime = {
     runtime.i = runtime.dynamicImport
     runtime.j = runtime.initBindings
     runtime.h = runtime.syncAwait
+    runtime.A = asyncIterator
+    runtime.B = Runtime.importedTarget
+    runtime.R = resources
     runtime.k = identity
     runtime.n = runtime.addNamespaceSetter
     runtime.o = ERROR_GETTER

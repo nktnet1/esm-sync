@@ -307,12 +307,16 @@ function init() {
       if (
         options.transformTopLevelAwait &&
         sourceType === SOURCE_TYPE_MODULE &&
-        top.firstAwaitOutsideFunction !== null
+        (top.firstAwaitOutsideFunction !== null || code.includes("using"))
       ) {
         topLevelAwaitVisitor.visit(rootPath, {
           magicString,
-          possibleIndexes: findIndexes(code, ["await"]),
-          runtimeName
+          possibleIndexes: findIndexes(code, ["await", "using"]),
+          runtimeName,
+          top,
+          assignableBindings: importExportVisitor.assignableBindings,
+          importedBindings: top.importedBindings,
+          checkImports: !requireVisitor.found
         })
       }
 
@@ -325,7 +329,7 @@ function init() {
         requireDeclarationVisitor.transforms
 
       if (result.transforms !== 0) {
-        yieldIndex = importExportVisitor.yieldIndex
+        yieldIndex = importExportVisitor.yieldIndex + topLevelAwaitVisitor.prefixLength
 
         result.code = magicString.toString()
       }
@@ -334,6 +338,7 @@ function init() {
         // Pick `importExportVisitor` properties outside of the `codeWithTDZ`
         // getter/setter to preserve their values.
         const { assignableBindings, temporalBindings } = importExportVisitor
+        const { assignmentTargets } = topLevelAwaitVisitor
 
         setDeferred(result, "codeWithTDZ", () => {
           const possibleTemporalIndexes = findIndexes(code, [...temporalBindings])
@@ -353,7 +358,8 @@ function init() {
             magicString,
             possibleIndexes: possibleTemporalIndexes,
             runtimeName,
-            temporalBindings
+            temporalBindings,
+            assignmentTargets
           })
 
           const temporalTransforms = temporalVisitor.transforms

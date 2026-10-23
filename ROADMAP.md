@@ -43,12 +43,35 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
 
 ### Async follow-up
 
-- [ ] Lower top-level `for await...of` loops and `await using`. These currently
-      fail explicitly during compilation; ordinary top-level await expressions
-      already work without the legacy `await` option.
+- [x] Lower top-level `for await...of`, including async-from-sync iteration,
+      lexical bindings, labels, abrupt exits, and awaited iterator cleanup.
+- [x] Lower module-body `await using` and related `using` scopes, including
+      switch/classic-for and per-iteration resources, reverse disposal order,
+      synchronous fallbacks, suppressed errors, and live module exports.
+- [x] Prevent public synchronous loads from exposing pending async graphs or
+      completed members of a pending cycle; restore parsing state and balance
+      require depth after nested and failed loads.
+- [x] Exercise ordinary asynchronous imports with iteration, timers, and disposal
+      from callbacks, Promise reactions, microtasks, and workers. Keep the
+      synchronous loader's existing API and failure boundaries.
+- [x] Keep all four PM2 scenarios enabled with isolated daemon homes and bounded
+      teardown, private Windows pipes, and real loopback TCP endpoints when Unix
+      sockets are prohibited.
+- [x] Fix the CI cache-removal race: test default cache paths in private package
+      copies, including bootstrap caching that ignores module `options.cache`.
+      Run those assertions alongside unrelated bootstrap-cache writers.
+- [x] Make the missing-native-bridge regression recognize Windows paths through
+      generated subprocess source, and assert that the bridge was intercepted.
 - [ ] Extend synchronous I/O support beyond the initial CommonJS startup stack
-      only if Node/libuv provide a safe re-entrant execution mechanism. Pending
-      awaits in unsafe callbacks or microtasks currently fail explicitly.
+      when Node/libuv provide a supported execution mechanism. **Blocked:**
+      [libuv forbids recursive `uv_run()` calls from callbacks](https://docs.libuv.org/en/v1.x/loop.html#c.uv_run),
+      and V8 cannot recursively drain an already-running microtask queue.
+      Callback/microtask/worker and nested-load regressions preserve explicit
+      failure instead of recursively polling or returning unfinished exports.
+- [ ] Add the explicit-resource-management Test262 group when it is included in
+      the pinned fixture set; the supplied subset currently includes TLA and
+      dynamic-import groups. Keep the required disposal regression cases enabled
+      on Node 22/24/26 in the meantime.
 
 ## Other outstanding work
 

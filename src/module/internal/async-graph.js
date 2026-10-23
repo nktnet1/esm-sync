@@ -416,9 +416,14 @@ function observeAsyncFailure(entry, reject) {
   }
 }
 
-function isAsyncEvaluating(entry) {
+function isAsyncEvaluating(entry, includeCycle = false) {
   const record = entry.asyncEvaluation?.records.get(entry)
-  return record !== void 0 && !record.done && !record.failed
+  return (
+    record !== void 0 &&
+    !record.failed &&
+    (!record.done ||
+      (includeCycle && record.root !== null && !record.root.done && !record.root.failed))
+  )
 }
 
 export { evaluateAsyncGraph, isAsyncEvaluating, observeAsyncFailure, queueAsyncImport }
