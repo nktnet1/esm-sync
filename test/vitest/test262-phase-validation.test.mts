@@ -31,6 +31,7 @@ type TestCaseOptions = {
   dependency?: string
   dependencies?: Record<string, string>
   symlinkedDirectory?: boolean
+  expectProcessFailure?: boolean
 }
 
 async function executeCase(options: TestCaseOptions) {
@@ -93,9 +94,14 @@ async function executeCase(options: TestCaseOptions) {
     )
 
     assert.equal(timedOut, false)
-    assert.equal(exitCode, 0, stderr || stdout)
-    assert.equal(stderr, "")
-    return { filename: testFilename, stdout }
+    if (options.expectProcessFailure) {
+      assert.notEqual(exitCode, 0, "An unhandled error must not be treated as a passing test")
+      assert.notEqual(stderr, "", "An unhandled error must remain observable")
+    } else {
+      assert.equal(exitCode, 0, stderr || stdout)
+      assert.equal(stderr, "")
+    }
+    return { filename: testFilename, stdout, stderr }
   } finally {
     if (createdAlias) await unlink(aliasDirectory)
     await rm(directory, { force: true, recursive: true })
@@ -120,6 +126,25 @@ describe("Test262 negative-phase verification", () => {
       () => assertTest262Outcome(runtime.filename, runtime.stdout, "SyntaxError", "parse"),
       /but no error occurred/
     )
+  })
+
+  it("keeps unrelated unhandled rejections and asynchronous exceptions fatal", async () => {
+    // A native import rejection and an unrelated rejection may share an error
+    // code. A future fix for unobserved import() promises must not blanket-
+    // suppress either this rejection or an independently thrown exception.
+    const rejection = await executeCase({
+      source: `Promise.reject(Object.assign(new Error("unrelated rejection"), {
+        code: "ERR_MODULE_NOT_FOUND"
+      }))`,
+      expectProcessFailure: true
+    })
+    assert.match(rejection.stderr, /unrelated rejection/)
+
+    const exception = await executeCase({
+      source: 'queueMicrotask(() => { throw new SyntaxError("unrelated async exception") })',
+      expectProcessFailure: true
+    })
+    assert.match(exception.stderr, /unrelated async exception/)
   })
 
   it("uses esm-sync script grammar for invalid source-phase constructor calls", async () => {

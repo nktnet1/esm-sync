@@ -409,6 +409,30 @@ unrelated rejected promises and potentially turn runtime bugs into false
 passes. The six cases remain executable and failing until a precise host
 rejection-tracking strategy can distinguish unrelated errors.
 
+### Native ESM rejection diagnostics (v1.0.23 investigation)
+
+The three Node 26 `for-await-resolution-and-error*` failures are not caused
+by esm-sync's static linker, Test262's `_FIXTURE.js` format hook, or even its
+`vm.Script` loader. On the supplied Node 26.12.0 runtime, the independent
+native expression `import('data:text/javascript,throw%20%27foo%27').catch(...)`
+prints a partial `node:internal/modules/esm/module_job` `evaluateSync()`
+stack to stderr **despite the rejection being caught and the process exiting
+successfully**. The same native expression completes with empty stderr on
+Node 24.21.0. The original tests also complete their `$DONE` assertions but
+fail the runner's strict unexpected-stderr check. Suppressing engine stderr or
+switching a throwing module to CommonJS would mask errors or change module
+semantics; neither is an acceptable conformance fix.
+
+For the other six cases, `async_hooks` can expose the original rejected
+`import()` Promise on the tested Node version. However, identifying that
+Promise by its captured JavaScript stack is not a stable host API, and
+ignoring all native-import rejections would also conceal unexpected module
+errors. The runner therefore retains fatal unhandled-rejection behaviour.
+Focused regressions explicitly check that an unrelated rejected Promise
+**with the same `ERR_MODULE_NOT_FOUND` code** and an unrelated asynchronous
+exception still fail ordinary synchronous Test262 scripts. No case is
+reclassified, excluded, or counted as passing by this investigation.
+
 ### Native text-import host capability (v1.0.21)
 
 The pinned `expressions/dynamic-import/import-attributes/2nd-param-with-type-text.js`
