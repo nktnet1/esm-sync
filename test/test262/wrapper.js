@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url"
 import path from "path"
 import vm from "vm"
 const requireHelper = createRequire(import.meta.url)
-const { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule } = requireHelper("./phase-analysis.cjs")
+const { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule, runScript } = requireHelper("./phase-analysis.cjs")
 
 const MAX_WAIT = 1000
 const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = "", syntaxOnly = "false"] = process.argv
@@ -98,14 +98,10 @@ if (completion !== null) {
 function runTest() {
   if (isModule === "true") return runModule(path.resolve(testFilename))
 
-  const filename = path.resolve(testFilename)
-  const source = fs.readFileSync(filename, "utf8")
-  const script = new vm.Script(source, {
-    filename,
-    importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
-  })
-  // Script completion values do not become awaited module evaluation results.
-  script.runInThisContext()
+  // Script-goal execution remains native vm.Script, with esm-sync compiling
+  // phase-qualified dynamic imports where Node's parser cannot handle them.
+  // Completion values are not awaited as module evaluation results.
+  runScript(path.resolve(testFilename))
 }
 
 function reportFailure(failure, phase) {

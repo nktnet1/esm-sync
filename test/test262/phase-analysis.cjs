@@ -44,6 +44,72 @@ function parseTest(filename, isModule) {
   }
 }
 
+// Native vm.Script does not yet parse dynamic import.defer() on all supported
+// Node versions. Run script-goal cases through esm-sync's existing compiler
+// and dynamic-import runtime, without wrapping them as CommonJS or modules.
+// Each Test262 case gets its own subprocess, so this temporary runtime binding
+// cannot leak between cases or change another case's global environment.
+const SCRIPT_RUNTIME_NAME = "__esmSyncTest262ScriptRuntime__"
+const deferredCallPattern = /\bimport\s*\.\s*defer\s*\(/
+
+function getScriptRuntime(filename) {
+  const { Module } = require("node:module")
+  const root = path.resolve(__dirname, "../..")
+  const esm = require(root)
+  const ownModule = require.cache[require.resolve(root)]
+  if (!ownModule) throw new Error("Test262: esm-sync module is not loaded")
+
+  // Reuse esm-sync's private, existing internal-protocol objects rather than
+  // reimplementing deferred import or adding an application-facing API.
+  const ownRequire = esm(ownModule)
+  const version = require(path.join(root, "package.json")).version
+  const shared = ownRequire(Symbol.for(`esm\u200d@${version}:shared`))
+  const Entry = ownRequire(shared.symbol.entry)
+  const Runtime = ownRequire(shared.symbol.runtime)
+  if (typeof Entry?.get !== "function" || typeof Runtime?.enable !== "function") {
+    throw new Error("Test262: esm-sync script runtime is unavailable")
+  }
+
+  const scriptModule = new Module(filename, module)
+  scriptModule.filename = filename
+  scriptModule.paths = Module._nodeModulePaths(path.dirname(filename))
+  return Runtime.enable(Entry.get(scriptModule), Object.create(null))
+}
+
+function runScript(filename) {
+  const source = readFileSync(filename, "utf8")
+  let code = source
+
+  if (deferredCallPattern.test(source)) {
+    const compiled = getCompiler().compile(source, {
+      hint: 1,
+      pragmas: false,
+      runtimeName: SCRIPT_RUNTIME_NAME,
+      sourceType: 1
+    })
+
+    // A string or comment mentioning import.defer must not change the
+    // execution path: only the compiler's actual deferred-import transform
+    // opts into esm-sync's runtime.
+    if (compiled.code.includes(`${SCRIPT_RUNTIME_NAME}.q(`)) {
+      if (Object.hasOwn(globalThis, SCRIPT_RUNTIME_NAME)) {
+        throw new Error("Test262: script runtime binding already exists")
+      }
+      Object.defineProperty(globalThis, SCRIPT_RUNTIME_NAME, {
+        configurable: true,
+        value: getScriptRuntime(filename)
+      })
+      code = compiled.code
+    }
+  }
+
+  const script = new vm.Script(code, {
+    filename,
+    importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
+  })
+  return script.runInThisContext()
+}
+
 // Use the loader's own parse/link path, not a second implementation based on
 // vm.SourceTextModule. Compiler and bridge bootstrap errors must escape
 // the Test262 reporter rather than look like expected resolution failures.
@@ -91,4 +157,4 @@ function checkModuleLink(filename) {
   }
 }
 
-module.exports = { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule }
+module.exports = { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule, runScript }

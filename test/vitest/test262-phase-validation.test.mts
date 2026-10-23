@@ -574,6 +574,100 @@ describe("Test262 negative-phase verification", () => {
   })
 })
 
+describe("Test262 script-goal deferred imports", () => {
+  it("preserves script globals and exact rejection identity across microtasks", async () => {
+    const result = await executeCase({
+      source: `
+if (this !== globalThis || typeof module !== "undefined") throw new Error("not a script");
+var test262GlobalFromScript = 17;
+if (globalThis.test262GlobalFromScript !== 17) throw new Error("no script global");
+const reason = new Test262Error("toString failed");
+const specifier = { toString() { throw reason; } };
+Promise.resolve()
+  .then(() => import.defer(specifier))
+  .then(
+    () => $DONE(new Error("deferred import unexpectedly resolved")),
+    (error) => $DONE(error === reason ? undefined : new Error("rejection identity changed"))
+  );`,
+      isAsync: true
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("links but defers a real dependency until its namespace is read", async () => {
+    const result = await executeCase({
+      source: `
+var test262EvaluationCount = 0;
+import.defer("./dependency.mjs")
+  .then((namespace) => {
+    if (globalThis.test262EvaluationCount !== 0) throw new Error("evaluated eagerly");
+    if (namespace.answer !== 42) throw new Error("incorrect deferred export");
+    if (globalThis.test262EvaluationCount !== 1) throw new Error("evaluation not deferred");
+  })
+  .then($DONE, $DONE);`,
+      dependency: "globalThis.test262EvaluationCount += 1; export const answer = 42;",
+      isAsync: true
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("does not transform scripts that mention import.defer only in strings", async () => {
+    const result = await executeCase({
+      source: `
+var description = "import.defer(";
+if (this !== globalThis || description !== "import.defer(") throw new Error("script changed");
+if (globalThis.description !== description) throw new Error("script global changed");`
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("runs all pinned script-goal import.defer specifier rejection cases", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-test262-defer-rejections-"))
+    try {
+      const runner = path.resolve(testPath, "../script/run-test262.js")
+      const reportPath = path.join(directory, "report.json")
+      const { exitCode, stdout, stderr, timedOut } = await execa(
+        process.execPath,
+        [
+          runner,
+          "--filter",
+          "import-defer-specifier-tostring-abrupt-rejects",
+          "--reporter",
+          "dot",
+          "--report",
+          reportPath
+        ],
+        { cwd: path.dirname(runner), reject: false, timeout: 30_000 }
+      )
+      assert.equal(timedOut, false)
+      assert.equal(exitCode, 0, stderr || stdout)
+      const report = JSON.parse(await readFile(reportPath, "utf8")) as {
+        selected: number
+        passed: number
+        failed: number
+        unsupported: number
+        complete: boolean
+        cases: Array<{ status: string; expectedError: string | null; path: string }>
+      }
+      assert.equal(report.complete, true)
+      assert.equal(report.selected, 16)
+      assert.equal(report.passed, 16)
+      assert.equal(report.failed, 0)
+      assert.equal(report.unsupported, 0)
+      assert.ok(
+        report.cases.every(
+          ({ status, path: filename, expectedError }) =>
+            status === "pass" &&
+            expectedError === null &&
+            filename.includes("/dynamic-import/catch/")
+        )
+      )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+})
+
 describe("Test262 asynchronous completion", () => {
   it("does not confuse ordinary print output with $DONE", async () => {
     const result = await executeCase({

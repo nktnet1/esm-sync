@@ -303,6 +303,37 @@ attributes, and an errored cycle). The other remaining groups are 241
 conformance **reporting for generated grammar tests**, not runtime dynamic
 import or async module evaluation.
 
+### Script-goal dynamic `import.defer()` validation (v1.0.19)
+
+The pinned Test262 script-goal rejection cases call `import.defer()` to verify
+that abrupt specifier coercion rejects the returned Promise with the **same
+thrown value**. Node 24/26 `vm.Script` cannot parse that phase-qualified form,
+even though esm-sync already transforms it and implements the deferred runtime.
+Previously, the wrapper executed the raw source under Node and misreported a
+native syntax error as a Test262 runtime failure.
+
+For scripts whose source contains a real `import.defer()` call, the private
+runner compiles the source using esm-sync's script grammar and executes the
+result through `vm.Script` with esm-sync's existing runtime bound to that
+script's filename. It retains the **script goal**, including global `var`
+bindings, and does not convert scripts into modules or CommonJS wrappers.
+Only actual deferred-call transformations take this path: comments and string
+literals containing `import.defer(` leave the original script untouched.
+Test262 completion and Promise assertions still run normally. The pinned 16
+specifier-rejection cases are covered by a required positive conformance
+regression rather than a skip or syntax-only classification. A separate
+regression links a real deferred dependency and verifies that its body runs
+only upon namespace access.
+
+The full pinned Node 26.12.0 run selects 1,745 cases: **1,471 pass, 265 fail,
+9 unsupported, 0 excluded**. Compared with v1.0.18 this restores the 16
+rejection cases and two generated `with`-expression assertions, with **zero
+regressions**. The remaining failures are 15 dynamic-import cases (including
+five `syntax/valid` assertions, four deferred async graphs, three `for await`
+cases, and three other runtime cases), nine deferred imports, and 241
+`top-level-await` cases. Async module graphs and ModuleSource support remain
+out of scope.
+
 ## Third-party runner dependencies
 
 The following are deliberately retained for **external host interoperability**,
