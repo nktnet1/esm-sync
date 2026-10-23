@@ -200,6 +200,68 @@ describe("compiler tests", () => {
     assert.ok(result.code.includes('i("a")'))
   })
 
+  it("should preserve the evaluation of a second dynamic import argument", () => {
+    const code = 'import("fixture", (globalThis.called += 1, {}),)'
+
+    for (const sourceType of sourceTypes) {
+      const { code: transformed } = Compiler.compile(code, { sourceType })
+      const runtime = { i(_specifier, options) { return options } }
+
+      globalThis.called = 0
+
+      try {
+        assert.deepStrictEqual(new Function("_", `return ${transformed}`)(runtime), {})
+        assert.equal(globalThis.called, 1)
+      } finally {
+        delete globalThis.called
+      }
+    }
+  })
+
+  it("should compile dynamic source and defer imports as call syntax", () => {
+    for (const phase of ["source", "defer"]) {
+      for (const sourceType of sourceTypes) {
+        const calls = []
+        const code = `import.${phase}((calls.push("specifier"), "fixture"), (calls.push("options"), {}),)`
+        const { code: transformed } = Compiler.compile(code, { sourceType })
+        const runtime = {
+          p(request, options) {
+            calls.push("source")
+            return [request, options]
+          },
+          q(request, options) {
+            calls.push("defer")
+            return [request, options]
+          }
+        }
+
+        const result = new Function("_", "calls", `return ${transformed}`)(runtime, calls)
+
+        assert.deepStrictEqual(result, ["fixture", {}])
+        assert.deepStrictEqual(calls, ["specifier", "options", phase])
+      }
+    }
+  })
+
+  it("should reject invalid phase-qualified import syntax", () => {
+    const lines = [
+      "import.source",
+      "import.defer",
+      'import.foo("fixture")',
+      'import.sour\\u0063e("fixture")',
+      'import.d\\u0065fer("fixture")',
+      "import.source()",
+      'import.source("fixture", {}, {})',
+      "import.defer?.('fixture')",
+      'new import.source("fixture")',
+      'new import.defer("fixture")'
+    ]
+
+    for (const line of lines) {
+      assert.throws(() => Compiler.compile(line, { sourceType: MODULE }), /SyntaxError/, line)
+    }
+  })
+
   it("should transform dynamic import in switch statements", () => {
     const code = [
       "(async () => {",
@@ -801,6 +863,175 @@ describe("compiler tests", () => {
 
     for (const line of lines) {
       assert.doesNotThrow(() => Compiler.compile(line + suffix, { sourceType: SCRIPT }))
+    }
+  })
+})
+
+describe("import assignment target early errors", () => {
+  it("rejects assigning to import.meta and dynamic import expressions", () => {
+    for (const target of ["import.meta", 'import("value")']) {
+      for (const source of [
+        `${target} = 1`,
+        `${target} += 1`,
+        `++${target}`,
+        `${target}++`,
+        `({ value: ${target} } = {})`,
+        `[${target}] = []`,
+        `for (${target} of []) {}`
+      ]) {
+        assert.throws(
+          () => Compiler.compile(source, { sourceType: MODULE }),
+          SyntaxError,
+          `Expected a SyntaxError for: ${source}`
+        )
+      }
+    }
+  })
+
+  it("keeps property assignments to import.meta and import() results valid", () => {
+    for (const source of ['import.meta.value = 1', 'import("value").result = 1']) {
+      assert.doesNotThrow(() => Compiler.compile(source, { sourceType: MODULE }), source)
+    }
+  })
+})
+
+describe("arbitrary module namespace names", () => {
+  it("preserves string-literal names in imports, re-exports, and namespace exports", () => {
+    for (const name of ["☿", 'quoted"name', "slash\\name", "😀"]) {
+      const moduleName = JSON.stringify(name)
+      const importCalls = []
+      const importResult = Compiler.compile(`import { ${moduleName} as value } from "fixture"`, {
+        sourceType: MODULE
+      })
+
+      new Function("_", importResult.code)({
+        w(request, setters) {
+          importCalls.push([request, setters])
+        }
+      })
+      assert.equal(importCalls[0][0], "fixture")
+      assert.equal(importCalls[0][1][0][0], name)
+      assert.equal(importCalls[0][1][0][1][0], "value")
+
+      const reExportCalls = []
+      const reExportResult = Compiler.compile(
+        `export { ${moduleName} as ${moduleName} } from "fixture"`,
+        { sourceType: MODULE }
+      )
+
+      new Function("_", reExportResult.code)({
+        f(imported, exported) {
+          return [imported, exported]
+        },
+        w(request, setters) {
+          reExportCalls.push([request, setters])
+        }
+      })
+      assert.equal(reExportCalls[0][1][0][0], name)
+      assert.equal(reExportCalls[0][1][0][2][0], name)
+      assert.equal(reExportCalls[0][1][0][2][1], name)
+
+      const namespaceCalls = []
+      const namespaceResult = Compiler.compile(`export * as ${moduleName} from "fixture"`, {
+        sourceType: MODULE
+      })
+
+      new Function("_", namespaceResult.code)({
+        f(imported, exported) {
+          return [imported, exported]
+        },
+        w(request, setters) {
+          namespaceCalls.push([request, setters])
+        }
+      })
+      assert.equal(namespaceCalls[0][1][0][2][0], "*")
+      assert.equal(namespaceCalls[0][1][0][2][1], name)
+
+      const localExports = []
+      const localExportResult = Compiler.compile(
+        `const value = 42; export { value as ${moduleName} }`,
+        { sourceType: MODULE }
+      )
+
+      new Function("_", localExportResult.code)({
+        x(exports) {
+          localExports.push(...exports)
+        }
+      })
+      assert.equal(localExports[0][0], name)
+      assert.equal(localExports[0][1](), 42)
+    }
+  })
+
+  it("rejects isolated surrogate code units in module export names", () => {
+    for (const name of ['"\\uD83D"', '"\\uDC00"', '"\\uD83D_"']) {
+      for (const source of [
+        `export { value as ${name} }; const value = 1`,
+        `export * as ${name} from "fixture"`,
+        `import { ${name} as value } from "fixture"`
+      ]) {
+        assert.throws(
+          () => Compiler.compile(source, { sourceType: MODULE }),
+          SyntaxError,
+          `Expected invalid module namespace name: ${source}`
+        )
+      }
+    }
+
+    assert.doesNotThrow(() =>
+      Compiler.compile('export { value as "\\uD83D\\uDE00" }; const value = 1', {
+        sourceType: MODULE
+      })
+    )
+  })
+})
+
+describe("static import attributes", () => {
+  it("rejects duplicate attribute keys after normalizing string escapes", () => {
+    for (const attributes of [
+      'type: "json", "type": "json"',
+      'type: "json", "typ\\u0065": "json"',
+      '"__proto__": "json", "__proto__": "json"'
+    ]) {
+      for (const statement of [
+        'import "fixture"',
+        'import value from "fixture"',
+        'import { value } from "fixture"',
+        'import * as namespace from "fixture"',
+        'export * from "fixture"',
+        'export * as namespace from "fixture"',
+        'export { value } from "fixture"'
+      ]) {
+        const source = `${statement} with { ${attributes} }`
+
+        for (const sourceType of modernTypes) {
+          assert.throws(
+            () => Compiler.compile(source, { sourceType }),
+            { name: "SyntaxError", message: /Duplicate attribute key/ },
+            source
+          )
+        }
+      }
+    }
+  })
+
+  it("accepts empty and distinct import attributes in imports and re-exports", () => {
+    for (const attributes of ["", 'type: "json", Type: "module"']) {
+      for (const statement of [
+        'import "fixture"',
+        'import value from "fixture"',
+        'import { value } from "fixture"',
+        'export * from "fixture"',
+        'export * as namespace from "fixture"',
+        'export * as "custom name" from "fixture"',
+        'export { value } from "fixture"'
+      ]) {
+        const source = `${statement} with { ${attributes} }`
+
+        for (const sourceType of modernTypes) {
+          assert.doesNotThrow(() => Compiler.compile(source, { sourceType }), source)
+        }
+      }
     }
   })
 })

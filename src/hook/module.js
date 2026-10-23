@@ -177,7 +177,14 @@ function hook(Mod, parent) {
       })
     }
 
-    if ((compileData === null || compileData.transforms === 0) && passthruMap.get(func)) {
+    // `mode: all` forces even syntax-free .js files to be modules. Delegating
+    // their zero-transform load to Node's extension handler can execute them
+    // as CommonJS (or execute their bodies during the linking pass).
+    if (
+      !(ext === ".js" && pkg.options.mode === MODE_ALL) &&
+      (compileData === null || compileData.transforms === 0) &&
+      passthruMap.get(func)
+    ) {
       return tryPassthru.call(this, func, args, pkg)
     }
 

@@ -1,15 +1,25 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { describe, it } from "node:test"
+import { after, describe, it } from "node:test"
 import execa from "execa"
 import globby from "globby"
 import test262Parser from "test262-parser"
 
 const require = createRequire(import.meta.url)
 const setupTest262 = require("../script/setup-test262.js")
+const { assertTest262Outcome } = require("../script/test262-outcome.js")
+const {
+  createReport,
+  detectHostFeatures,
+  detectLoaderFeatures,
+  getUnsupportedHostFeatures,
+  getUnsupportedLoaderFeatures,
+  isGeneratedGrammarCase,
+  selectCases
+} = require("../script/test262-selection.js")
 const testPath = fileURLToPath(new URL("./", import.meta.url))
 const fixturePath = path.join(testPath, "test262")
 const corpusPath = path.join(testPath, "vendor/test262")
@@ -35,19 +45,45 @@ function readSkiplist(filename) {
 }
 
 function readCase(filename) {
-  const { attrs } = test262Parser.parseFile(readFileSync(filename, "utf8"))
+  const source = readFileSync(filename, "utf8")
+  const { attrs } = test262Parser.parseFile(source)
+  const relativePath = path.relative(corpusPath, filename).split(path.sep).join("/")
   return {
+    syntaxOnly: isGeneratedGrammarCase({
+      relativePath,
+      flags: attrs.flags,
+      includes: attrs.includes,
+      expectedError: attrs.negative?.type,
+      expectedPhase: attrs.negative?.phase,
+      source
+    }),
     description: attrs.description?.trim() || path.basename(filename),
     expectedError: attrs.negative?.type,
+    expectedPhase: attrs.negative?.phase,
     isAsync: Boolean(attrs.flags.async),
+    isModule: Boolean(attrs.flags.module),
+    features: attrs.features || [],
     includes: attrs.includes || []
   }
 }
 
-async function runCase(filename, { expectedError, isAsync, includes }) {
+async function runCase(filename, { expectedError, expectedPhase, isAsync, isModule, includes, syntaxOnly }) {
   const { exitCode, stdout, stderr, timedOut } = await execa(
     process.execPath,
-    ["--harmony", "-r", "../../", wrapperPath, filename, String(isAsync), JSON.stringify(includes)],
+    [
+      "--harmony",
+      "--experimental-vm-modules",
+      "--disable-warning=ExperimentalWarning",
+      "-r",
+      "../../",
+      wrapperPath,
+      filename,
+      String(isAsync),
+      JSON.stringify(includes),
+      String(isModule),
+      expectedPhase ?? "",
+      String(syntaxOnly)
+    ],
     {
       cwd: fixturePath,
       reject: false,
@@ -56,7 +92,8 @@ async function runCase(filename, { expectedError, isAsync, includes }) {
         ...process.env,
         NODE_ENV: "development",
         ESM_ENV: "development-test",
-        ESM_OPTIONS: "{cjs:false,cache:false}"
+        // Test262 marks modules explicitly, even when they have no import/export syntax.
+        ESM_OPTIONS: isModule ? "{cjs:false,cache:false,mode:'all'}" : "{cjs:false,cache:false}"
       }
     }
   )
@@ -65,13 +102,7 @@ async function runCase(filename, { expectedError, isAsync, includes }) {
   assert.equal(exitCode, 0, `${filename}: ${stderr || stdout}`)
   assert.equal(stderr, "", `${filename}: unexpected stderr`)
 
-  if (stdout.trim()) {
-    const { name } = JSON.parse(stdout)
-    assert.ok(typeof name === "string" && name.length > 0, `${filename}: invalid error report`)
-    assert.equal(name, expectedError, `${filename}: unexpected error type`)
-  } else {
-    assert.equal(expectedError, undefined, `${filename}: expected ${expectedError}, but no error occurred`)
-  }
+  assertTest262Outcome(filename, stdout, expectedError, expectedPhase)
 }
 
 const skiplist = readSkiplist(skiplistPath)
@@ -86,28 +117,108 @@ if (files.length === 0) {
   throw new Error("No Test262 cases found in the pinned corpus")
 }
 
-const cases = files.map((filename) => ({
-  filename,
-  relativePath: path.relative(corpusPath, filename),
-  skippedReason: skiplist.get(path.normalize(filename)),
-  ...readCase(filename)
-}))
+const hostFeatures = await detectHostFeatures()
+const loaderFeatures = detectLoaderFeatures()
+const cases = files.map((filename) => {
+  const metadata = readCase(filename)
+  const relativePath = path.relative(corpusPath, filename).split(path.sep).join("/")
+  return {
+    filename,
+    relativePath,
+    skippedReason: skiplist.get(path.normalize(filename)),
+    unsupportedHostFeatures: getUnsupportedHostFeatures(metadata, hostFeatures),
+    unsupportedLoaderFeatures: getUnsupportedLoaderFeatures(
+      { ...metadata, relativePath },
+      loaderFeatures
+    ),
+    ...metadata
+  }
+})
 const excluded = cases.filter(({ skippedReason }) => skippedReason !== undefined)
-
-if (excluded.length === cases.length) {
-  throw new Error("No runnable Test262 cases remain after applying the skiplist")
-}
+const filter = process.env.TEST262_FILTER || ""
+const excludeFeatures = JSON.parse(process.env.TEST262_EXCLUDE_FEATURES || "[]")
+const limitValue = process.env.TEST262_LIMIT
+const limit = limitValue ? Number(limitValue) : undefined
+const selectedCases = selectCases(cases, { filter, limit, excludeFeatures })
+const unsupportedCases = selectedCases.filter(
+  ({ unsupportedHostFeatures, unsupportedLoaderFeatures }) =>
+    unsupportedHostFeatures.length > 0 || unsupportedLoaderFeatures.length > 0
+)
+const reportPath = process.env.TEST262_REPORT
+const results = []
 
 if (excluded.length > 0) {
   console.info(`Test262: excluding ${excluded.length} known cases from test/test262/skiplist`)
 }
 
-describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, () => {
-  for (const testCase of cases) {
-    if (testCase.skippedReason !== undefined) continue
+console.info(
+  `Test262: selected ${selectedCases.length} of ${cases.length - excluded.length} non-excluded cases (${selectedCases.length - unsupportedCases.length} runnable, ${unsupportedCases.length} unsupported)`
+)
 
-    it(`${testCase.description} (${testCase.relativePath})`, async () => {
-      await runCase(testCase.filename, testCase)
+describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, () => {
+  if (reportPath) {
+    after(() => {
+      const report = createReport({
+        revision: setupTest262.revision,
+        selected: selectedCases.length,
+        excluded: excluded.length,
+        results
+      })
+      const outputPath = path.resolve(reportPath)
+      mkdirSync(path.dirname(outputPath), { recursive: true })
+      writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`)
+      console.info(`Test262: wrote report to ${outputPath}`)
+    })
+  }
+
+  for (const testCase of selectedCases) {
+    const title = `${testCase.description} (${testCase.relativePath})`
+    const result = {
+      path: testCase.relativePath,
+      description: testCase.description,
+      expectedError: testCase.expectedError ?? null,
+      expectedPhase: testCase.expectedPhase ?? null,
+      ...(testCase.syntaxOnly ? { syntaxOnly: true } : {})
+    }
+
+    const { unsupportedHostFeatures, unsupportedLoaderFeatures } = testCase
+    if (unsupportedHostFeatures.length > 0 || unsupportedLoaderFeatures.length > 0) {
+      const unsupportedFeatureSources = {
+        host: unsupportedHostFeatures,
+        loader: unsupportedLoaderFeatures
+      }
+      const reasons = []
+      if (unsupportedHostFeatures.length > 0) {
+        reasons.push(`Unsupported host features: ${unsupportedHostFeatures.join(", ")}`)
+      }
+      if (unsupportedLoaderFeatures.length > 0) {
+        reasons.push(`Unsupported loader features: ${unsupportedLoaderFeatures.join(", ")}`)
+      }
+      results.push({
+        ...result,
+        status: "unsupported",
+        unsupportedFeatures: [...unsupportedHostFeatures, ...unsupportedLoaderFeatures],
+        unsupportedFeatureSources
+      })
+      it.skip(title, { skip: reasons.join("; ") }, () => {})
+      continue
+    }
+
+    it(title, async () => {
+      try {
+        await runCase(testCase.filename, testCase)
+        results.push({ ...result, status: "pass" })
+      } catch (error) {
+        results.push({
+          ...result,
+          status: "fail",
+          error: {
+            name: error?.name ?? "Error",
+            message: String(error?.message ?? error).slice(0, 8000)
+          }
+        })
+        throw error
+      }
     })
   }
 })

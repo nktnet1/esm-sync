@@ -30,6 +30,7 @@ import keys from "./util/keys.js"
 import ownPropertyNames from "./util/own-property-names.js"
 import proxyExports from "./util/proxy-exports.js"
 import readFile from "./fs/read-file.js"
+import { resumeSync } from "./module/internal/sync-await.js"
 import setDeferred from "./util/set-deferred.js"
 import setPrototypeOf from "./util/set-prototype-of.js"
 import shared from "./shared.js"
@@ -71,10 +72,7 @@ const {
 
 const {
   ERR_EXPORT_STAR_CONFLICT,
-  ERR_NS_ASSIGNMENT,
   ERR_NS_DEFINITION,
-  ERR_NS_DELETION,
-  ERR_NS_EXTENSION,
   ERR_NS_REDEFINITION,
   ERR_UNDEFINED_IDENTIFIER
 } = errors
@@ -178,7 +176,11 @@ class Entry {
 
   addGetterFrom(otherEntry, importedName, exportedName = importedName) {
     if (importedName === "*") {
-      return this.addGetter(exportedName, () => otherEntry.getExportByName("*", this))
+      const getter = () => otherEntry.getExportByName("*", this)
+      getter.owner = otherEntry
+      getter.id = importedName
+
+      return this.addGetter(exportedName, getter)
     }
 
     const otherGetters = otherEntry.getters
@@ -557,9 +559,16 @@ class Entry {
         if (runResult !== void 0 && childEntry.state < STATE_EXECUTION_STARTED) {
           childEntry.state = STATE_EXECUTION_STARTED
           childEntry.running = true
-          runResult.next()
-          childEntry.module.loaded = true
-          childEntry.running = false
+          try {
+            if (childEntry.compileData.firstAwaitOutsideFunction === null) {
+              runResult.next()
+            } else {
+              resumeSync(runResult)
+            }
+            childEntry.module.loaded = true
+          } finally {
+            childEntry.running = false
+          }
         }
 
         if (typeof childEntry._finalize === "function") {
@@ -774,27 +783,18 @@ function assignImmutableNamespaceHandlerTraps(handler, entry) {
   }
 
   handler.deleteProperty = (namespace, name) => {
-    if (Reflect.deleteProperty(namespace, name)) {
-      return true
-    }
-
-    if (!isCalledFromStrictCode()) {
-      return false
-    }
-
-    throw new ERR_NS_DELETION(entry.module, name)
+    // Module namespace [[Delete]] returns false for exported names. The
+    // operation itself cannot determine the caller's strictness: `delete`
+    // throws in strict code, while Reflect.deleteProperty and sloppy code
+    // observe false directly.
+    return Reflect.deleteProperty(namespace, name)
   }
 
-  handler.set = (namespace, name) => {
-    if (!isCalledFromStrictCode()) {
-      return false
-    }
-
-    if (has(namespace, name)) {
-      throw new ERR_NS_ASSIGNMENT(entry.module, name)
-    }
-
-    throw new ERR_NS_EXTENSION(entry.module, name)
+  handler.set = () => {
+    // Module namespace [[Set]] always returns false. Let the caller's
+    // assignment expression throw in strict mode instead of inspecting
+    // stack frames to guess its strictness.
+    return false
   }
 }
 

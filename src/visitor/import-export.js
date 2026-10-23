@@ -12,22 +12,12 @@ import preserveLine from "../parse/preserve-line.js"
 import shared from "../shared.js"
 import toStringLiteral from "../util/to-string-literal.js"
 
+function getModuleExportName(node) {
+  return node.type === "Literal" ? String(node.value) : node.name
+}
+
 function getExportedName(specifier) {
-  const exp = specifier.exported
-
-  if (!exp) {
-    return
-  }
-
-  if (exp.type === "Identifier") {
-    return exp.name
-  }
-
-  if (exp.type === "Literal") {
-    return String(exp.value)
-  }
-
-  return
+  return specifier.exported && getModuleExportName(specifier.exported)
 }
 
 function init() {
@@ -51,12 +41,45 @@ function init() {
           (this.generateVarDeclarations ? "var " : "let ") + [...importedBindings].join(",") + ";"
       }
 
-      code += toModuleExport(this, this.hoistedExports)
+      // Exports of named imports refer to the original imported binding,
+      // not to the intermediate module. Resolve imports after traversal so
+      // an export can legally appear before its corresponding import.
+      const localExports = []
+
+      for (const [exportedName, localName] of this.hoistedExports) {
+        const imported = this.importedBindingMap.get(localName)
+
+        if (imported === void 0) {
+          localExports.push([exportedName, localName])
+          continue
+        }
+
+        const map = this.importSpecifierMap.get(imported.key)
+
+        if (imported.name === "*") {
+          // Keep the local namespace value so CommonJS mocking can replace
+          // it, while recording its source for export-star resolution.
+          localExports.push([exportedName, localName])
+          map.namespaceReExports.set(exportedName, imported.name)
+          continue
+        }
+
+        let names = map.reExports.get(exportedName)
+
+        if (names === void 0) {
+          names = []
+          map.reExports.set(exportedName, names)
+        }
+
+        names.push(imported.name)
+      }
+
+      code += toModuleExport(this, localExports)
 
       const { runtimeName } = this
 
-      this.importSpecifierMap.forEach((map, request) => {
-        code += runtimeName + ".w(" + toStringLiteral(request)
+      this.importSpecifierMap.forEach((map) => {
+        code += runtimeName + (map.phase === "defer" ? ".y(" : ".w(") + toStringLiteral(map.request)
 
         let setterArgsList = ""
 
@@ -65,14 +88,15 @@ function init() {
 
           setterArgsList +=
             (setterArgsList === "" ? "" : ",") +
-            '["' +
-            name +
-            '",' +
-            (name === "*" ? "null" : '["' + localNames.join('","') + '"]') +
+            "[" +
+            toStringLiteral(name) +
+            "," +
+            (name === "*"
+              ? "null"
+              : "[" + localNames.map((localName) => toStringLiteral(localName)).join(",") + "]") +
             ",function(" +
             valueParam +
             "){" +
-            // Multiple local variables become a compound assignment.
             localNames.join("=") +
             "=" +
             valueParam +
@@ -83,16 +107,30 @@ function init() {
           for (const localName of localNames) {
             setterArgsList +=
               (setterArgsList === "" ? "" : ",") +
-              '["' +
-              localName +
-              '",null,' +
+              "[" +
+              toStringLiteral(localName) +
+              ",null," +
               runtimeName +
-              '.f("' +
-              localName +
-              '","' +
-              name +
-              '")]'
+              ".f(" +
+              toStringLiteral(localName) +
+              "," +
+              toStringLiteral(name) +
+              ")]"
           }
+        })
+
+        map.namespaceReExports.forEach((importedName, exportedName) => {
+          setterArgsList +=
+            (setterArgsList === "" ? "" : ",") +
+            "[" +
+            toStringLiteral(importedName) +
+            ",null," +
+            runtimeName +
+            ".f(" +
+            toStringLiteral(importedName) +
+            "," +
+            toStringLiteral(exportedName) +
+            ",true)]"
         })
 
         if (map.star) {
@@ -100,11 +138,11 @@ function init() {
             (setterArgsList === "" ? "" : ",") + '["*",null,' + runtimeName + ".n()]"
         }
 
-        if (setterArgsList !== "") {
+        if (setterArgsList !== "" || map.moduleType === "text") {
           code += ",[" + setterArgsList + "]"
         }
 
-        code += ");"
+        code += map.moduleType === "text" ? ',"text");' : ");"
       })
 
       this.magicString.prependLeft(top.insertIndex, code)
@@ -118,6 +156,7 @@ function init() {
       this.hoistedExports = null
       this.hoistedImportsString = ""
       this.importSpecifierMap = null
+      this.importedBindingMap = null
       this.magicString = null
       this.possibleIndexes = null
       this.runtimeName = null
@@ -135,6 +174,7 @@ function init() {
         this.generateVarDeclarations = options.generateVarDeclarations
         this.hoistedExports = []
         this.importSpecifierMap = new Map()
+        this.importedBindingMap = new Map()
         this.magicString = magicString
         this.possibleIndexes = options.possibleIndexes
         this.runtimeName = options.runtimeName
@@ -158,11 +198,13 @@ function init() {
         return
       }
 
-      // Support dynamic import:
-      // import("mod")
+      // Support dynamic import calls in the evaluation, source and defer
+      // phases. Phase-qualified imports have their own runtime entry points,
+      // rather than invoking a property on an imaginary `import` object.
       this.transforms |= TRANSFORMS_DYNAMIC_IMPORT
 
-      overwrite(this, callee.start, callee.end, this.runtimeName + ".i")
+      const method = callee.phase === "source" ? ".p" : callee.phase === "defer" ? ".q" : ".i"
+      overwrite(this, callee.start, callee.end, this.runtimeName + method)
       path.call(this, "visitWithoutReset", "arguments")
     }
 
@@ -184,15 +226,8 @@ function init() {
 
       const { importSpecifierMap, temporalBindings } = this
       const node = path.getValue()
-      const request = node.source.value
       const { specifiers } = node
-
-      let map = importSpecifierMap.get(request)
-
-      if (map === void 0) {
-        map = createImportSpecifierMap()
-        importSpecifierMap.set(request, map)
-      }
+      const map = getImportSpecifierMap(importSpecifierMap, node)
 
       const { imports } = map
 
@@ -202,7 +237,7 @@ function init() {
         let importsName = "*"
 
         if (type === "ImportSpecifier") {
-          importsName = specifier.imported.name
+          importsName = getModuleExportName(specifier.imported)
         } else if (type === "ImportDefaultSpecifier") {
           importsName = "default"
         }
@@ -215,6 +250,8 @@ function init() {
         }
 
         const localName = specifier.local.name
+
+        this.importedBindingMap.set(localName, { key: map.key, name: importsName })
 
         localNames.push(localName)
 
@@ -237,14 +274,7 @@ function init() {
 
       const { importSpecifierMap } = this
       const node = path.getValue()
-      const request = node.source.value
-
-      let map = importSpecifierMap.get(request)
-
-      if (map === void 0) {
-        map = createImportSpecifierMap()
-        importSpecifierMap.set(request, map)
-      }
+      const map = getImportSpecifierMap(importSpecifierMap, node)
 
       map.star = true
 
@@ -404,14 +434,7 @@ function init() {
         // Support re-exporting specifiers of an imported module:
         // export { name1, name2, ..., nameN } from "mod"
         const { importSpecifierMap } = this
-        const request = source.value
-
-        let map = importSpecifierMap.get(request)
-
-        if (map === void 0) {
-          map = createImportSpecifierMap()
-          importSpecifierMap.set(request, map)
-        }
+        const map = getImportSpecifierMap(importSpecifierMap, node)
 
         for (const specifier of specifiers) {
           const exportedName = getExportedName(specifier)
@@ -425,7 +448,9 @@ function init() {
           }
 
           const localName =
-            specifier.type === "ExportNamespaceSpecifier" ? "*" : specifier.local.name
+            specifier.type === "ExportNamespaceSpecifier"
+              ? "*"
+              : getModuleExportName(specifier.local)
 
           localNames.push(localName)
         }
@@ -450,10 +475,35 @@ function init() {
     }
   }
 
+  function getImportSpecifierMap(maps, node) {
+    const request = node.source.value
+    const attribute = (node.attributes ?? []).find(
+      ({ key }) => (key.type === "Identifier" ? key.name : key.value) === "type"
+    )
+    const moduleType = attribute?.value.value === "text" ? "text" : void 0
+    const phase = node.phase === "defer" ? "defer" : "evaluation"
+    const key =
+      request + (moduleType === "text" ? "\0text" : "") + (phase === "defer" ? "\0defer" : "")
+
+    let map = maps.get(key)
+
+    if (map === void 0) {
+      map = createImportSpecifierMap()
+      map.key = key
+      map.request = request
+      map.moduleType = moduleType
+      map.phase = phase
+      maps.set(key, map)
+    }
+
+    return map
+  }
+
   function createImportSpecifierMap() {
     return {
       imports: new Map(),
       reExports: new Map(),
+      namespaceReExports: new Map(),
       star: false
     }
   }
@@ -511,7 +561,13 @@ function init() {
     code += visitor.runtimeName + ".x(["
 
     for (const [exportedName, localName] of pairs) {
-      code += '["' + exportedName + '",()=>' + localName + "]" + (++i === lastIndex ? "" : ",")
+      code +=
+        "[" +
+        toStringLiteral(exportedName) +
+        ",()=>" +
+        localName +
+        "]" +
+        (++i === lastIndex ? "" : ",")
     }
 
     code += "]);"

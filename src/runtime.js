@@ -6,14 +6,17 @@ import Loader from "./loader.js"
 import builtinGlobal from "./builtin/global.js"
 import errors from "./errors.js"
 import esmImport from "./module/esm/import.js"
+import esmLoad from "./module/esm/load.js"
 import getURLFromFilePath from "./util/get-url-from-file-path.js"
 import has from "./util/has.js"
+import { readFileSync } from "./safe/fs.js"
 import hasPragma from "./parse/has-pragma.js"
 import identity from "./util/identity.js"
 import isFileOrigin from "./util/is-file-origin.js"
 import isPath from "./util/is-path.js"
 import isStackTraceMaskable from "./util/is-stack-trace-maskable.js"
 import makeRequireFunction from "./module/internal/make-require-function.js"
+import { makeAwait } from "./module/internal/sync-await.js"
 import maskStackTrace from "./error/mask-stack-trace.js"
 import setDeferred from "./util/set-deferred.js"
 import { setImmediate } from "./safe/timers.js"
@@ -30,6 +33,8 @@ const {
   SETTER_TYPE_DYNAMIC_IMPORT,
   SETTER_TYPE_EXPORT_FROM,
   SETTER_TYPE_NAMESPACE,
+  STATE_EXECUTION_COMPLETED,
+  STATE_EXECUTION_STARTED,
   TYPE_CJS,
   TYPE_ESM,
   TYPE_PSEUDO,
@@ -38,7 +43,85 @@ const {
 
 const { ERR_CONST_ASSIGNMENT, ERR_UNDEFINED_IDENTIFIER } = errors
 
-const { Promise: ExPromise, eval: evalIndirect } = shared.external
+const {
+  Promise: ExPromise,
+  SyntaxError: ExSyntaxError,
+  TypeError: ExTypeError,
+  eval: evalIndirect
+} = shared.external
+
+// Terser can rewrite template-string coercion as `value + ""`, which uses
+// the wrong ToPrimitive hint. Retain String as a callable intrinsic instead.
+const ImportString = String
+
+function validateDynamicImportOptions(options) {
+  if (options === void 0) {
+    return
+  }
+
+  if (options === null || (typeof options !== "object" && typeof options !== "function")) {
+    throw new ExTypeError("Dynamic import options must be an object")
+  }
+
+  const attributes = options.with
+
+  if (attributes === void 0) {
+    return
+  }
+
+  if (attributes === null || (typeof attributes !== "object" && typeof attributes !== "function")) {
+    throw new ExTypeError("Dynamic import attributes must be an object")
+  }
+
+  // EnumerableOwnProperties collects string keys before looking up their
+  // values. In particular, ignore symbols and non-enumerable properties.
+  let moduleType
+
+  for (const key of Object.keys(attributes)) {
+    const value = attributes[key]
+
+    if (typeof value !== "string") {
+      throw new ExTypeError("Dynamic import attribute values must be strings")
+    }
+
+    if (key === "type") {
+      moduleType = value
+    }
+  }
+
+  return moduleType
+}
+
+function isCyclicStarReExport(getter, entry, exportedName) {
+  const seen = new Set()
+
+  while (getter !== void 0 && getter.deferred && !seen.has(getter)) {
+    seen.add(getter)
+
+    if (getter.owner === entry && getter.id === exportedName) {
+      return true
+    }
+
+    getter = getter.owner.getters[getter.id]
+  }
+
+  return false
+}
+
+// A deferred namespace must not resume an ESM graph whose evaluation is
+// already on the stack, even when the target module itself is only linked.
+// This follows the synchronous part of ReadyForSyncExecution.
+function readyForSyncExecution(entry, seen = new Set()) {
+  if (seen.has(entry) || entry.state === STATE_EXECUTION_COMPLETED) return true
+  if (entry.state === STATE_EXECUTION_STARTED || entry.running) return false
+
+  seen.add(entry)
+  for (const name in entry.children) {
+    if (!readyForSyncExecution(entry.children[name], seen)) return false
+  }
+
+  return true
+}
 
 const Runtime = {
   addDefaultValue(value) {
@@ -48,7 +131,7 @@ const Runtime = {
       this.initBindings(["default"])
     }
   },
-  addExportFromSetter(importedName, exportedName = importedName) {
+  addExportFromSetter(importedName, exportedName = importedName, preserveGetter = false) {
     const setter = createAccessor(SETTER_TYPE_EXPORT_FROM, (_value, childEntry) => {
       const { entry } = this
 
@@ -60,7 +143,19 @@ const Runtime = {
         entry._namespaceFinalized = NAMESPACE_FINALIZATION_DEFERRED
       }
 
-      entry.addGetterFrom(childEntry, importedName, exportedName)
+      if (preserveGetter) {
+        // A namespace imported and exported through a local binding has the
+        // same identity as `export * as`, but its getter must keep observing
+        // the local value for CommonJS interception and mocking.
+        const getter = entry.getters[exportedName]
+
+        if (getter !== void 0) {
+          getter.owner = childEntry
+          getter.id = importedName
+        }
+      } else {
+        entry.addGetterFrom(childEntry, importedName, exportedName)
+      }
     })
 
     setter.exportedName = exportedName
@@ -86,7 +181,7 @@ const Runtime = {
       }
 
       const childGetters = childEntry.getters
-      const { getters, name } = entry
+      const { getters } = entry
 
       const namespace = childIsLoaded ? childEntry.getExportByName("*", entry) : childEntry.getters
 
@@ -95,26 +190,27 @@ const Runtime = {
           continue
         }
 
-        let ownerName
-        let getter = getters[exportedName]
+        const getter = getters[exportedName]
+        const childGetter = childGetters[exportedName]
 
-        if (getter !== void 0) {
-          ownerName = getter.owner.name
-
-          if (name === ownerName) {
-            continue
-          }
+        // ResolveExport discards indirect re-exports that return to the same
+        // module and export name. They cannot independently provide a binding.
+        if (isCyclicStarReExport(childGetter, entry, exportedName)) {
+          continue
         }
 
-        const childOwnerName = childGetters[exportedName].owner.name
+        // A star export is ambiguous only if the original module or binding
+        // differs. Explicit exports still take precedence over star exports.
+        if (getter !== void 0 && getter.owner === entry) {
+          continue
+        }
 
-        if (getter === void 0 || ownerName === childOwnerName) {
+        if (
+          getter === void 0 ||
+          (getter.owner === childGetter.owner && getter.id === childGetter.id)
+        ) {
           entry.addGetterFrom(childEntry, exportedName)
-        }
-
-        ownerName = getters[exportedName].owner.name
-
-        if (ownerName !== name && ownerName !== childOwnerName) {
+        } else {
           entry.addGetter(
             exportedName,
             createAccessor(GETTER_TYPE_STAR_CONFLICT, () => ERROR_STAR)
@@ -244,17 +340,176 @@ const Runtime = {
 
     return code
   },
-  dynamicImport(request) {
+  importDeferred(request, setterArgsList) {
+    const parentEntry = this.entry
+    const { moduleState } = shared
+    const previousParsing = moduleState.parsing
+    const previousChildren = new Set(Object.values(parentEntry.children))
+    let childEntry
+
+    // Link and validate exports without starting the module body. The
+    // loader already supports this split for cyclic module dependencies.
+    moduleState.parsing = true
+    try {
+      childEntry = esmLoad(request, parentEntry.module, false, void 0, true)
+    } finally {
+      moduleState.parsing = previousParsing
+    }
+
+    // The normal CJS fallback postpones parsing untransformed scripts until
+    // execution. Deferred module requests still require link-time syntax
+    // errors, so validate those scripts without running their bodies.
+    if (childEntry.type === TYPE_CJS && typeof childEntry.filename === "string") {
+      new Function(readFileSync(childEntry.filename, "utf8"))
+    }
+
+    // A deferred child must not be resumed by the parent's regular eager
+    // dependency traversal. It is evaluated on its first export operation.
+    if (!previousChildren.has(childEntry) && parentEntry.children[childEntry.name] === childEntry) {
+      delete parentEntry.children[childEntry.name]
+    }
+
+    let namespace = childEntry.deferredNamespace
+    if (namespace === void 0) {
+      const eagerNamespace = childEntry.completeNamespace
+      const target = Object.create(null)
+      let started = false
+      let hasFailure = false
+      let failure
+
+      // A deferred namespace is distinct from the ordinary namespace and
+      // has its own non-configurable @@toStringTag. Proxying the ordinary
+      // namespace directly would violate Proxy invariants for that property.
+      for (const name of Object.keys(childEntry.getters).sort()) {
+        Object.defineProperty(target, name, {
+          configurable: false,
+          enumerable: true,
+          writable: true,
+          value: void 0
+        })
+      }
+      Object.defineProperty(target, Symbol.toStringTag, { value: "Deferred Module" })
+      Object.preventExtensions(target)
+
+      const ensureEvaluated = () => {
+        if (hasFailure) throw failure
+        if (!readyForSyncExecution(childEntry)) {
+          throw new ExTypeError("Deferred module cannot be evaluated synchronously")
+        }
+        if (started) return
+        started = true
+        try {
+          esmLoad(request, parentEntry.module, false)
+        } catch (error) {
+          hasFailure = true
+          failure = error
+          throw error
+        }
+      }
+
+      // Ordinary export-key operations trigger synchronous evaluation.
+      // Avoid promise thenable assimilation for deferred namespaces.
+      const shouldEvaluate = (name) => typeof name === "string" && name !== "then"
+      namespace = new Proxy(target, {
+        get(target, name) {
+          if (shouldEvaluate(name)) {
+            ensureEvaluated()
+            return Reflect.get(eagerNamespace, name)
+          }
+          return Reflect.get(target, name)
+        },
+        getOwnPropertyDescriptor(target, name) {
+          if (shouldEvaluate(name)) {
+            ensureEvaluated()
+            const descriptor = Reflect.getOwnPropertyDescriptor(target, name)
+            if (descriptor !== void 0) {
+              descriptor.value = Reflect.get(eagerNamespace, name)
+            }
+            return descriptor
+          }
+          return Reflect.getOwnPropertyDescriptor(target, name)
+        },
+        has(target, name) {
+          if (shouldEvaluate(name)) ensureEvaluated()
+          return Reflect.has(target, name)
+        },
+        ownKeys(target) {
+          ensureEvaluated()
+          return Reflect.ownKeys(target)
+        },
+        defineProperty(_target, name) {
+          if (shouldEvaluate(name)) ensureEvaluated()
+          return false
+        },
+        deleteProperty(target, name) {
+          if (shouldEvaluate(name)) ensureEvaluated()
+          return Reflect.deleteProperty(target, name)
+        },
+        set() {
+          return false
+        }
+      })
+      childEntry.deferredNamespace = namespace
+    }
+    for (const [, , setter] of setterArgsList) {
+      setter(namespace, childEntry)
+    }
+  },
+  dynamicSourceImport(request, options) {
+    return Runtime.dynamicImport.call(this, request, options, "source")
+  },
+  dynamicDeferImport(request, options) {
+    return Runtime.dynamicImport.call(this, request, options, "defer")
+  },
+  dynamicImport(request, options, phase = "evaluation") {
     const { entry } = this
 
     return new ExPromise((resolvePromise, rejectPromise) => {
+      let moduleType
+      // EvaluateImportCall converts the specifier and processes import
+      // attributes before returning its promise. Errors reject the promise
+      // through its executor instead of escaping from import().
+      try {
+        if (typeof request !== "string") {
+          if (typeof request === "symbol") {
+            throw new ExTypeError("Cannot convert a Symbol value to a string")
+          }
+
+          request = ImportString(request)
+        }
+
+        moduleType = validateDynamicImportOptions(options)
+      } catch (error) {
+        // A failed ToString can originate inside the bundled runtime. Expose
+        // the caller's error constructors without replacing a thrown value.
+        toExternalError(error)
+        rejectPromise(error)
+        return
+      }
+
       setImmediate(() => {
         try {
-          // Section 2.2.1: Runtime Semantics: Evaluation
-          // Step 6: Coerce request to a string.
-          // https://tc39.github.io/proposal-dynamic-import/#sec-import-call-runtime-semantics-evaluation
-          if (typeof request !== "string") {
-            request = request + ""
+          // This loader has no JavaScript ModuleSource representation, so
+          // source-phase imports reject with SyntaxError (as permitted by the
+          // Source Phase Imports host contract). Deferred module evaluation
+          // requires a linked-but-unevaluated module graph: do not fall back
+          // to eager import(), which would run side effects prematurely.
+          if (phase === "defer") {
+            let namespace
+            Runtime.importDeferred.call(this, request, [
+              [
+                "*",
+                null,
+                (value) => {
+                  namespace = value
+                }
+              ]
+            ])
+            resolvePromise(namespace)
+            return
+          }
+          if (phase === "source") {
+            throw new ExSyntaxError("Module source phase is unavailable")
           }
 
           let lastValue
@@ -278,7 +533,7 @@ const Runtime = {
             ]
           ]
 
-          esmImport(request, entry, setterArgsList, true)
+          esmImport(request, entry, setterArgsList, true, moduleType)
         } catch (e) {
           if (!Loader.state.package.default.options.debug && isStackTraceMaskable(e)) {
             maskStackTrace(e, {
@@ -332,13 +587,17 @@ const Runtime = {
     runtime.compileEval = boundCompileEval
     runtime.compileGlobalEval = Runtime.compileGlobalEval
     runtime.dynamicImport = Runtime.dynamicImport
+    runtime.dynamicSourceImport = Runtime.dynamicSourceImport
+    runtime.dynamicDeferImport = Runtime.dynamicDeferImport
     runtime.entry = entry
     runtime.global = builtinGlobal
     runtime.globalEval = boundGlobalEval
     runtime.import = Runtime.import
+    runtime.importDeferred = Runtime.importDeferred
     runtime.initBindings = Runtime.initBindings
     runtime.resumeChildren = Runtime.resumeChildren
     runtime.run = Runtime.run
+    runtime.syncAwait = makeAwait
     runtime.runResult = void 0
     runtime.throwConstAssignment = Runtime.throwConstAssignment
     runtime.updateBindings = Runtime.updateBindings
@@ -353,9 +612,12 @@ const Runtime = {
     runtime.g = runtime.global
     runtime.i = runtime.dynamicImport
     runtime.j = runtime.initBindings
+    runtime.h = runtime.syncAwait
     runtime.k = identity
     runtime.n = runtime.addNamespaceSetter
     runtime.o = ERROR_GETTER
+    runtime.p = runtime.dynamicSourceImport
+    runtime.q = runtime.dynamicDeferImport
     runtime.r = runtime.run
     runtime.s = runtime.resumeChildren
     runtime.t = runtime.assertUndeclared
@@ -363,14 +625,15 @@ const Runtime = {
     runtime.v = evalIndirect
     runtime.w = runtime.import
     runtime.x = runtime.addExportGetters
+    runtime.y = runtime.importDeferred
 
     return (entry.runtime = runtime)
   },
   globalEval(content) {
     return evalIndirect(this.compileGlobalEval(content))
   },
-  import(request, setterArgsList) {
-    return esmImport(request, this.entry, setterArgsList)
+  import(request, setterArgsList, moduleType) {
+    return esmImport(request, this.entry, setterArgsList, false, moduleType)
   },
   initBindings(names) {
     this.entry.updateBindings(names)

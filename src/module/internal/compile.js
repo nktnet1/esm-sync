@@ -32,6 +32,7 @@ import keys from "../../util/keys.js"
 import maskStackTrace from "../../error/mask-stack-trace.js"
 import protoCompile from "../proto/compile.js"
 import readFile from "../../fs/read-file.js"
+import { resumeSync } from "./sync-await.js"
 import setProperty from "../../util/set-property.js"
 import shared from "../../shared.js"
 import stripBOM from "../../util/strip-bom.js"
@@ -436,7 +437,8 @@ function tryRun(entry, filename, fallback) {
     entry.running = true
 
     try {
-      result = runResult.next().value
+      result =
+        firstAwaitOutsideFunction === null ? runResult.next().value : resumeSync(runResult).value
     } catch (e) {
       threw = true
       error = e
@@ -466,6 +468,12 @@ function tryRun(entry, filename, fallback) {
     return result
   }
 
+  // Retain the original thrown value after evaluation fails. A subsequent
+  // deferred import must be able to link the already-errored module and
+  // rethrow that same value on namespace access.
+  if (!parsing) {
+    entry.evaluationError = error
+  }
   entry.state = STATE_INITIAL
 
   if (Loader.state.package.default.options.debug || !isStackTraceMaskable(error)) {

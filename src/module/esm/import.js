@@ -8,6 +8,7 @@ import errors from "../../errors.js"
 import esmLoad from "./load.js"
 import isError from "../../util/is-error.js"
 import isPath from "../../util/is-path.js"
+import importText from "./import-text.js"
 import { resolve } from "../../safe/path.js"
 import shared from "../../shared.js"
 import validateDeep from "./validate-deep.js"
@@ -17,7 +18,12 @@ const { ERR_INVALID_ESM_FILE_EXTENSION } = errors
 
 const { TYPE_CJS, TYPE_ESM, STATE_PARSING_COMPLETED, UPDATE_TYPE_INIT } = ENTRY
 
-function esmImport(request, parentEntry, setterArgsList, isDynamic = false) {
+function esmImport(request, parentEntry, setterArgsList, isDynamic = false, moduleType) {
+  if (moduleType === "text") {
+    importText(request, parentEntry, setterArgsList)
+    return
+  }
+
   const { moduleState } = shared
   const { parsing } = moduleState
 

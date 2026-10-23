@@ -49,7 +49,7 @@ export default () => {
 
     assert.throws(
       () => ns.d = "d",
-      /TypeError: Cannot add/
+      TypeError
     )
 
     assert.throws(
@@ -74,9 +74,11 @@ export default () => {
 
     assert.throws(
       () => delete ns.a,
-      /TypeError: Cannot delete/
+      TypeError
     )
 
     assert.strictEqual(delete ns.d, true)
+    assert.strictEqual(ns.a, "a")
+    assert.strictEqual(Reflect.has(ns, "d"), false)
   }
 }
