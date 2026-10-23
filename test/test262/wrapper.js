@@ -6,7 +6,7 @@ import vm from "vm"
 const requireHelper = createRequire(import.meta.url)
 const { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule, runScript } = requireHelper("./phase-analysis.cjs")
 
-const MAX_WAIT = 1000
+const ASYNC_TEST_TIMEOUT_MS = 10_000
 const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = "", syntaxOnly = "false"] = process.argv
 
 const testPath = path.resolve("../vendor/test262")
@@ -65,11 +65,12 @@ let fail
 let completed = 0
 let waitTimer
 let settleTimer
+class Test262HarnessTimeout extends Error {}
+
 const completion = isAsync === "true"
   ? new Promise((resolve, reject) => {
     complete = resolve
     fail = reject
-    waitTimer = setTimeout(() => reject(new Error("test262: async test timed out.")), MAX_WAIT)
   })
   : null
 
@@ -160,11 +161,20 @@ async function main() {
     // Attach both handlers immediately; an async test may invoke $DONE during
     // evaluation, before its import() promise settles.
     if (completion !== null) {
+      // Time only the execution/completion phase, not harness startup or linking.
+      // A one-second deadline is too sensitive to CI contention, especially on macOS.
+      waitTimer = setTimeout(
+        () => fail(new Test262HarnessTimeout(`Test262: $DONE() was not called within ${ASYNC_TEST_TIMEOUT_MS} ms`)),
+        ASYNC_TEST_TIMEOUT_MS
+      )
       await Promise.all([Promise.resolve().then(runTest), completion])
     } else {
       await runTest()
     }
   } catch (failure) {
+    // Harness timeouts are infrastructure failures, never expected JS errors.
+    // In particular, an expected runtime Error must not mask a missing $DONE().
+    if (failure instanceof Test262HarnessTimeout) throw failure
     reportFailure(failure, phase)
   } finally {
     clearTimeout(waitTimer)

@@ -30,8 +30,9 @@ function assertTest262Outcome(filename, stdout, expectedError, expectedPhase) {
     `${filename}: invalid error name`
   )
   assert.ok(phases.has(result.phase), `${filename}: unknown error phase: ${result.phase}`)
-  assert.equal(result.name, expectedError, `${filename}: unexpected error type`)
-  assert.equal(result.phase, expectedPhase, `${filename}: unexpected error phase`)
+  const detail = result.message ? `: ${result.message}` : ""
+  assert.equal(result.name, expectedError, `${filename}: unexpected error type${detail}`)
+  assert.equal(result.phase, expectedPhase, `${filename}: unexpected error phase${detail}`)
 }
 
 module.exports = { assertTest262Outcome }

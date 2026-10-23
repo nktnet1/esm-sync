@@ -141,6 +141,34 @@ describe("Test262 negative-phase verification", () => {
     )
   })
 
+  it("allows a delayed deferred-import rejection to complete", async () => {
+    const result = await executeCase({
+      source: `
+const reason = "custom error";
+const specifier = { toString() { throw reason; } };
+setTimeout(() => {
+  label: {
+    import.defer(specifier)
+      .catch(error => assert.sameValue(error, reason))
+      .then($DONE, $DONE);
+  }
+}, 1200);`,
+      isAsync: true
+    })
+    assert.equal(result.stdout, "")
+  })
+
+  it("includes the original failure message in Test262 outcome errors", () => {
+    assert.throws(
+      () =>
+        assertTest262Outcome(
+          "positive-case.js",
+          JSON.stringify({ name: "Error", message: "assertion details", phase: "runtime" })
+        ),
+      /unexpected error type: assertion details/
+    )
+  })
+
   it("keeps unrelated unhandled rejections and asynchronous exceptions fatal", async () => {
     // A native import rejection and an unrelated rejection may share an error
     // code. Tracking unobserved import() Promises must not blanket-suppress
@@ -761,6 +789,8 @@ if (globalThis.description !== description) throw new Error("script global chang
     assert.equal(result.stdout, "")
   })
 
+  // These 16 cases spawn real Node subprocesses from a nested Test262 runner.
+  // Give contended CI hosts room to finish and write the complete JSON report.
   it("runs all pinned script-goal import.defer specifier rejection cases", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-test262-defer-rejections-"))
     try {
@@ -777,7 +807,7 @@ if (globalThis.description !== description) throw new Error("script global chang
           "--report",
           reportPath
         ],
-        { cwd: path.dirname(runner), reject: false, timeout: 30_000 }
+        { cwd: path.dirname(runner), reject: false, timeout: 75_000 }
       )
       assert.equal(timedOut, false)
       assert.equal(exitCode, 0, stderr || stdout)
@@ -805,7 +835,7 @@ if (globalThis.description !== description) throw new Error("script global chang
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  })
+  }, 90_000)
 })
 
 describe("Test262 asynchronous completion", () => {
