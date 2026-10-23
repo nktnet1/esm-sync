@@ -26,12 +26,15 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false, modu
 
   const { moduleState } = shared
   const { parsing } = moduleState
+  const previousChildren = isDynamic
+    ? new Set(Object.keys(parentEntry.children).map((name) => parentEntry.children[name]))
+    : null
 
   let entry = null
   let finalizeCalled = false
 
   const addChild = (entry, childEntry, name = childEntry.name) => {
-    entry.children[name] = childEntry
+    if (!isDynamic) entry.children[name] = childEntry
     childEntry.addSetters(setterArgsList, entry)
   }
 
@@ -72,6 +75,9 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false, modu
     } finally {
       if (isDynamic) {
         moduleState.parsing = false
+        for (const name in parentEntry.children) {
+          if (!previousChildren.has(parentEntry.children[name])) delete parentEntry.children[name]
+        }
       }
     }
 
@@ -109,6 +115,7 @@ function esmImport(request, parentEntry, setterArgsList, isDynamic = false, modu
   if (!parsing) {
     finalize()
   }
+  return entry
 }
 
 function getEntryFrom(request, exported, parentEntry) {

@@ -66,9 +66,6 @@ jobs:
       - name: Prepare vendor fixtures
         run: pnpm fixtures:prepare
 
-      - name: Build test bundles
-        run: pnpm build --test
-
       # pnpm's Windows Node runtime contains node.exe but not the C headers or
       # import library required to compile the Node-API test fixture.
       - name: Prepare Windows Node-API build files
@@ -87,6 +84,9 @@ jobs:
           Invoke-WebRequest "$base/win-x64/node.lib" -OutFile (Join-Path $directory 'node.lib')
           "ESM_SYNC_NODE_HEADERS=$headers" >> $env:GITHUB_ENV
           "ESM_SYNC_NODE_LIB=$directory" >> $env:GITHUB_ENV
+
+      - name: Build test bundles and native await bridge
+        run: pnpm build --test
 
       - name: Run Vitest (unit and isolated native-Node integration tests)
         run: pnpm test:vitest

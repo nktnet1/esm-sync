@@ -41,7 +41,15 @@ async function testPackedPackage() {
 
     const installedPath = path.join(consumerPath, "node_modules/esm-sync")
 
-    for (const filename of ["index.js", "index.d.ts", "esm.js", "esm/loader.js"]) {
+    for (const filename of [
+      "index.js",
+      "index.d.ts",
+      "esm.js",
+      "esm/loader.js",
+      "native/sync-await.cc",
+      `native/${process.platform}-${process.arch}-${process.versions.modules}.node`,
+      "script/build-sync-await.js"
+    ]) {
       await fs.access(path.join(installedPath, filename))
     }
 

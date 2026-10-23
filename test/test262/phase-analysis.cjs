@@ -33,7 +33,14 @@ function parseTest(filename, isModule) {
   // Validate *after* esm-sync transforms import/export syntax: the host parser
   // may not support valid `import defer` or `import.source()` source text.
   const sourceType = isModule ? 2 : 1
-  const compiled = getCompiler().compile(source, { hint: sourceType, pragmas: false, sourceType })
+  const compiled = getCompiler().compile(source, {
+    hint: sourceType,
+    pragmas: false,
+    sourceType,
+    // The engine validates native await syntax; generator yields are only
+    // valid in the loader's execution wrapper, not in a SourceTextModule.
+    transformTopLevelAwait: false
+  })
   if (isModule) {
     // Construction parses a module, but does not link or evaluate it. In
     // particular, it cannot turn a resolution or runtime error into a parse

@@ -4,6 +4,7 @@ import Loader from "../../loader.js"
 import Module from "../../module.js"
 
 import findCompilerExtension from "../internal/find-compiler-extension.js"
+import { isAsyncEvaluating } from "../internal/async-graph.js"
 import shared from "../../shared.js"
 import staticNodeModulePaths from "../static/node-module-paths.js"
 
@@ -70,7 +71,7 @@ function loader(entry, filename, parentEntry) {
 
   extensions[foundExt](mod, filename)
 
-  if (!parsing && !mod.loaded) {
+  if (!parsing && !mod.loaded && !isAsyncEvaluating(entry)) {
     mod.loaded = true
   }
 }

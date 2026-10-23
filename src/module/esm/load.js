@@ -73,7 +73,10 @@ function load(request, parent, isMain = false, preload, deferErrored = false) {
   // failure only when their deferred namespace is accessed.
   if (deferErrored) {
     const descriptor = Reflect.getOwnPropertyDescriptor(cache, request)
-    const failedEntry = descriptor?.get?.erroredEntry
+    const cachedEntry = descriptor?.value === void 0 ? null : Entry.get(descriptor.value)
+    const failedEntry =
+      descriptor?.get?.erroredEntry ||
+      (cachedEntry !== null && has(cachedEntry, "evaluationError") ? cachedEntry : void 0)
 
     if (failedEntry !== void 0) {
       if (parentEntry !== null) {

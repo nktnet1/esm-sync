@@ -30,7 +30,7 @@ import keys from "./util/keys.js"
 import ownPropertyNames from "./util/own-property-names.js"
 import proxyExports from "./util/proxy-exports.js"
 import readFile from "./fs/read-file.js"
-import { resumeSync } from "./module/internal/sync-await.js"
+import { evaluateAsyncGraph } from "./module/internal/async-graph.js"
 import setDeferred from "./util/set-deferred.js"
 import setPrototypeOf from "./util/set-prototype-of.js"
 import shared from "./shared.js"
@@ -338,6 +338,9 @@ class Entry {
     this._validation = new Map([["*", true]])
     // The module basename.
     this.basename = null
+    // Direct/transitive TLA and cycle classification, derived after linking.
+    this.async = null
+    this.asyncEvaluation = null
     // The builtin module indicator.
     this.builtin = false
     // The child entries of the module.
@@ -540,6 +543,9 @@ class Entry {
   }
 
   resumeChildren() {
+    const evaluation = shared.moduleState.asyncEvaluation
+    if (evaluation != null && evaluation.records.has(this)) return
+
     const { children } = this
 
     for (const name in children) {
@@ -560,11 +566,7 @@ class Entry {
           childEntry.state = STATE_EXECUTION_STARTED
           childEntry.running = true
           try {
-            if (childEntry.compileData.firstAwaitOutsideFunction === null) {
-              runResult.next()
-            } else {
-              resumeSync(runResult)
-            }
+            if (evaluateAsyncGraph(childEntry) === null) runResult.next()
             childEntry.module.loaded = true
           } finally {
             childEntry.running = false

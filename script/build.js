@@ -4,6 +4,7 @@ const execa = require("execa")
 const fs = require("fs-extra")
 const path = require("path")
 const trash = require("./trash.js")
+const buildSyncAwait = require("./build-sync-await.js")
 
 const { program } = require("commander")
 
@@ -65,6 +66,7 @@ function makeBundle() {
 
 Promise.resolve()
   .then(assertFixturesReady)
+  .then(() => buildSyncAwait({ required: argv.test }))
   .then(cleanRepo)
   .then(makeBundle)
   .then(copyBundle)

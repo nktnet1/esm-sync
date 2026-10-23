@@ -28,6 +28,7 @@ const NODE_ENV = argv.prod ? "production" : "development"
 const keptPaths = [
   path.resolve(rootPath, "build"),
   path.resolve(rootPath, "esm"),
+  path.resolve(rootPath, "native"),
   nodeModulesPath,
   path.resolve(rootPath, "src/vendor"),
   path.resolve(rootPath, "test/vendor")

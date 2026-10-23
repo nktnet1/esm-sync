@@ -58,12 +58,6 @@ function init() {
     const yieldCode = "yield;" + runtimeName + ".s();"
     const { yieldIndex } = compileData
 
-    let { async } = options
-
-    if (compileData.firstAwaitOutsideFunction === null) {
-      async = false
-    }
-
     let { code } = compileData
 
     if (compileData.transforms === 0) {
@@ -90,7 +84,6 @@ function init() {
       (returnRun ? "return " : "") +
       runtimeName +
       ".r((" +
-      (async ? "async " : "") +
       "function *" +
       "(" +
       (cjsVars ? "exports,require" : "") +

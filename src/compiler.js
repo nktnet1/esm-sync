@@ -44,7 +44,8 @@ function init() {
     runtimeName: "_",
     sourceType: SOURCE_TYPE_SCRIPT,
     strict: void 0,
-    topLevelReturn: false
+    topLevelReturn: false,
+    transformTopLevelAwait: true
   }
 
   const Compiler = {
@@ -303,7 +304,11 @@ function init() {
         })
       }
 
-      if (sourceType === SOURCE_TYPE_MODULE && top.firstAwaitOutsideFunction !== null) {
+      if (
+        options.transformTopLevelAwait &&
+        sourceType === SOURCE_TYPE_MODULE &&
+        top.firstAwaitOutsideFunction !== null
+      ) {
         topLevelAwaitVisitor.visit(rootPath, {
           magicString,
           possibleIndexes: findIndexes(code, ["await"]),

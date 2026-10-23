@@ -20,23 +20,35 @@ Arbitrary asynchronous work cannot always be completed synchronously on the same
 JavaScript thread. Prioritise transparent support where feasible, and provide a
 clear error rather than hanging or returning incomplete exports otherwise.
 
-### Remaining work
+### Implemented async handling
 
-- [ ] Trace TLA through parsing, linking, and evaluation (`src/entry.js` and
+- [x] Trace TLA through parsing, linking, and evaluation (`src/entry.js` and
       `src/module/internal/compile.js`); classify direct/transitive async graphs
       and cycles before execution.
-- [ ] Extend microtask-settled TLA support to timers, filesystem, and network
+- [x] Extend microtask-settled TLA support to timers, filesystem, and network
       I/O where safe; validate re-entrancy, runtime portability, and overhead
       without workers or consumer API changes.
-- [ ] Implement graph-aware evaluation, dependency ordering, rejection handling,
+- [x] Implement graph-aware evaluation, dependency ordering, rejection handling,
       and caching without breaking the existing synchronous loader.
-- [ ] Handle unsatisfiable or never-settling async dependencies without deadlocks,
+- [x] Handle unsatisfiable or never-settling async dependencies without deadlocks,
       false success, or partially evaluated exports.
-- [ ] Test fulfilled/rejected TLA, transitive imports, cycles, microtasks, timers,
+- [x] Test fulfilled/rejected TLA, transitive imports, cycles, microtasks, timers,
       filesystem/network I/O, repeated loads, live bindings, and async exports.
-- [ ] Validate with targeted Test262 cases and real Node 22/24/26 processes across
+- [x] Validate with targeted Test262 cases and real Node 22/24/26 processes across
       development/production and cached/uncached modes; benchmark cold and warm
       loads against the current synchronous path.
+
+See [async module loading](docs/async-module-loading.md) for the supported execution
+contexts, optional native bridge, deadline, validation, and benchmark procedure.
+
+### Async follow-up
+
+- [ ] Lower top-level `for await...of` loops and `await using`. These currently
+      fail explicitly during compilation; ordinary top-level await expressions
+      already work without the legacy `await` option.
+- [ ] Extend synchronous I/O support beyond the initial CommonJS startup stack
+      only if Node/libuv provide a safe re-entrant execution mechanism. Pending
+      awaits in unsafe callbacks or microtasks currently fail explicitly.
 
 ## Other outstanding work
 

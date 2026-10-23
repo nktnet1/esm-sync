@@ -17,6 +17,7 @@ import isPath from "./util/is-path.js"
 import isStackTraceMaskable from "./util/is-stack-trace-maskable.js"
 import makeRequireFunction from "./module/internal/make-require-function.js"
 import { makeAwait } from "./module/internal/sync-await.js"
+import { observeAsyncFailure, queueAsyncImport } from "./module/internal/async-graph.js"
 import maskStackTrace from "./error/mask-stack-trace.js"
 import setDeferred from "./util/set-deferred.js"
 import { setImmediate } from "./safe/timers.js"
@@ -487,7 +488,7 @@ const Runtime = {
         return
       }
 
-      setImmediate(() => {
+      const load = () => {
         try {
           // This loader has no JavaScript ModuleSource representation, so
           // source-phase imports reject with SyntaxError (as permitted by the
@@ -524,7 +525,8 @@ const Runtime = {
                   lastValue = value
 
                   if (timerId === void 0) {
-                    timerId = setImmediate(() => resolvePromise(lastValue))
+                    const finish = () => resolvePromise(lastValue)
+                    timerId = queueAsyncImport(finish) ? true : setImmediate(finish)
                   }
 
                   return true
@@ -533,7 +535,15 @@ const Runtime = {
             ]
           ]
 
-          esmImport(request, entry, setterArgsList, true, moduleType)
+          const { moduleState } = shared
+          const previousImport = moduleState.asyncImport
+          moduleState.asyncImport = true
+          try {
+            const imported = esmImport(request, entry, setterArgsList, true, moduleType)
+            observeAsyncFailure(imported, rejectPromise)
+          } finally {
+            moduleState.asyncImport = previousImport
+          }
         } catch (e) {
           if (!Loader.state.package.default.options.debug && isStackTraceMaskable(e)) {
             maskStackTrace(e, {
@@ -545,7 +555,8 @@ const Runtime = {
 
           rejectPromise(e)
         }
-      })
+      }
+      if (!queueAsyncImport(load)) setImmediate(load)
     })
   },
   enable(entry, exported) {

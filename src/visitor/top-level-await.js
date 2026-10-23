@@ -19,6 +19,32 @@ function init() {
     visitFunctionExpression() {}
     visitArrowFunctionExpression() {}
 
+    visitVariableDeclarator(path) {
+      path.call(this, "visitWithoutReset", "id")
+      path.call(this, "visitWithoutReset", "init")
+    }
+
+    visitCatchClause(path) {
+      path.call(this, "visitWithoutReset", "param")
+      path.call(this, "visitWithoutReset", "body")
+    }
+
+    visitExpressionStatement(path) {
+      const node = path.getValue()
+      const parent = path.getParentNode()
+      if (
+        this.magicString.original.slice(node.start, node.start + 5) === "await" &&
+        (parent.type === "Program" ||
+          parent.type === "BlockStatement" ||
+          parent.type === "SwitchCase")
+      ) {
+        // Replacing a statement-leading `await` with `(` must not turn the
+        // preceding line into a call expression when its semicolon was omitted.
+        this.magicString.prependLeft(node.start, ";")
+      }
+      this.visitChildren(path)
+    }
+
     visitMethodDefinition(path) {
       if (path.getValue().computed) {
         path.call(this, "visitWithoutReset", "key")
@@ -39,7 +65,7 @@ function init() {
 
       // Preserve nested import()/assignment rewrites inside the operand.
       magicString.overwrite(node.start, node.argument.start, `(yield ${runtimeName}.h(`)
-      magicString.appendRight(node.end, "))")
+      magicString.appendLeft(node.end, "))")
       this.transforms |= TRANSFORMS_TOP_LEVEL_AWAIT
       this.visitChildren(path)
     }

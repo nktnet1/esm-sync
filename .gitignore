@@ -10,6 +10,10 @@
 /build
 /esm
 /node_modules
+/native/*.node
+/native/*.obj
+/native/*.lib
+/native/*.exp
 /src/vendor
 /test/env/home/.local/share/Trash
 /test/env/native-cache/
