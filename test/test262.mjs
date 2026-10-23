@@ -15,7 +15,7 @@ const {
   createReport,
   detectHostFeatures,
   detectLoaderFeatures,
-  getUnsupportedFeatures,
+  getUnsupportedHostFeatures,
   getUnsupportedLoaderFeatures,
   isGeneratedGrammarCase,
   selectCases
@@ -117,7 +117,7 @@ if (files.length === 0) {
   throw new Error("No Test262 cases found in the pinned corpus")
 }
 
-const hostFeatures = detectHostFeatures()
+const hostFeatures = await detectHostFeatures()
 const loaderFeatures = detectLoaderFeatures()
 const cases = files.map((filename) => {
   const metadata = readCase(filename)
@@ -126,7 +126,7 @@ const cases = files.map((filename) => {
     filename,
     relativePath,
     skippedReason: skiplist.get(path.normalize(filename)),
-    unsupportedHostFeatures: getUnsupportedFeatures(metadata.features, hostFeatures),
+    unsupportedHostFeatures: getUnsupportedHostFeatures(metadata, hostFeatures),
     unsupportedLoaderFeatures: getUnsupportedLoaderFeatures(
       { ...metadata, relativePath },
       loaderFeatures

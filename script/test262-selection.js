@@ -49,9 +49,30 @@ function isGeneratedGrammarCase({
   return !/\bassert\b|\$DONE\b|\bthrow\b/.test(body)
 }
 
+// Text imports are a Node host capability, not an esm-sync loader feature.
+// Exercise the host's actual import-attribute handling instead of inferring
+// support from the Node version or from the existence of an experimental flag.
+async function supportsNativeTextImports() {
+  try {
+    await import("data:application/json,%22test262-text-probe%22", { with: { type: "text" } })
+    return true
+  } catch (error) {
+    // These errors mean the host cannot load this resource as a text module.
+    // Other failures (including unexpected loader errors) must not be hidden
+    // by an unsupported classification.
+    if (
+      error?.code === "ERR_IMPORT_ATTRIBUTE_UNSUPPORTED" ||
+      error?.code === "ERR_UNKNOWN_MODULE_FORMAT"
+    ) {
+      return false
+    }
+    throw error
+  }
+}
+
 // Test262 feature tags describe engine capabilities, not promises made by the
 // loader. Probe only capabilities whose absence is known to invalidate cases.
-function detectHostFeatures() {
+async function detectHostFeatures() {
   const immutableDescriptor = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "immutable")
   const immutableArrayBuffer =
     typeof immutableDescriptor?.get === "function" &&
@@ -73,7 +94,8 @@ function detectHostFeatures() {
 
   return {
     "immutable-arraybuffer": immutableArrayBuffer,
-    "nonextensible-applies-to-private": nonextensiblePrivate
+    "nonextensible-applies-to-private": nonextensiblePrivate,
+    "import-text": await supportsNativeTextImports()
   }
 }
 
@@ -90,6 +112,20 @@ function getUnsupportedFeatures(features, hostFeatures) {
     (feature) =>
       Object.prototype.hasOwnProperty.call(hostFeatures, feature) && !hostFeatures[feature]
   )
+}
+
+// Static text imports run through esm-sync's loader, which already handles
+// these cases. Only runtime script-goal imports use Node's native vm.Script
+// dynamic-import loader. Parse-only cases never need host module resolution.
+function getUnsupportedHostFeatures(
+  { features, isModule, expectedPhase, syntaxOnly },
+  hostFeatures
+) {
+  const needsNativeTextImport = !isModule && expectedPhase !== "parse" && !syntaxOnly
+  const requiredFeatures = needsNativeTextImport
+    ? features
+    : features.filter((feature) => feature !== "import-text")
+  return getUnsupportedFeatures(requiredFeatures, hostFeatures)
 }
 
 // The ModuleSource feature tag also occurs on syntax-only cases which do
@@ -201,5 +237,6 @@ module.exports = {
   detectHostFeatures,
   detectLoaderFeatures,
   getUnsupportedFeatures,
+  getUnsupportedHostFeatures,
   getUnsupportedLoaderFeatures
 }

@@ -378,6 +378,29 @@ unsupported classifications. This investigation adds a synchronous identity
 regression and documentation only; it does not claim a higher Test262 pass
 count or change production loader behaviour.
 
+### Native text-import host capability (v1.0.21)
+
+The pinned `expressions/dynamic-import/import-attributes/2nd-param-with-type-text.js`
+case runs as a **script** and uses Node's native `vm.Script` dynamic-import
+loader. Node 24/26 reject `{ with: { type: "text" } }` on that path unless
+experimental text-import support is enabled; this is a host limitation, not
+an esm-sync static-linking failure.
+
+The Test262 selector now probes a native dynamic import of a JSON `data:` URL
+with `type: "text"`, rather than guessing from Node version numbers. Only
+recognised unsupported-format/import-attribute errors yield an unavailable
+capability; unexpected probe errors still fail the run. When native text
+imports are unavailable, **script-goal runtime** cases tagged `import-text`
+remain selected and are recorded as **unsupported by the host** (including
+in the JSON report). A host with text-import support executes their assertions.
+
+The five pinned **static module-goal** `import-text` cases continue to run
+through esm-sync's own loader and pass even when Node's native text imports
+are disabled. Parse-only checks likewise do not require native text-module
+loading. This avoids turning existing passing loader tests into unsupported
+results, and does not add skiplist entries, alter runtime assertions, or
+change any production loader behaviour.
+
 ## Third-party runner dependencies
 
 The following are deliberately retained for **external host interoperability**,

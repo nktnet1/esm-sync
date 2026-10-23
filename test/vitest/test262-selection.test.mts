@@ -9,6 +9,7 @@ const {
   detectHostFeatures,
   detectLoaderFeatures,
   getUnsupportedFeatures,
+  getUnsupportedHostFeatures,
   getUnsupportedLoaderFeatures,
   isGeneratedGrammarCase
 } = require("../../script/test262-selection.js") as {
@@ -20,9 +21,18 @@ const {
     expectedError?: string
     expectedPhase?: string
   }) => boolean
-  detectHostFeatures: () => Record<string, boolean>
+  detectHostFeatures: () => Promise<Record<string, boolean>>
   detectLoaderFeatures: () => Record<string, boolean>
   getUnsupportedFeatures: (features: string[], hostFeatures: Record<string, boolean>) => string[]
+  getUnsupportedHostFeatures: (
+    testCase: {
+      features: string[]
+      isModule?: boolean
+      expectedPhase?: string
+      syntaxOnly?: boolean
+    },
+    hostFeatures: Record<string, boolean>
+  ) => string[]
   getUnsupportedLoaderFeatures: (
     testCase: { features: string[]; relativePath: string; expectedPhase?: string },
     loaderFeatures: Record<string, boolean>
@@ -256,10 +266,54 @@ describe("Test262 JSON result reports", () => {
 })
 
 describe("Test262 unsupported engine feature classification", () => {
-  it("probes native capabilities without assuming a particular Node version", () => {
-    const features = detectHostFeatures()
+  it("probes native capabilities without assuming a particular Node version", async () => {
+    const features = await detectHostFeatures()
     assert.equal(typeof features["immutable-arraybuffer"], "boolean")
     assert.equal(typeof features["nonextensible-applies-to-private"], "boolean")
+    assert.equal(typeof features["import-text"], "boolean")
+  })
+
+  it("requires native text imports for executing scripts, not esm-sync modules or parse-only cases", () => {
+    const features = ["import-text", "import-attributes"]
+    const unavailable = { "import-text": false }
+    const available = { "import-text": true }
+    const script = { features, isModule: false }
+
+    assert.deepEqual(getUnsupportedHostFeatures(script, unavailable), ["import-text"])
+    assert.deepEqual(getUnsupportedHostFeatures(script, available), [])
+    assert.deepEqual(getUnsupportedHostFeatures({ ...script, isModule: true }, unavailable), [])
+    assert.deepEqual(getUnsupportedHostFeatures({ ...script, syntaxOnly: true }, unavailable), [])
+    assert.deepEqual(
+      getUnsupportedHostFeatures({ ...script, expectedPhase: "parse" }, unavailable),
+      []
+    )
+  })
+
+  it("reports missing native text imports as unsupported by the host, not as a pass", () => {
+    const missing = getUnsupportedHostFeatures(
+      { features: ["dynamic-import", "import-text"], isModule: false },
+      { "import-text": false }
+    )
+    const report = createReport({
+      revision: "example-revision",
+      selected: 1,
+      excluded: 0,
+      runtime: "v26.0.0",
+      platform: "linux",
+      results: [
+        {
+          path: "test/language/expressions/dynamic-import/import-attributes/2nd-param-with-type-text.js",
+          status: "unsupported",
+          unsupportedFeatureSources: { host: missing, loader: [] }
+        }
+      ]
+    })
+
+    assert.equal(report.passed, 0)
+    assert.equal(report.failed, 0)
+    assert.equal(report.unsupported, 1)
+    assert.deepEqual(report.unsupportedByOrigin, { host: 1, loader: 0 })
+    assert.equal(report.complete, true)
   })
 
   it("only excludes recognized capabilities missing from the host", () => {
