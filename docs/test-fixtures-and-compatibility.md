@@ -230,6 +230,14 @@ CommonJS extension handler when `mode: all` is explicitly set. The same rule
 prevents dependencies from evaluating during resolution-only checks. Ordinary
 CommonJS extension passthrough remains available outside that forced mode.
 
+The private Test262 bridge also canonicalises the test filename **before**
+caching forced module options. The resolver follows symlinks by default, so
+paths such as macOS `/var/folders/...` and `/private/var/folders/...` otherwise
+receive different package-cache entries. Without this alignment, a syntax-free
+`.js` case could fall back to CommonJS or execute during the link-only pass.
+The regression suite exercises symlinked entry paths, their dependencies, and
+resolution-only checks while preserving the original assertions.
+
 ### Test262 conformance audit (23 October 2026)
 
 The complete pinned selection on **Linux / Node 26.12.0**, both before

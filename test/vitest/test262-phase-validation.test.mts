@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
@@ -30,16 +30,17 @@ type TestCaseOptions = {
   syntaxOnly?: boolean
   dependency?: string
   dependencies?: Record<string, string>
+  symlinkedDirectory?: boolean
 }
 
 async function executeCase(options: TestCaseOptions) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-test262-phases-"))
+  const aliasDirectory = `${directory}-alias`
+  let createdAlias = false
   try {
     const isModule = options.isModule ?? false
-    const filename = path.join(
-      directory,
-      options.moduleFilename ?? (isModule ? "case.mjs" : "case.js")
-    )
+    const relativeFilename = options.moduleFilename ?? (isModule ? "case.mjs" : "case.js")
+    const filename = path.join(directory, relativeFilename)
     await writeFile(filename, options.source)
     if (options.packageType) {
       await writeFile(
@@ -54,6 +55,14 @@ async function executeCase(options: TestCaseOptions) {
       await writeFile(path.join(directory, name), source)
     }
 
+    if (options.symlinkedDirectory) {
+      await symlink(directory, aliasDirectory, "junction")
+      createdAlias = true
+    }
+    const testFilename = options.symlinkedDirectory
+      ? path.join(aliasDirectory, relativeFilename)
+      : filename
+
     const { exitCode, stderr, stdout, timedOut } = await execa(
       process.execPath,
       [
@@ -63,7 +72,7 @@ async function executeCase(options: TestCaseOptions) {
         "-r",
         "../../",
         wrapperFile,
-        filename,
+        testFilename,
         String(options.isAsync ?? false),
         "[]",
         String(isModule),
@@ -86,8 +95,9 @@ async function executeCase(options: TestCaseOptions) {
     assert.equal(timedOut, false)
     assert.equal(exitCode, 0, stderr || stdout)
     assert.equal(stderr, "")
-    return { filename, stdout }
+    return { filename: testFilename, stdout }
   } finally {
+    if (createdAlias) await unlink(aliasDirectory)
     await rm(directory, { force: true, recursive: true })
   }
 }
@@ -327,6 +337,39 @@ describe("Test262 negative-phase verification", () => {
       expectedPhase: "resolution"
     })
     assert.equal(result.stdout, "")
+  })
+
+  it("preserves module goals and link-only checks through symlinked fixture paths", async () => {
+    const options = {
+      isModule: true,
+      moduleFilename: "case.js",
+      packageType: "commonjs" as const,
+      symlinkedDirectory: true
+    }
+
+    const root = await executeCase({
+      ...options,
+      source:
+        'if (this !== undefined || typeof require !== "undefined" || typeof module !== "undefined") throw new SyntaxError("executed as CommonJS")'
+    })
+    assert.equal(root.stdout, "")
+
+    const dependency = await executeCase({
+      ...options,
+      source:
+        'import "./dependency.js"; if (this !== undefined) throw new SyntaxError("root was CommonJS")',
+      dependencies: {
+        "dependency.js": 'if (this !== undefined) throw new SyntaxError("dependency was CommonJS")'
+      }
+    })
+    assert.equal(dependency.stdout, "")
+
+    const resolution = await executeCase({
+      ...options,
+      source: 'throw new SyntaxError("evaluated instead of linked")',
+      expectedPhase: "resolution"
+    })
+    assert.equal(resolution.stdout, "")
   })
 
   it("links syntax-free .js dependencies without executing them", async () => {

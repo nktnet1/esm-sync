@@ -17,6 +17,7 @@ import esmParseLoad from "./module/esm/parse-load.js"
 import RealModule from "./real/module.js"
 
 import errors from "./errors.js"
+import realpath from "./fs/realpath.js"
 import getModuleName from "./util/get-module-name.js"
 import globalHook from "./hook/global.js"
 import isInstalled from "./util/is-installed.js"
@@ -48,8 +49,11 @@ if (process.env.ESM_SYNC_TEST_BUILD) {
   shared.module.test262Load = (filename, parent, linkOnly) => {
     // Test262's `module` flag must apply even to syntax-free .js fixtures.
     // Scope mode:all to the test graph rather than the harness or host modules.
-    Package.from(filename, { cache: false, cjs: false, mode: "all" })
-    return esmParseLoad(filename, parent, false, linkOnly)
+    // The resolver canonicalises symlinks. Configure that same path so a
+    // macOS /var/... alias of /private/var/... cannot lose the module goal.
+    const resolvedFilename = realpath(filename) || filename
+    Package.from(resolvedFilename, { cache: false, cjs: false, mode: "all" })
+    return esmParseLoad(resolvedFilename, parent, false, linkOnly)
   }
 }
 
