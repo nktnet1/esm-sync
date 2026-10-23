@@ -76,7 +76,7 @@ function getScriptRuntime(filename) {
   return Runtime.enable(Entry.get(scriptModule), Object.create(null))
 }
 
-function runScript(filename) {
+function runScript(filename, trackNativeImports = false) {
   const source = readFileSync(filename, "utf8")
   let code = source
 
@@ -103,11 +103,40 @@ function runScript(filename) {
     }
   }
 
-  const script = new vm.Script(code, {
+  const options = {
     filename,
     importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER
+  }
+  // Always validate the original grammar before instrumenting a runtime test.
+  // An import Promise observer must never turn invalid Test262 syntax into valid code.
+  const original = new vm.Script(code, options)
+  if (!trackNativeImports || code !== source) return original.runInThisContext()
+
+  const { instrumentNativeImports } = require("./import-promise-tracking.cjs")
+  const observerName = `__test262_native_import_${require("node:crypto").randomUUID().replaceAll("-", "_")}`
+  let instrumented
+  try {
+    instrumented = instrumentNativeImports(source, observerName)
+  } catch (failure) {
+    // Acorn may not recognize a newer host grammar production. In that case,
+    // keep the original VM execution instead of changing its parse result.
+    if (!(failure instanceof SyntaxError)) throw failure
+    return original.runInThisContext()
+  }
+  if (instrumented === null) return original.runInThisContext()
+
+  const importPromises = new WeakSet()
+  Object.defineProperty(globalThis, observerName, {
+    configurable: true,
+    value(promise) {
+      importPromises.add(promise)
+      return promise
+    }
   })
-  return script.runInThisContext()
+  process.on("unhandledRejection", (reason, promise) => {
+    if (!importPromises.has(promise)) throw reason
+  })
+  return new vm.Script(instrumented, options).runInThisContext()
 }
 
 // Use the loader's own parse/link path, not a second implementation based on

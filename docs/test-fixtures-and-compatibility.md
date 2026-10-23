@@ -433,6 +433,38 @@ Focused regressions explicitly check that an unrelated rejected Promise
 exception still fail ordinary synchronous Test262 scripts. No case is
 reclassified, excluded, or counted as passing by this investigation.
 
+### Synchronous native import Promise attribution (v1.0.24)
+
+The six script-goal tests identified in v1.0.22 now execute and pass without
+suppressing unrelated unhandled rejections or reclassifying executable tests.
+For **positive, synchronous scripts only**, the private runner first compiles
+the original source using `vm.Script` to preserve native syntax validation.
+It then uses Acorn to locate genuine `import()` expressions and
+`import.source()` calls, wrapping each expression in a test-only observer.
+The source-phase forms are represented by equal-length substitutions in the
+**analysis copy**, never in the executed code. If Acorn cannot handle a newer
+valid host grammar, the runner executes the original script unchanged.
+
+The observer returns the **same native Promise** without calling `then()` or
+`catch()`, and remembers that exact object in a `WeakSet`. An
+`unhandledRejection` listener ignores only a rejection from a Promise in
+that set; all other rejections still throw, including a separate Promise
+rejected with the **identical Error object**, a derived Promise created by
+`.then()`, and a method merely named `import` or `import.source`.
+Asynchronous tests, negative-phase tests, generated parse-only cases,
+module-goal tests, and scripts transformed for `import.defer()` retain their
+existing execution paths. The native dynamic-import loader and runtime
+assertions are unchanged. This is a harness-only host-completion adjustment,
+not a change to esm-sync's implementation of dynamic imports.
+
+The complete pinned corpus on Linux Node 26.12.0 reports **1,477 passed,
+258 failed, 10 unsupported, and 0 excluded**. A per-case comparison with
+the v1.0.21 report shows exactly six failure-to-pass changes and no new
+failures. The remaining failures are 241 top-level-await tests, nine
+async-dependent deferred-import tests, and eight dynamic-import tests
+(including three Node 26 native VM diagnostics). The six covered cases are
+all executed, not treated as parse-only or unsupported.
+
 ### Native text-import host capability (v1.0.21)
 
 The pinned `expressions/dynamic-import/import-attributes/2nd-param-with-type-text.js`

@@ -101,7 +101,7 @@ function runTest() {
   // Script-goal execution remains native vm.Script, with esm-sync compiling
   // phase-qualified dynamic imports where Node's parser cannot handle them.
   // Completion values are not awaited as module evaluation results.
-  runScript(path.resolve(testFilename))
+  runScript(path.resolve(testFilename), isAsync !== "true" && !expectedPhase)
 }
 
 function reportFailure(failure, phase) {

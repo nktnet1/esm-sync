@@ -130,8 +130,8 @@ describe("Test262 negative-phase verification", () => {
 
   it("keeps unrelated unhandled rejections and asynchronous exceptions fatal", async () => {
     // A native import rejection and an unrelated rejection may share an error
-    // code. A future fix for unobserved import() promises must not blanket-
-    // suppress either this rejection or an independently thrown exception.
+    // code. Tracking unobserved import() Promises must not blanket-suppress
+    // this unrelated rejection or an independently thrown exception.
     const rejection = await executeCase({
       source: `Promise.reject(Object.assign(new Error("unrelated rejection"), {
         code: "ERR_MODULE_NOT_FOUND"
@@ -145,6 +145,77 @@ describe("Test262 negative-phase verification", () => {
       expectProcessFailure: true
     })
     assert.match(exception.stderr, /unrelated async exception/)
+  })
+
+  it("tracks the native import Promise without changing its observable identity", async () => {
+    const ordinaryImport = await executeCase({
+      source: `
+const result = import("missing-native-test262-promise");
+assert.sameValue(result.constructor, Promise);
+assert.sameValue(result.then, Promise.prototype.then);
+const holder = { import(value) { return value } };
+assert.sameValue(holder.import(42), 42);
+const globalThis = { shadowed: true };
+assert.sameValue(import("another-absent-native-import").constructor, Promise);`
+    })
+    assert.equal(ordinaryImport.stdout, "")
+
+    // Source-phase calls use the same native Promise completion semantics, but
+    // their syntax is not understood by the stock Acorn parser.
+    const sourceImport = await executeCase({
+      source: `
+const source = import.source("<module source>");
+assert.sameValue(source.constructor, Promise);
+assert.sameValue(source.then, Promise.prototype.then);`
+    })
+    assert.equal(sourceImport.stdout, "")
+  })
+
+  it("does not mistake an unrelated Promise for the tracked import Promise", async () => {
+    const sameError = await executeCase({
+      source: `
+const failure = new SyntaxError("shared rejection instance");
+import({ toString() { throw failure } });
+Promise.reject(failure);`,
+      expectProcessFailure: true
+    })
+    assert.match(sameError.stderr, /shared rejection instance/)
+
+    // This Promise is derived from an import, but it is *not* the Promise
+    // returned by the import expression. Its unhandled rejection must fail.
+    const derivedPromise = await executeCase({
+      source: `
+import({ toString() { throw new Error("derived rejection") } }).then(() => {});`,
+      expectProcessFailure: true
+    })
+    assert.match(derivedPromise.stderr, /derived rejection/)
+
+    // Property methods named import or import.source are not language-level
+    // import expressions and must never be tagged as native import Promises.
+    const ordinaryMethod = await executeCase({
+      source: `
+const holder = {
+  import(value) { return Promise.reject(value) }
+};
+holder.import(new Error("ordinary method rejection"));`,
+      expectProcessFailure: true
+    })
+    assert.match(ordinaryMethod.stderr, /ordinary method rejection/)
+
+    const sourceMethod = await executeCase({
+      source: `
+const holder = { import: { source() { return Promise.reject(new Error("member rejection")) } } };
+holder.import.source();`,
+      expectProcessFailure: true
+    })
+    assert.match(sourceMethod.stderr, /member rejection/)
+
+    const immediate = await executeCase({
+      source: `
+import("unobserved-native-import");
+throw new SyntaxError("unrelated synchronous exception");`
+    })
+    assertFailure(immediate, "SyntaxError", "runtime")
   })
 
   it("uses esm-sync script grammar for invalid source-phase constructor calls", async () => {
