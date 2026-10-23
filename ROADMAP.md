@@ -277,6 +277,85 @@ blindly or assume Oxc provides equivalent Babel plugins.
       plugins. Remove Terser/`.terserrc` if the new minification path replaces them.
 - [ ] Remove legacy Node 6 transpilation targets; no Babel fallback is permitted.
 
+## Future capability: await-free synchronous imports of async modules
+
+**Product goal:** keep `esm-sync` a synchronous loader. Consumers should be able
+to use the existing `require("esm-sync")(module)`-style API to load third-party
+ESM and its dependencies without adding `await`, `.then()`, or an asynchronous
+entry point. Ideally this would include modules with top-level `await` (TLA)
+and transitive asynchronous dependencies. Prefer widening the set of modules
+that can be loaded synchronously over introducing an async-first public API.
+
+**Feasibility boundary:** a general Promise cannot reliably be made synchronous
+on the same JavaScript thread. Its settlement may require timers, I/O, callbacks,
+or microtasks that cannot make progress while that thread is blocked; some
+Promises never settle. Native event-loop pumping or a worker can change which
+cases make progress, but neither transparently preserves all JavaScript
+semantics. This is a research goal, **not** a claim that arbitrary asynchronous
+modules or libraries can already be imported synchronously.
+
+Separate two requirements that are easy to conflate:
+
+- **Synchronous module loading:** return the fully evaluated module namespace
+  from `require()` before the call returns, including transitive dependencies
+  where correct synchronous completion is actually possible.
+- **Synchronous exported APIs:** imported functions declared `async` still
+  return Promises under normal JavaScript semantics. Turning arbitrary exported
+  async functions into synchronous functions is a separate, harder capability;
+  do not silently change their return values or Promise identities.
+
+The current linker already separates parsing/linking from evaluation, but
+`src/entry.js` and `src/module/internal/compile.js` advance execution through
+synchronous generator `.next()` calls. The existing limited `await` option
+is **not** an async dependency-graph scheduler. Simply allowing TLA syntax or
+recursively awaiting dependencies does not satisfy the synchronous API goal,
+particularly for cyclic graphs.
+
+### Research and implementation gates
+
+- [ ] **Define the compatibility contract.** Keep existing synchronous imports,
+      CommonJS interoperability, cycles, live bindings, module identity, and
+      cache semantics unchanged. `require()` must never silently return a
+      Promise, an incomplete namespace, or partially evaluated exports. When
+      synchronous completion is impossible, produce a clear, deterministic
+      failure rather than hanging or reporting a false successful import.
+- [ ] **Classify async graphs before evaluation.** Reuse the existing compiler,
+      linker, and entry state to detect direct/transitive TLA and distinguish
+      eager dependencies from deferred imports. Determine which graphs can
+      safely use the current synchronous evaluator before running bodies.
+- [ ] **Prototype sync-compatible transformations first.** Test whether
+      compiler-level rewriting or genuine synchronous equivalents of awaited
+      operations can preserve semantics for a *documented subset* of modules.
+      Do not assume `Promise.resolve(...)`, timers, `fetch()`, or arbitrary
+      third-party async functions can all be unwrapped by the same mechanism.
+- [ ] **Evaluate fallback mechanisms, not assumptions.** Benchmark and stress
+      test native microtask/event-loop pumping against re-entrancy and deadlocks.
+      Evaluate worker isolation plus a blocking bridge separately; account for
+      thread startup, serialisation, object identity, closures, side effects,
+      and live namespace bindings. Neither mechanism should become a default
+      dependency without proving correctness and acceptable overhead.
+- [ ] **Design graph-aware evaluation if a viable mechanism emerges.** Model
+      async execution states, pending dependencies, cyclic components,
+      completion/rejection propagation, and evaluation caching while reusing
+      esm-sync's existing export binding and resolution machinery. Preserve
+      deferred evaluation and reject impossible synchronous graphs safely.
+- [ ] **Validate representative hard cases.** Include immediately fulfilled
+      Promises, microtasks, timers, filesystem/network I/O, never-settling
+      Promises, TLA cycles, rejected dependencies, repeated imports, and async
+      exported functions. Run targeted Test262 cases and the regular cached,
+      uncached, production, and cross-platform Node 22/24/26 suites. Measure
+      cold/warm loading latency, CPU usage, and memory against the current
+      synchronous path before claiming broad support.
+- [ ] **Make a go/no-go decision before shipping.** If transparent conversion
+      cannot meet the above correctness gates, document the supported subset
+      and explicit failure behaviour. Do not weaken Test262 assertions, add a
+      second independent linker, or require consumers to use `await` merely to
+      make the conformance count look better.
+
+This track is distinct from the Phase 8 build-tool migration. Keep toolchain
+cleanup and synchronous-loader compatibility moving independently of any
+speculative async-to-sync execution mechanism.
+
 ## Deferred follow-up: TypeScript 7.1 or later
 
 TypeScript 7.0 removed the JavaScript compiler API used by tools such as
