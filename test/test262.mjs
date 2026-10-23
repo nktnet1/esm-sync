@@ -17,6 +17,7 @@ const {
   detectLoaderFeatures,
   getUnsupportedFeatures,
   getUnsupportedLoaderFeatures,
+  isGeneratedGrammarCase,
   selectCases
 } = require("../script/test262-selection.js")
 const testPath = fileURLToPath(new URL("./", import.meta.url))
@@ -43,22 +44,19 @@ function readSkiplist(filename) {
   return entries
 }
 
-// These two generated positive grammar cases use an intentionally
-// unresolvable `<module source>` placeholder and contain no runtime checks.
-// Do not generalise to all syntax/valid cases: some have real assertions.
-const grammarOnlySourceCases = new Set([
-  "top-level-import-source-empty-str-is-valid-assign-expr.js",
-  "top-level-import-source-script-code-valid.js"
-])
-
 function readCase(filename) {
-  const { attrs } = test262Parser.parseFile(readFileSync(filename, "utf8"))
+  const source = readFileSync(filename, "utf8")
+  const { attrs } = test262Parser.parseFile(source)
   const relativePath = path.relative(corpusPath, filename).split(path.sep).join("/")
   return {
-    syntaxOnly:
-      Boolean(attrs.flags.generated) &&
-      relativePath.startsWith("test/language/expressions/dynamic-import/syntax/valid/") &&
-      grammarOnlySourceCases.has(path.posix.basename(relativePath)),
+    syntaxOnly: isGeneratedGrammarCase({
+      relativePath,
+      flags: attrs.flags,
+      includes: attrs.includes,
+      expectedError: attrs.negative?.type,
+      expectedPhase: attrs.negative?.phase,
+      source
+    }),
     description: attrs.description?.trim() || path.basename(filename),
     expectedError: attrs.negative?.type,
     expectedPhase: attrs.negative?.phase,

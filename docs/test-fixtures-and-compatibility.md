@@ -277,6 +277,32 @@ error), with **no newly failing cases**. The remaining failures are 111 in
 `module-code/top-level-await`. This validation changes only the private
 Test262 harness, not the production compiler's tolerant parsing contract.
 
+### Generated dynamic-import grammar validation (v1.0.18)
+
+The pinned corpus contains generated `expressions/dynamic-import/syntax/valid`
+script cases which deliberately perform imports such as `import("")` or
+`import("<module source>")` without inspecting the returned promises. Node
+26 treats the ensuing unobserved rejections as fatal process errors. Those
+cases test whether the script *parses*, not whether the synthetic specifier
+resolves. The Test262 selector now recognises **only** generated cases with
+pinned `syntax/valid` template provenance, no completion callback, no runtime
+assertions or explicit throws, and no additional harness includes or negative
+expectations. These cases use the existing compiler + `vm.Script` parse-only
+path. Generated cases with runtime checks (notably `with (import(...))`) and
+ordinary positive/negative cases still execute normally.
+
+The full pinned **1,745-case** rerun on Linux / Node 26.12.0 reports
+**1,453 passed, 283 failed, 9 unsupported, 0 excluded**. Exactly 78 cases
+changed from failure to pass relative to the v1.0.17 report, with zero new
+failures. The remaining 33 under `expressions/dynamic-import` include 16
+`import.defer` rejection tests, 7 syntax-valid cases with actual runtime
+assertions, 4 tests involving deferred async modules, 3 for-await evaluation
+failures, and 3 other cases (unobserved runtime imports, text import
+attributes, and an errored cycle). The other remaining groups are 241
+`module-code/top-level-await` and 9 `import/import-defer`. This change fixes
+conformance **reporting for generated grammar tests**, not runtime dynamic
+import or async module evaluation.
+
 ## Third-party runner dependencies
 
 The following are deliberately retained for **external host interoperability**,

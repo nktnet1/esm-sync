@@ -9,8 +9,17 @@ const {
   detectHostFeatures,
   detectLoaderFeatures,
   getUnsupportedFeatures,
-  getUnsupportedLoaderFeatures
+  getUnsupportedLoaderFeatures,
+  isGeneratedGrammarCase
 } = require("../../script/test262-selection.js") as {
+  isGeneratedGrammarCase: (options: {
+    relativePath: string
+    flags?: { generated?: boolean; async?: boolean; module?: boolean }
+    source: string
+    includes?: string[]
+    expectedError?: string
+    expectedPhase?: string
+  }) => boolean
   detectHostFeatures: () => Record<string, boolean>
   detectLoaderFeatures: () => Record<string, boolean>
   getUnsupportedFeatures: (features: string[], hostFeatures: Record<string, boolean>) => string[]
@@ -126,6 +135,77 @@ describe("Test262 case selection", () => {
     )
     assert.throws(() => selectCases(cases, { limit: 0 }), /positive integer/)
     assert.throws(() => selectCases(cases, { limit: 1.5 }), /positive integer/)
+  })
+})
+
+describe("Test262 generated grammar-only cases", () => {
+  const relativePath =
+    "test/language/expressions/dynamic-import/syntax/valid/nested-if-empty-str-is-valid-assign-expr.js"
+  const source = `// This file was procedurally generated from the following sources:
+// - src/dynamic-import/empty-str-is-valid-assign-expr.case
+// - src/dynamic-import/syntax/valid/nested-if.template
+/*---
+flags: [generated]
+---*/
+"use script";
+if (true) import("");`
+
+  it("parses generated ImportCall grammar without executing unobserved rejections", () => {
+    assert.equal(isGeneratedGrammarCase({ relativePath, flags: { generated: true }, source }), true)
+    assert.equal(
+      isGeneratedGrammarCase({
+        relativePath: relativePath.replaceAll("/", "\\"),
+        flags: { generated: true },
+        source
+      }),
+      true
+    )
+  })
+
+  it("keeps cases with actual assertions, completion callbacks, or expected errors executable", () => {
+    const generated = { relativePath, flags: { generated: true }, source }
+    for (const body of [
+      "assert.sameValue(then, Promise.prototype.then)",
+      "assert.throws(TypeError, () => import('missing'))",
+      "$DONE()",
+      "throw new Error('runtime failure')"
+    ]) {
+      assert.equal(isGeneratedGrammarCase({ ...generated, source: `${source}\n${body}` }), false)
+    }
+    assert.equal(isGeneratedGrammarCase({ ...generated, expectedPhase: "runtime" }), false)
+    assert.equal(isGeneratedGrammarCase({ ...generated, expectedError: "SyntaxError" }), false)
+    assert.equal(isGeneratedGrammarCase({ ...generated, includes: ["assert.js"] }), false)
+    assert.equal(
+      isGeneratedGrammarCase({ ...generated, flags: { generated: true, async: true } }),
+      false
+    )
+    assert.equal(
+      isGeneratedGrammarCase({ ...generated, flags: { generated: true, module: true } }),
+      false
+    )
+  })
+
+  it("does not infer syntax-only handling from directory names alone", () => {
+    const generated = { relativePath, flags: { generated: true }, source }
+    assert.equal(isGeneratedGrammarCase({ ...generated, flags: {} }), false)
+    assert.equal(
+      isGeneratedGrammarCase({
+        ...generated,
+        relativePath: relativePath.replace("syntax/valid", "catch")
+      }),
+      false
+    )
+    assert.equal(
+      isGeneratedGrammarCase({
+        ...generated,
+        source: source.replace("/nested-if.template", "/another.case")
+      }),
+      false
+    )
+    assert.equal(
+      isGeneratedGrammarCase({ ...generated, source: source.replace("---*/", "--*/") }),
+      false
+    )
   })
 })
 

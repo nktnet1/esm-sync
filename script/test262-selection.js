@@ -1,5 +1,54 @@
 "use strict"
 
+// Test262 generates syntax-valid script examples by embedding ImportCall in
+// different grammar positions. A generated case with no observable assertions
+// tests *parsing*, not asynchronous module resolution. Executing such a case
+// can trigger an unobserved rejected import promise which Node treats as a
+// fatal unhandled rejection. Never classify arbitrary syntax/valid cases this
+// way: some generated templates assert on the value returned by import().
+function isGeneratedGrammarCase({
+  relativePath,
+  flags = {},
+  source,
+  includes = [],
+  expectedError,
+  expectedPhase
+}) {
+  const normalizedPath = relativePath.replaceAll("\\", "/")
+  const prefix = "test/language/expressions/dynamic-import/syntax/valid/"
+
+  if (
+    !normalizedPath.startsWith(prefix) ||
+    !flags.generated ||
+    flags.async ||
+    flags.module ||
+    includes.length !== 0 ||
+    expectedError !== undefined ||
+    expectedPhase !== undefined
+  ) {
+    return false
+  }
+
+  const bodyOffset = source.indexOf("---*/")
+  if (bodyOffset === -1) return false
+
+  // Restrict to the pinned generator's grammar templates. If Test262 changes
+  // the templates, fail conservatively and execute the test instead.
+  if (
+    !/^\/\/ - src\/dynamic-import\/syntax\/valid\/[^\r\n]+\.template$/m.test(
+      source.slice(0, bodyOffset)
+    )
+  ) {
+    return false
+  }
+
+  // In particular, the generated `with (import(...))` examples have actual
+  // Promise assertions. They must still run, as must any future generated
+  // syntax tests which add an assertion or an explicit throw.
+  const body = source.slice(bodyOffset + 5)
+  return !/\bassert\b|\$DONE\b|\bthrow\b/.test(body)
+}
+
 // Test262 feature tags describe engine capabilities, not promises made by the
 // loader. Probe only capabilities whose absence is known to invalidate cases.
 function detectHostFeatures() {
@@ -146,6 +195,7 @@ function createReport({
 }
 
 module.exports = {
+  isGeneratedGrammarCase,
   selectCases,
   createReport,
   detectHostFeatures,

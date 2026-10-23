@@ -205,6 +205,49 @@ describe("Test262 negative-phase verification", () => {
     }
   })
 
+  it("runs assertions in generated syntax-valid cases instead of marking them parse-only", async () => {
+    // Unlike an unobserved import(''), this generated template checks the
+    // returned Promise in a `with` expression. Its body must actually run.
+    const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-test262-execution-"))
+    try {
+      const command = path.join(testPath, "../script/run-test262.js")
+      const reportFile = path.join(directory, "report.json")
+      const { exitCode, stderr, stdout, timedOut } = await execa(
+        process.execPath,
+        [
+          command,
+          "--filter",
+          "nested-with-expression-import-attributes-trailing-comma-first.js",
+          "--reporter",
+          "dot",
+          "--report",
+          reportFile
+        ],
+        {
+          cwd: path.dirname(command),
+          reject: false,
+          timeout: 20_000,
+          env: { ...process.env, NODE_ENV: "development", ESM_ENV: "development-test" }
+        }
+      )
+      assert.equal(timedOut, false)
+      assert.equal(exitCode, 0, stderr || stdout)
+      const report = JSON.parse(await readFile(reportFile, "utf8")) as {
+        selected: number
+        passed: number
+        failed: number
+        cases: Array<{ path: string; syntaxOnly?: boolean; status: string }>
+      }
+      assert.equal(report.selected, 1)
+      assert.equal(report.passed, 1)
+      assert.equal(report.failed, 0)
+      assert.equal(report.cases[0].syntaxOnly, undefined)
+      assert.equal(report.cases[0].status, "pass")
+    } finally {
+      await rm(directory, { force: true, recursive: true })
+    }
+  })
+
   it("parses negative modules using the esm-sync compiler rather than evaluating them", async () => {
     const result = await executeCase({
       source:
