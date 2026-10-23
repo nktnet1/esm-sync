@@ -562,7 +562,10 @@ describe("scenario tests", { concurrency: 3 }, () => {
     after(beforeAndAfter)
     afterEach(() => pm2(["delete", "all"]))
 
-    const MAX_WAIT = 10000
+    // Babel-register startup can exceed PM2's default three-second ready
+    // deadline on slower CI machines. Keep PM2's IPC deadline and our log
+    // verification deadline aligned; neither is a substitute for the marker.
+    const MAX_WAIT = 30000
 
     const logsPath = path.resolve("env/home/.pm2/logs")
     const pm2Path = path.resolve("../node_modules/pm2/bin/pm2")
@@ -570,6 +573,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
       "start",
       "--no-autorestart",
       "--wait-ready",
+      "--listen-timeout", String(MAX_WAIT),
       // PM2 recognizes "node", but not an absolute "node.exe", as the
       // interpreter that needs its Node container on Windows.
       "--interpreter", "node"
@@ -659,13 +663,33 @@ describe("scenario tests", { concurrency: 3 }, () => {
       })
     }
 
+    async function readinessDiagnostic(name, stdout) {
+      // A PM2 ready timeout marks the app online even if it never sent ready.
+      // When a marker is missing, show the daemon's view instead of reporting
+      // an unexplained empty application log.
+      const [{ stdout: list }, daemonLog] = await Promise.all([
+        pm2(["jlist"]),
+        fs.readFile(path.resolve("env/home/.pm2/pm2.log"), "utf8").catch(() => "")
+      ])
+      const app = JSON.parse(list).find((entry) => entry.name === name)
+      const details = app ? {
+        status: app.pm2_env.status,
+        pid: app.pid,
+        restartTime: app.pm2_env.restart_time,
+        exitCode: app.pm2_env.exit_code,
+        listenTimeout: app.pm2_env.listen_timeout
+      } : null
+      return `${name} did not acknowledge PM2 IPC readiness:\n${stdout}\nPM2 state: ${JSON.stringify(details)}\nPM2 daemon log (tail):\n${daemonLog.slice(-4000)}`
+    }
+
     function runPM2(name, args, expected) {
       return pm2(defaultPM2Args.concat("--name", name, args))
         .then(() => waitForLogs(name, expected))
-        .then(({ stderr, stdout }) => {
+        .then(async ({ stderr, stdout }) => {
           assert.strictEqual(stderr, "")
-          assert.ok(stdout.split(/\r?\n/).includes(expected),
-            `${name} did not acknowledge PM2 IPC readiness:\n${stdout}`)
+          if (!stdout.split(/\r?\n/).includes(expected)) {
+            assert.fail(await readinessDiagnostic(name, stdout))
+          }
           return pm2(["jlist"])
         })
         .then(({ stdout }) => {
@@ -673,6 +697,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
           assert.ok(app, `PM2 did not register ${name}`)
           assert.strictEqual(app.pm2_env.status, "online")
+          assert.strictEqual(Number(app.pm2_env.listen_timeout), MAX_WAIT)
           assert.ok(app.pid > 0, `${name} did not stay alive until PM2 stopped it`)
           // ProcessContainerFork sends node_version before loading the fixture.
           // This checks that the startup message reached the daemon as well.

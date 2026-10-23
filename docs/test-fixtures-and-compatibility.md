@@ -28,6 +28,18 @@ macOS, and contains V8 `unreachable code` crashes in the cached scenario
 suite; a cross-platform CI rerun is needed to confirm whether eliminating
 cache contention resolves those runner-specific failures.
 
+PM2 v7.0.4 also has an independent **three-second** default for
+`--wait-ready`. Once that expires, PM2 can report an application as `online`
+without having received its `ready` IPC message. The Babel-register bridge
+can exceed that deadline on slower CI hosts, while the test's separate log
+poll previously stopped after ten seconds. The PM2 scenarios now use an
+explicit, shared 30-second readiness deadline and still require the original
+IPC acknowledgment, stdout marker, online state, and Node version. A temporary
+15-second startup-delay reproducer failed the original test with an empty
+readiness log but passed with the aligned deadlines. On a failure, the test
+also reports PM2's process state and the daemon-log tail. This validates the
+timeout failure mode; it is not yet a macOS CI confirmation.
+
 Run `pnpm test:conformance` to prepare the pinned Test262 corpus, build the test
 loader, and execute the conformance suite separately from Vitest. Each case runs
 in its own Node subprocess with `--harmony`. The existing Test262 skiplist is
@@ -377,6 +389,25 @@ patch. All 1,745 selected cases continue to be reported, with no new skip or
 unsupported classifications. This investigation adds a synchronous identity
 regression and documentation only; it does not claim a higher Test262 pass
 count or change production loader behaviour.
+
+### Outstanding synchronous script-import rejections (v1.0.22 audit)
+
+The six remaining synchronous script-goal dynamic-import cases contain a
+runtime `import()` that can reject without a corresponding rejection handler:
+`assignment-expression/unary-expr.js`,
+`syntax/valid/new-covered-expression-is-valid.js`, and four
+`syntax/valid/nested-with-expression-*` cases. Five execute genuine
+`assert.sameValue` or `assert.throws` checks and must **not** be treated as
+parse-only cases.
+
+On Node 26.12.0 all six run successfully with the host's unhandled-rejection
+reporting disabled, but fail with its default fatal unhandled-rejection policy
+(`ERR_MODULE_NOT_FOUND`). This diagnostic establishes the difference between
+synchronous assertions and later host rejection reporting; it does **not**
+justify disabling that policy in the Test262 runner. Doing so would also hide
+unrelated rejected promises and potentially turn runtime bugs into false
+passes. The six cases remain executable and failing until a precise host
+rejection-tracking strategy can distinguish unrelated errors.
 
 ### Native text-import host capability (v1.0.21)
 
