@@ -215,6 +215,47 @@ describe("Test262 negative-phase verification", () => {
     assertFailure(result, "SyntaxError", "parse")
   })
 
+  it("reports module early errors during parsing without linking or evaluating", async () => {
+    const invalidSources = [
+      "let duplicate; let duplicate;",
+      "let conflict; var conflict;",
+      "outer: outer: while (false) break outer;",
+      "continue undefinedLabel;",
+      "var implements = 1;",
+      "void target.#undeclared;",
+      'import { value as eval } from "./missing.mjs";'
+    ]
+
+    for (const source of invalidSources) {
+      const result = await executeCase({
+        source: `${source}\nthrow new Error("evaluated")`,
+        isModule: true,
+        expectedPhase: "parse"
+      })
+      assertFailure(result, "SyntaxError", "parse")
+    }
+  })
+
+  it("accepts valid module syntax without resolving imports or running module bodies", async () => {
+    const validSources = [
+      "let left; let right;",
+      "outer: while (true) break outer;",
+      "class Valid { #value = 1; read() { return this.#value } }",
+      'import { value as local } from "./missing.mjs";',
+      'import defer * as namespace from "./missing.mjs";',
+      'import.source("./missing.mjs");'
+    ]
+
+    for (const source of validSources) {
+      const result = await executeCase({
+        source: `${source}\nthrow new Error("evaluated")`,
+        isModule: true,
+        syntaxOnly: true
+      })
+      assert.equal(result.stdout, "")
+    }
+  })
+
   it("distinguishes missing exports during linking from a runtime SyntaxError", async () => {
     const missing = await executeCase({
       source: 'import { missing } from "./dependency.mjs"; $DONOTEVALUATE()',

@@ -27,13 +27,21 @@ function getCompiler() {
 function parseTest(filename, isModule) {
   const source = readFileSync(filename, "utf8")
 
-  // The loader's script compiler can skip parsing text without import/export
-  // candidates. Validate its output with vm.Script to catch those errors, but
-  // only *after* transforming phase modifiers: older Node versions cannot
-  // parse valid `import.source()` even when esm-sync can.
+  // esm-sync's compiler deliberately tolerates some early errors (including
+  // duplicate lexical declarations, invalid labels and private names). Check
+  // the compiled text against the engine grammar without evaluating it.
+  // Validate *after* esm-sync transforms import/export syntax: the host parser
+  // may not support valid `import defer` or `import.source()` source text.
   const sourceType = isModule ? 2 : 1
   const compiled = getCompiler().compile(source, { hint: sourceType, pragmas: false, sourceType })
-  if (!isModule) new vm.Script(compiled.code, { filename })
+  if (isModule) {
+    // Construction parses a module, but does not link or evaluate it. In
+    // particular, it cannot turn a resolution or runtime error into a parse
+    // error by loading a dependency or running a module body.
+    new vm.SourceTextModule(compiled.code, { identifier: filename })
+  } else {
+    new vm.Script(compiled.code, { filename })
+  }
 }
 
 // Use the loader's own parse/link path, not a second implementation based on

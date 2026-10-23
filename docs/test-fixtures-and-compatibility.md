@@ -250,19 +250,32 @@ root causes: the dynamic-import group includes deferred-import and
 source-phase cases, while most of the remaining import-defer failures
 involve top-level await.
 
-The 22 non-await `module-code` failures are all **parse-negative** tests.
-The compiler-only preflight currently accepts their invalid module sources;
-instantiating the graph may detect these errors later, but that is too late
-to satisfy a parse-phase assertion. This needs a reliable module-goal
-*parse-only* validation path, not a separate linker or an error-name-only
-match. The nine unsupported cases are reported separately (five immutable
+The 22 non-await `module-code` failures were all **parse-negative** tests.
+esm-sync's compiler deliberately tolerates some early errors, so compiler-only
+preflight accepted invalid module sources. The Test262 bridge now also parses
+the **transformed module text** with `vm.SourceTextModule` (without calling
+`link()` or `evaluate()`). This preserves the module goal and catches early
+errors that the tolerant compiler allows, without introducing another linker.
+Valid newer syntax such as `import defer` and `import.source()` is first
+transformed by esm-sync so older Node parsers do not reject the raw syntax.
+The nine unsupported cases are reported separately (five immutable
 ArrayBuffer, one private-field host-semantic, three ModuleSource-binding).
 
 After the module-goal bridge correction, **108/108** `instn-` cases and
 **341/366** module-code cases selected without the `top-level-await`
-feature pass; the latter has the same 22 parse-phase failures and three
-unsupported cases. The final full-corpus rerun reproduced the same 1,745-case
-totals, with no new regressions or additional exclusions.
+feature pass in that baseline, with 22 parse-phase failures and three
+unsupported cases. After the parse-only validation fix, the same 366-case
+selection reports **363 passed, 0 failed, 3 unsupported**. No cases were
+excluded or converted into unsupported results.
+
+The complete pinned 1,745-case selection after this fix reports **1,375
+passed, 361 failed, 9 unsupported, 0 excluded** on Linux / Node 26.12.0.
+Compared with the preceding run, exactly 23 parse-negative cases changed from
+failure to pass (the 22 module-code cases above and one top-level-await early
+error), with **no newly failing cases**. The remaining failures are 111 in
+`expressions/dynamic-import`, 9 in `import/import-defer`, and 241 under
+`module-code/top-level-await`. This validation changes only the private
+Test262 harness, not the production compiler's tolerant parsing contract.
 
 ## Third-party runner dependencies
 
