@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
+import { Script } from "node:vm"
 import os from "node:os"
 import path from "node:path"
 import execa from "execa"
@@ -19,6 +20,18 @@ const { assertTest262Outcome } = require("../../script/test262-outcome.js") as {
 
 const wrapperDirectory = path.join(testPath, "test262")
 const wrapperFile = path.join(wrapperDirectory, "wrapper.js")
+
+// Script-goal cases run through Node's native vm.Script parser. Older Node
+// releases (including Node 22) cannot parse import.source(), even with --harmony.
+const supportsNativeSourceImport = (() => {
+  try {
+    new Script('import.source("<module source>")')
+    return true
+  } catch (error) {
+    if (error instanceof SyntaxError) return false
+    throw error
+  }
+})()
 
 type TestCaseOptions = {
   source: string
@@ -147,7 +160,7 @@ describe("Test262 negative-phase verification", () => {
     assert.match(exception.stderr, /unrelated async exception/)
   })
 
-  it("tracks the native import Promise without changing its observable identity", async () => {
+  it("tracks the native import() Promise without changing its observable identity", async () => {
     const ordinaryImport = await executeCase({
       source: `
 const result = import("missing-native-test262-promise");
@@ -159,17 +172,22 @@ const globalThis = { shadowed: true };
 assert.sameValue(import("another-absent-native-import").constructor, Promise);`
     })
     assert.equal(ordinaryImport.stdout, "")
+  })
 
-    // Source-phase calls use the same native Promise completion semantics, but
-    // their syntax is not understood by the stock Acorn parser.
-    const sourceImport = await executeCase({
-      source: `
+  // Source-phase calls use the same native Promise completion semantics, but
+  // their syntax is not supported by every Node version or stock Acorn.
+  it.skipIf(!supportsNativeSourceImport)(
+    "tracks the native import.source() Promise without changing its observable identity",
+    async () => {
+      const sourceImport = await executeCase({
+        source: `
 const source = import.source("<module source>");
 assert.sameValue(source.constructor, Promise);
 assert.sameValue(source.then, Promise.prototype.then);`
-    })
-    assert.equal(sourceImport.stdout, "")
-  })
+      })
+      assert.equal(sourceImport.stdout, "")
+    }
+  )
 
   it("does not mistake an unrelated Promise for the tracked import Promise", async () => {
     const sameError = await executeCase({
