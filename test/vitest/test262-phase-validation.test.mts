@@ -45,6 +45,7 @@ type TestCaseOptions = {
   dependencies?: Record<string, string>
   symlinkedDirectory?: boolean
   expectProcessFailure?: boolean
+  asyncTimeoutMs?: number
 }
 
 async function executeCase(options: TestCaseOptions) {
@@ -91,7 +92,8 @@ async function executeCase(options: TestCaseOptions) {
         "[]",
         String(isModule),
         options.expectedPhase ?? "",
-        String(options.syntaxOnly ?? false)
+        String(options.syntaxOnly ?? false),
+        ...(options.asyncTimeoutMs === undefined ? [] : [String(options.asyncTimeoutMs)])
       ],
       {
         cwd: wrapperDirectory,
@@ -102,7 +104,9 @@ async function executeCase(options: TestCaseOptions) {
           ESM_OPTIONS: isModule ? "{cjs:false,cache:false,mode:'all'}" : "{cjs:false,cache:false}"
         },
         reject: false,
-        timeout: 10_000
+        // The harness allows up to 10 seconds for $DONE after startup.
+        // The outer deadline must exceed that plus subprocess startup/cleanup.
+        timeout: 20_000
       }
     )
 
@@ -842,10 +846,13 @@ describe("Test262 asynchronous completion", () => {
   it("does not confuse ordinary print output with $DONE", async () => {
     const result = await executeCase({
       source: 'print("Test262:AsyncTestComplete")',
-      isAsync: true
+      isAsync: true,
+      // This intentionally never calls $DONE. Keep the negative test fast.
+      asyncTimeoutMs: 100,
+      expectProcessFailure: true
     })
-    assertFailure(result, "Error", "runtime")
-    assert.match(result.stdout, /timed out/)
+    assert.equal(result.stdout, "")
+    assert.match(result.stderr, /Test262: \$DONE\(\) was not called within 100 ms/)
   })
 
   it("completes on $DONE and preserves its original error", async () => {

@@ -6,8 +6,16 @@ import vm from "vm"
 const requireHelper = createRequire(import.meta.url)
 const { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule, runScript } = requireHelper("./phase-analysis.cjs")
 
-const ASYNC_TEST_TIMEOUT_MS = 10_000
-const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = "", syntaxOnly = "false"] = process.argv
+const DEFAULT_ASYNC_TEST_TIMEOUT_MS = 10_000
+const [,, testFilename, isAsync, extraIncludes = "[]", isModule = "true", expectedPhase = "", syntaxOnly = "false", asyncTimeoutOverride] = process.argv
+// The optional per-case deadline lets watchdog tests finish quickly without
+// reducing the default budget for genuine asynchronous conformance cases.
+const asyncTestTimeoutMs = asyncTimeoutOverride === undefined
+  ? DEFAULT_ASYNC_TEST_TIMEOUT_MS
+  : Number(asyncTimeoutOverride)
+if (!Number.isSafeInteger(asyncTestTimeoutMs) || asyncTestTimeoutMs <= 0) {
+  throw new RangeError("Test262 async timeout must be a positive integer")
+}
 
 const testPath = path.resolve("../vendor/test262")
 const harnessPath = path.resolve(testPath, "harness")
@@ -164,8 +172,8 @@ async function main() {
       // Time only the execution/completion phase, not harness startup or linking.
       // A one-second deadline is too sensitive to CI contention, especially on macOS.
       waitTimer = setTimeout(
-        () => fail(new Test262HarnessTimeout(`Test262: $DONE() was not called within ${ASYNC_TEST_TIMEOUT_MS} ms`)),
-        ASYNC_TEST_TIMEOUT_MS
+        () => fail(new Test262HarnessTimeout(`Test262: $DONE() was not called within ${asyncTestTimeoutMs} ms`)),
+        asyncTestTimeoutMs
       )
       await Promise.all([Promise.resolve().then(runTest), completion])
     } else {
