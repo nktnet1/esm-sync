@@ -9,14 +9,12 @@ const isAppVeyor = Reflect.has(process.env, "APPVEYOR")
 
 const canTestCache = ! isAppVeyor
 
-const fixturePath = path.resolve("fixture/cache")
 const testPath = path.resolve(".")
-const mainFilename = path.resolve(fixturePath, "main.mjs")
-
-const backupSharedCachePath = path.resolve("../node_modules/_cache")
-const loaderCachePath = path.resolve("../node_modules/.cache/esm")
-const fixtureCachePath = path.resolve(fixturePath, ".cache")
-const sharedCachePath = path.resolve("../node_modules/.cache")
+let sandboxPath
+let fixturePath
+let mainFilename
+let loaderCachePath
+let fixtureCachePath
 
 const expectedCacheCount = 5
 
@@ -26,30 +24,42 @@ function countFiles(dirPath) {
     : 0
 }
 
-function move(srcPath, destPath) {
-  fs.moveSync(srcPath, destPath, {
-    overwrite: true
-  })
-}
-
 function node(args, env) {
   return execa(process.execPath, args, {
     cwd: testPath,
-    env,
+    // Consumer defaults belong to the copied package, not to the native
+    // suite runner's own isolated module cache.
+    env: { ESM_OPTIONS: "{cjs:false,mode:'auto'}", ...env },
     reject: false
   })
 }
 
 function runMain(filename, env) {
   return node([
-    "-r", "../index.js",
+    "-r", path.join(sandboxPath, "index.js"),
     filename
   ], env)
 }
 
 describe("cache tests", { skip: !canTestCache }, () => {
-  before(() => {
-    move(sharedCachePath, backupSharedCachePath)
+  before(async () => {
+    // esm.js writes its own bootstrap cache at a fixed package-relative path,
+    // even with options.cache:false or an isolated module cache. Test default
+    // paths in a private package copy, rather than moving/removing a directory
+    // that other Vitest files' subprocesses may still populate on exit.
+    const parent = path.resolve("env/native-cache", process.env.ESM_ENV || "default")
+    await fs.ensureDir(parent)
+    sandboxPath = await fs.mkdtemp(path.join(parent, "cache-suite-"))
+    fixturePath = path.join(sandboxPath, "test/fixture/cache")
+    mainFilename = path.join(fixturePath, "main.mjs")
+    loaderCachePath = path.join(sandboxPath, "node_modules/.cache/esm")
+    fixtureCachePath = path.join(fixturePath, ".cache")
+    await Promise.all([
+      ...["index.js", "esm.js", "package.json", "esm/loader.js"].map(filename =>
+        fs.copy(path.resolve("..", filename), path.join(sandboxPath, filename))),
+      ...["index.js", "main.mjs", "a.mjs", "b.mjs"].map(filename =>
+        fs.copy(path.resolve("fixture/cache", filename), path.join(fixturePath, filename)))
+    ])
   })
 
   // Cache contents are disposable. Removing them directly avoids Windows
@@ -58,9 +68,7 @@ describe("cache tests", { skip: !canTestCache }, () => {
     Promise.all([loaderCachePath, fixtureCachePath].map((dirPath) => fs.remove(dirPath)))
   )
 
-  after(() => {
-    move(backupSharedCachePath, sharedCachePath)
-  })
+  after(() => sandboxPath ? fs.remove(sandboxPath) : undefined)
 
   it("should not recreate cache on restart", () =>
     [0, 1]

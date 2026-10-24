@@ -14,6 +14,7 @@ function init() {
       this.original = content
       this.outro = ""
       this.next = null
+      this.previous = null
       this.start = start
     }
 
@@ -51,6 +52,8 @@ function init() {
 
       newChunk.outro = this.outro
       newChunk.next = this.next
+      newChunk.previous = this
+      if (this.next !== null) this.next.previous = newChunk
 
       this.original = originalBefore
       this.end = index
@@ -138,6 +141,33 @@ function init() {
       }
 
       chunk.edit("")
+      return this
+    }
+
+    // Move original source coordinates together with all edits attached to
+    // them. Later visitors (including deferred TDZ instrumentation) can still
+    // address the moved chunks by their original positions.
+    move(start, end, index) {
+      if (index >= start && index <= end) return this
+      this._split(start)
+      this._split(end)
+      this._split(index)
+
+      const first = this.byStart.get(start)
+      const last = this.byEnd.get(end)
+      const before = first.previous
+      const after = last.next
+      if (before === null) this.firstChunk = after
+      else before.next = after
+      if (after !== null) after.previous = before
+
+      const target = this.byStart.get(index)
+      const previous = target.previous
+      if (previous === null) this.firstChunk = first
+      else previous.next = first
+      first.previous = previous
+      last.next = target
+      target.previous = last
       return this
     }
 

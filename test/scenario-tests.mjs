@@ -5,7 +5,7 @@ import assert from "assert"
 import execa from "execa"
 import fs from "fs-extra"
 import path from "path"
-import trash from "../script/trash.js"
+import pm2Environment from "./pm2-environment.mjs"
 
 const isTravis = Reflect.has(process.env, "TRAVIS")
 const isWin = process.platform === "win32"
@@ -558,16 +558,19 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
     // Keep the daemon alive across cases so the next app cannot connect to a
     // daemon that is still shutting down on Windows.
-    before(beforeAndAfter)
-    after(beforeAndAfter)
-    afterEach(() => pm2(["delete", "all"]))
+    before(async () => {
+      pm2Context = await pm2Environment()
+    })
+    after(stopPM2)
+    afterEach(() => pm2Started ? pm2(["delete", "all"]) : undefined)
 
     // Babel-register startup can exceed PM2's default three-second ready
     // deadline on slower CI machines. Keep PM2's IPC deadline and our log
     // verification deadline aligned; neither is a substitute for the marker.
     const MAX_WAIT = 30000
 
-    const logsPath = path.resolve("env/home/.pm2/logs")
+    let pm2Context
+    let pm2Started = false
     const pm2Path = path.resolve("../node_modules/pm2/bin/pm2")
     const defaultPM2Args = [
       "start",
@@ -576,7 +579,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
       "--listen-timeout", String(MAX_WAIT),
       // PM2 recognizes "node", but not an absolute "node.exe", as the
       // interpreter that needs its Node container on Windows.
-      "--interpreter", "node"
+      "--interpreter", isWin ? "node" : nodePath
     ]
 
     // Keep monitoring enabled in bridge cases and exercise explicit Node
@@ -591,6 +594,14 @@ describe("scenario tests", { concurrency: 3 }, () => {
 
     function pm2(args) {
       const env = { ...process.env }
+      for (const key of Object.keys(env)) {
+        if (key.startsWith("PM2_")) delete env[key]
+      }
+      delete env.OVER_HOME
+      Object.assign(env, pm2Context.env)
+      const endpointsPreload = path.resolve("fixture/scenario/pm2-paths-preload.cjs").replace(/\\/g, "/")
+      env.NODE_OPTIONS = [env.NODE_OPTIONS, "--require " + JSON.stringify(endpointsPreload)]
+        .filter(Boolean).join(" ")
       const pathKeys = Object.keys(env)
         .filter((key) => isWin ? key.toLowerCase() === "path" : key === "PATH")
         .sort()
@@ -606,15 +617,21 @@ describe("scenario tests", { concurrency: 3 }, () => {
       return execa(nodePath, defaultNodeArgs.concat(pm2Path, args), {
         cwd: testPath,
         env,
+        timeout: MAX_WAIT + 5000,
         // Do not merge an inherited Windows "Path" back beside our "PATH".
         extendEnv: false
       })
     }
 
-    function beforeAndAfter() {
+    async function stopPM2() {
+      if (!pm2Context) return
+      if (!pm2Started) {
+        await fs.remove(pm2Context.home)
+        return
+      }
       return pm2(["kill"])
         .then(() => {
-          const pidPath = path.resolve("env/home/.pm2/pm2.pid")
+          const pidPath = path.join(pm2Context.home, "pm2.pid")
           const started = Date.now()
 
           // PM2's Windows kill command can return on a timeout. The daemon
@@ -629,12 +646,12 @@ describe("scenario tests", { concurrency: 3 }, () => {
             }
           })
         })
-        .then(() => trash(logsPath))
+        .then(() => fs.remove(pm2Context.home))
     }
 
     function readLogs(name) {
-      const stderrPath = path.resolve(logsPath, `${name}-error.log`)
-      const stdoutPath = path.resolve(logsPath, `${name}-out.log`)
+      const stderrPath = path.resolve(pm2Context.logs, `${name}-error.log`)
+      const stdoutPath = path.resolve(pm2Context.logs, `${name}-out.log`)
 
       return {
         stderr: fs.existsSync(stderrPath)
@@ -669,7 +686,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
       // an unexplained empty application log.
       const [{ stdout: list }, daemonLog] = await Promise.all([
         pm2(["jlist"]),
-        fs.readFile(path.resolve("env/home/.pm2/pm2.log"), "utf8").catch(() => "")
+        fs.readFile(path.join(pm2Context.home, "pm2.log"), "utf8").catch(() => "")
       ])
       const app = JSON.parse(list).find((entry) => entry.name === name)
       const details = app ? {
@@ -683,6 +700,7 @@ describe("scenario tests", { concurrency: 3 }, () => {
     }
 
     function runPM2(name, args, expected) {
+      pm2Started = true
       return pm2(defaultPM2Args.concat("--name", name, args))
         .then(() => waitForLogs(name, expected))
         .then(async ({ stderr, stdout }) => {

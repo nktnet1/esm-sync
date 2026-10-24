@@ -1,7 +1,6 @@
 import COMPILER from "../../constant/compiler.js"
 import ENTRY from "../../constant/entry.js"
 import ENV from "../../constant/env.js"
-import MESSAGE from "../../constant/message.js"
 import PACKAGE from "../../constant/package.js"
 
 import CachingCompiler from "../../caching-compiler.js"
@@ -16,7 +15,6 @@ import captureStackTrace from "../../error/capture-stack-trace.js"
 import compileSource from "./compile-source.js"
 import constructError from "../../error/construct-error.js"
 import emptyArray from "../../util/empty-array.js"
-import errors from "../../parse/errors.js"
 import esmImport from "../../module/esm/import.js"
 import get from "../../util/get.js"
 import getLocationFromStackTrace from "../../error/get-location-from-stack-trace.js"
@@ -25,14 +23,13 @@ import getStackFrames from "../../error/get-stack-frames.js"
 import has from "../../util/has.js"
 import isAbsolute from "../../path/is-absolute.js"
 import isIdentifierName from "../../util/is-identifier-name.js"
-import isObjectEmpty from "../../util/is-object-empty.js"
 import isOwnPath from "../../util/is-own-path.js"
 import isStackTraceMaskable from "../../util/is-stack-trace-maskable.js"
 import keys from "../../util/keys.js"
 import maskStackTrace from "../../error/mask-stack-trace.js"
 import protoCompile from "../proto/compile.js"
 import readFile from "../../fs/read-file.js"
-import { resumeSync } from "./sync-await.js"
+import { evaluateAsyncGraph } from "./async-graph.js"
 import setProperty from "../../util/set-property.js"
 import shared from "../../shared.js"
 import stripBOM from "../../util/strip-bom.js"
@@ -65,11 +62,8 @@ const {
 
 const { DEVELOPMENT, ELECTRON_RENDERER, FLAGS, NDB } = ENV
 
-const { ILLEGAL_AWAIT_IN_NON_ASYNC_FUNCTION } = MESSAGE
-
 const { MODE_ALL, MODE_AUTO } = PACKAGE
 
-const dummyParser = { input: "" }
 const exportsRegExp = /^.*?\bexports\b/
 
 function compile(caller, entry, content, filename, fallback) {
@@ -340,6 +334,7 @@ function tryRun(entry, filename, fallback) {
   let error
   let result
   let threw = false
+  let asyncPending = false
 
   entry.state = parsing ? STATE_PARSING_STARTED : STATE_EXECUTION_STARTED
 
@@ -414,31 +409,15 @@ function tryRun(entry, filename, fallback) {
     entry.running = false
   }
 
-  const { firstAwaitOutsideFunction } = compileData
-
   const inModule = (!cjs.paths || isMJS) && entry.type !== TYPE_CJS
-
-  if (
-    !threw &&
-    !entry.running &&
-    async &&
-    isESM &&
-    firstAwaitOutsideFunction !== null &&
-    !isObjectEmpty(entry.getters)
-  ) {
-    threw = true
-    error = new errors.SyntaxError(dummyParser, ILLEGAL_AWAIT_IN_NON_ASYNC_FUNCTION)
-    error.column = firstAwaitOutsideFunction.column
-    error.inModule = inModule
-    error.line = firstAwaitOutsideFunction.line
-  }
 
   if (!threw && !entry.running) {
     entry.running = true
 
     try {
-      result =
-        firstAwaitOutsideFunction === null ? runResult.next().value : resumeSync(runResult).value
+      const evaluation = !parsing && isESM ? evaluateAsyncGraph(entry) : null
+      asyncPending = evaluation !== null && evaluation.pending === true
+      result = evaluation === null ? runResult.next().value : evaluation.value
     } catch (e) {
       threw = true
       error = e
@@ -463,7 +442,11 @@ function tryRun(entry, filename, fallback) {
       })
     }
 
-    entry.state = parsing ? STATE_PARSING_COMPLETED : STATE_EXECUTION_COMPLETED
+    entry.state = parsing
+      ? STATE_PARSING_COMPLETED
+      : asyncPending
+        ? STATE_EXECUTION_STARTED
+        : STATE_EXECUTION_COMPLETED
 
     return result
   }

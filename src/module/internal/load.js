@@ -10,6 +10,8 @@ import Loader from "../../loader.js"
 import Module from "../../module.js"
 
 import builtinEntries from "../../builtin-entries.js"
+import { isAsyncEvaluating } from "./async-graph.js"
+import { asyncError } from "./sync-await.js"
 import getFilePathfromURL from "../../util/get-file-path-from-url.js"
 import has from "../../util/has.js"
 import isFileOrigin from "../../util/is-file-origin.js"
@@ -18,7 +20,7 @@ import setProperty from "../../util/set-property.js"
 import shared from "../../shared.js"
 import toExternalFunction from "../../util/to-external-function.js"
 
-const { STATE_PARSING_COMPLETED } = ENTRY
+const { STATE_EXECUTION_COMPLETED, STATE_PARSING_COMPLETED } = ENTRY
 
 function load(filename, parent, isMain = false, cache, loader) {
   const loaderModuleState = Loader.state.module
@@ -41,6 +43,23 @@ function load(filename, parent, isMain = false, cache, loader) {
     }
 
     entry = Entry.get(mod)
+
+    // Completed entries have no outstanding async evaluation. Preserve the
+    // hot synchronous cache path without inspecting graph state or errors.
+    if (entry.state === STATE_EXECUTION_COMPLETED && entry.asyncEvaluation === null) return entry
+
+    if (has(entry, "evaluationError")) throw entry.evaluationError
+    const evaluation = shared.moduleState.asyncEvaluation
+    const dynamicLookup =
+      shared.moduleState.asyncImport && (evaluation == null || evaluation.executing === null)
+    if (!parsing && !dynamicLookup && isAsyncEvaluating(entry)) {
+      if (evaluation == null || !evaluation.importing || evaluation.executing !== null) {
+        throw asyncError(
+          "ERR_ESM_SYNC_ASYNC_REENTRANT",
+          "Cannot expose exports from an evaluating async module"
+        )
+      }
+    }
 
     if (parsing || mod.loaded || entry.state !== STATE_PARSING_COMPLETED) {
       return entry

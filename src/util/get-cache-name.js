@@ -1,4 +1,5 @@
 import ESM from "../constant/esm.js"
+import COMPILER from "../constant/compiler.js"
 
 import md5 from "./md5.js"
 import relative from "../path/relative.js"
@@ -22,7 +23,13 @@ function init() {
     }
 
     const stateHash = md5(
-      PACKAGE_VERSION + "\0" + JSON.stringify(options.packageOptions) + "\0" + cacheKey
+      PACKAGE_VERSION +
+        "\0" +
+        COMPILER.CACHE_VERSION +
+        "\0" +
+        JSON.stringify(options.packageOptions) +
+        "\0" +
+        cacheKey
     )
 
     return pathHash.slice(0, 8) + stateHash.slice(0, 8) + ".js"

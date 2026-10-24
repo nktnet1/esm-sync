@@ -19,16 +19,16 @@ describe("top-level await tests", { skip: !canTestAsyncIterators }, () => {
       .map((request) => import(request)))
   )
 
-  it("should not support `options.await` for ES modules with exports", () =>
+  it("should finish ES modules with exports when `options.await` is enabled", () =>
     Promise
       .all([
         "./fixture/top-level-await/export.esm.js",
         "./fixture/top-level-await/re-export.js"
       ]
-      .map((request) =>
-        import(request)
-          .then(assert.fail)
-          .catch(({ name }) => assert.strictEqual(name, "SyntaxError"))
-      ))
+      .map((request) => import(request)))
+      .then(([local, reexported]) => {
+        assert.strictEqual(local.a, "a")
+        assert.strictEqual(reexported.a, "a")
+      })
   )
 })

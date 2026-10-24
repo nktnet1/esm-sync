@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url"
 import path from "path"
 import vm from "vm"
 const requireHelper = createRequire(import.meta.url)
+const intrinsicThen = Promise.prototype.then
 const { checkModuleLink, getCompiler, getModuleLoader, parseTest, runModule, runScript } = requireHelper("./phase-analysis.cjs")
 
 const DEFAULT_ASYNC_TEST_TIMEOUT_MS = 10_000
@@ -175,7 +176,12 @@ async function main() {
         () => fail(new Test262HarnessTimeout(`Test262: $DONE() was not called within ${asyncTestTimeoutMs} ms`)),
         asyncTestTimeoutMs
       )
-      await Promise.all([Promise.resolve().then(runTest), completion])
+      // esm-sync exposes a synchronous loader. Invoke it on the startup stack:
+      // Promise reactions cannot recursively drain V8's microtask queue.
+      const finished = completion
+      Reflect.apply(intrinsicThen, finished, [undefined, () => {}])
+      runTest()
+      await finished
     } else {
       await runTest()
     }
@@ -190,7 +196,7 @@ async function main() {
   }
 }
 
-main().catch((failure) => {
+Reflect.apply(intrinsicThen, main(), [undefined, (failure) => {
   process.exitCode = 1
   error("Test262 runner failed:", failure)
-})
+}])

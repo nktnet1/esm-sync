@@ -273,13 +273,13 @@ describe("Test262 unsupported engine feature classification", () => {
     assert.equal(typeof features["import-text"], "boolean")
   })
 
-  it("requires native text imports for executing scripts, not esm-sync modules or parse-only cases", () => {
+  it("uses esm-sync text imports in both source goals and parse-only cases", () => {
     const features = ["import-text", "import-attributes"]
     const unavailable = { "import-text": false }
     const available = { "import-text": true }
     const script = { features, isModule: false }
 
-    assert.deepEqual(getUnsupportedHostFeatures(script, unavailable), ["import-text"])
+    assert.deepEqual(getUnsupportedHostFeatures(script, unavailable), [])
     assert.deepEqual(getUnsupportedHostFeatures(script, available), [])
     assert.deepEqual(getUnsupportedHostFeatures({ ...script, isModule: true }, unavailable), [])
     assert.deepEqual(getUnsupportedHostFeatures({ ...script, syntaxOnly: true }, unavailable), [])
@@ -289,10 +289,10 @@ describe("Test262 unsupported engine feature classification", () => {
     )
   })
 
-  it("reports missing native text imports as unsupported by the host, not as a pass", () => {
+  it("reports missing immutable buffers as unsupported by the host, not as a pass", () => {
     const missing = getUnsupportedHostFeatures(
-      { features: ["dynamic-import", "import-text"], isModule: false },
-      { "import-text": false }
+      { features: ["immutable-arraybuffer"], isModule: true },
+      { "immutable-arraybuffer": false }
     )
     const report = createReport({
       revision: "example-revision",
@@ -302,7 +302,7 @@ describe("Test262 unsupported engine feature classification", () => {
       platform: "linux",
       results: [
         {
-          path: "test/language/expressions/dynamic-import/import-attributes/2nd-param-with-type-text.js",
+          path: "test/language/import/import-bytes/bytes-from-empty.js",
           status: "unsupported",
           unsupportedFeatureSources: { host: missing, loader: [] }
         }

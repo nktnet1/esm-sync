@@ -19,6 +19,7 @@ function init() {
       this.possibleIndexes = null
       this.runtimeName = null
       this.temporalBindings = null
+      this.assignmentTargets = null
       this.transforms = 0
 
       if (options !== void 0) {
@@ -26,11 +27,13 @@ function init() {
         this.possibleIndexes = options.possibleIndexes
         this.runtimeName = options.runtimeName
         this.temporalBindings = options.temporalBindings
+        this.assignmentTargets = options.assignmentTargets
       }
     }
 
     visitIdentifier(path) {
       const node = path.getValue()
+      if (this.assignmentTargets?.has(node)) return
       const { name } = node
 
       if (!this.temporalBindings.has(name) || isShadowed(path, name, shadowedMap)) {

@@ -90,11 +90,11 @@ function queueNativeSuite(suite: NativeJob["suite"], esmEnv: string, timeout: nu
 async function executeNativeSuite(job: NativeJob): Promise<void> {
   // The loader caches compiled modules on disk by default. Concurrent native
   // processes must not overwrite or invalidate each other's cache metadata.
-  // Keep the cache suite itself on the default path: it explicitly tests it.
+  // The cache suite's consumers use private package copies to test default
+  // paths; the suite runner itself uses the same isolation as other suites.
   const cachePath = path.join(testPath, "env/native-cache", job.esmEnv, job.suite)
-  const useDefaultCache = job.suite === "cache-tests.js"
   try {
-    if (!useDefaultCache) await rm(cachePath, { recursive: true, force: true })
+    await rm(cachePath, { recursive: true, force: true })
     const result = await runNode(
       [
         "--test-reporter=./native-test-reporter.cjs",
@@ -106,12 +106,10 @@ async function executeNativeSuite(job: NativeJob): Promise<void> {
         job.suite
       ],
       job.esmEnv,
-      useDefaultCache
-        ? nativeOptions
-        : {
-            ...nativeOptions,
-            ESM_OPTIONS: JSON.stringify({ cjs: false, mode: "auto", cache: cachePath })
-          },
+      {
+        ...nativeOptions,
+        ESM_OPTIONS: JSON.stringify({ cjs: false, mode: "auto", cache: cachePath })
+      },
       {
         timeout: job.timeout,
         executable: path.join(
@@ -125,23 +123,21 @@ async function executeNativeSuite(job: NativeJob): Promise<void> {
   } catch (error) {
     job.finish({ error })
   } finally {
-    if (!useDefaultCache) await rm(cachePath, { recursive: true, force: true })
+    await rm(cachePath, { recursive: true, force: true })
   }
 }
 
 // Native tests must not share a process with Vite's module transformer. Run
 // independent subprocesses in parallel instead of serialising 24 entire suites
-// behind one Vitest file. Keep the expensive third-party runners serialised
-// (they share PM2 home), and likewise the suites that edit common fixtures.
+// behind one Vitest file. Keep the expensive third-party runners serialised,
+// and likewise the suites that edit common fixtures.
 async function executeQueuedSuites() {
-  const cacheJobs = nativeJobs.filter(({ suite }) => suite === "cache-tests.js")
-  const otherJobs = nativeJobs.filter(({ suite }) => suite !== "cache-tests.js")
   const locks = new Map<string, Promise<void>>()
   let nextIndex = 0
 
   async function worker() {
-    while (nextIndex < otherJobs.length) {
-      const job = otherJobs[nextIndex++]
+    while (nextIndex < nativeJobs.length) {
+      const job = nativeJobs[nextIndex++]
       const mustSerialise = job.suite === "scenario-tests.mjs" || job.suite === "misc-tests.js"
       const previous = mustSerialise ? locks.get(job.suite) : undefined
       let unlock = () => {}
@@ -165,15 +161,12 @@ async function executeQueuedSuites() {
 
   // Keep nested Node/tool processes bounded even when Vitest file parallelism
   // is enabled, so Jest, AVA, and PM2 do not overwhelm slower CI machines.
-  await Promise.all(Array.from({ length: Math.min(4, otherJobs.length) }, () => worker()))
-
-  // Cache tests temporarily move node_modules/.cache and must run alone.
-  for (const job of cacheJobs) await executeNativeSuite(job)
+  await Promise.all(Array.from({ length: Math.min(4, nativeJobs.length) }, () => worker()))
 }
 
-// Wait for the whole queue before starting per-suite hooks. Cache suites run
-// last, so their own hook timeout must not include time spent waiting on other
-// suites. Each subprocess still has its separate execution timeout.
+// Wait for the whole queue before starting per-suite hooks. Their hook timeout
+// must not include time spent waiting on other suites. Each subprocess still
+// has its separate execution timeout.
 beforeAll(executeQueuedSuites, 600_000)
 
 for (const esmEnv of testEnvironments) {
@@ -182,8 +175,7 @@ for (const esmEnv of testEnvironments) {
       const cases = collectNativeCases(suite)
       // Scenario suites spawn PM2, Jest, AVA, and other external tools.
       const timeout = suite === "scenario-tests.mjs" ? 300_000 : 120_000
-      // Cache suites run sequentially, so both environments can verify disk
-      // caching without racing on the shared cache directory.
+      // Preserve the existing AppVeyor exclusion for the filesystem cache suite.
       const skipCache = suite === "cache-tests.js" && Reflect.has(process.env, "APPVEYOR")
 
       describe(suite, () => {

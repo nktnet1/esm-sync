@@ -8,6 +8,9 @@
   [`d53ebc8b1931d9f1541e43d59650776e4b766248`](https://github.com/tc39/test262/commit/d53ebc8b1931d9f1541e43d59650776e4b766248).
   It fetches that **exact SHA**, not the moving `main` branch. The preparation
   records `.prepared-revision` and rejects missing or older corpus directories.
+  The selection includes both resource-management statement groups and retains
+  all ten module-goal cases. A marked older subset missing either group must
+  be prepared again.
   Failed downloads or transformations do not replace a previously prepared
   corpus. To intentionally update Test262, review the new SHA, update
   `script/setup-test262.js`, and verify the selected corpus against the loader.
@@ -53,8 +56,20 @@ compilation, rather than counted as Vitest cases.
 The Test262 corpus is downloaded by `pnpm fixtures:test262` and is pinned to
 its recorded revision. It is intentionally **not** installed as an npm package.
 Use `pnpm test:conformance` to prepare it, build the loader, and execute the full
-selected suite. This run currently has known failures, so a non-zero exit code
-is expected until those issues are addressed.
+selected suite. Failures produce a non-zero exit code; unsupported host or loader
+capabilities are reported separately. Current async behavior and validation are
+recorded in [async module loading](async-module-loading.md); the dated audits
+below describe earlier snapshots.
+
+The v1.0.2 re-audit on Linux / Node 24.21.0's production build reports **1,755
+selected: 1,746 passed, 0 failed, 9 unsupported, 0 excluded**. All twelve reported
+failures now pass. Every previously selected case,
+expected error, and expected phase is retained; ten module-goal resource cases
+are added from the same pinned revision. Script-goal imports now exercise
+esm-sync's runtime inside `vm.Script`, preserving their global scope and import
+Promise identity. The nine unsupported cases comprise six host capabilities
+(five immutable ArrayBuffer cases and one private-field case) and three
+ModuleSource binding cases; they are not async failures or new exclusions.
 
 Once fixtures and the test loader are ready, use `pnpm test:conformance:run` to
 rerun without downloading or rebuilding. The runner accepts these options:
@@ -468,25 +483,18 @@ all executed, not treated as parse-only or unsupported.
 ### Native text-import host capability (v1.0.21)
 
 The pinned `expressions/dynamic-import/import-attributes/2nd-param-with-type-text.js`
-case runs as a **script** and uses Node's native `vm.Script` dynamic-import
-loader. Node 24/26 reject `{ with: { type: "text" } }` on that path unless
-experimental text-import support is enabled; this is a host limitation, not
-an esm-sync static-linking failure.
+case now runs its import through esm-sync, while retaining Script-goal execution
+in `vm.Script`. It passes without experimental native text-import support, as do
+the five static module-goal text-import cases. The selector no longer treats
+native `import-text` support as a requirement for either source goal.
 
-The Test262 selector now probes a native dynamic import of a JSON `data:` URL
-with `type: "text"`, rather than guessing from Node version numbers. Only
-recognised unsupported-format/import-attribute errors yield an unavailable
-capability; unexpected probe errors still fail the run. When native text
-imports are unavailable, **script-goal runtime** cases tagged `import-text`
-remain selected and are recorded as **unsupported by the host** (including
-in the JSON report). A host with text-import support executes their assertions.
-
-The five pinned **static module-goal** `import-text` cases continue to run
-through esm-sync's own loader and pass even when Node's native text imports
-are disabled. Parse-only checks likewise do not require native text-module
-loading. This avoids turning existing passing loader tests into unsupported
-results, and does not add skiplist entries, alter runtime assertions, or
-change any production loader behaviour.
+All script import calls use the loader's existing compiler and runtime. This
+also avoids Node/V8's fatal native evaluation path for a fulfilled member of an
+errored async cycle. The required regression still checks that the later import
+rejects with the exact original error. Promise tracking handles those compiled
+calls without replacing their returned Promises or suppressing unrelated
+rejections. See [async module loading](async-module-loading.md) for the current
+deferred-import, resource-management, and completion-order guarantees.
 
 ## Third-party runner dependencies
 

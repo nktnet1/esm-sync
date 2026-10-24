@@ -25,7 +25,11 @@ async function runScript(filename: string) {
         ...process.env,
         NODE_ENV: "development",
         ESM_ENV: "development-test",
-        ESM_OPTIONS: "{cjs:false,cache:false}"
+        // Corpus dependencies are Module-goal fixtures even without syntax.
+        // Keep unrelated CommonJS consumers in the ordinary automatic mode.
+        ESM_OPTIONS: filename.startsWith(fixtureDirectory + path.sep)
+          ? "{cjs:false,cache:false,mode:'all'}"
+          : "{cjs:false,cache:false}"
       }
     }
   )
@@ -37,7 +41,7 @@ async function runScript(filename: string) {
   assert.equal(stdout, "", `${filename}: ${stdout}`)
 }
 
-describe("Test262 native module fixtures", () => {
+describe("Test262 module fixtures", () => {
   for (const filename of [
     "await-ns-delete-non-exported-no-strict.js",
     "await-ns-delete-non-exported-strict.js",

@@ -11,6 +11,9 @@
     "prepublishOnly": "pnpm fixtures:acorn && pnpm build:prod",
     "build": "node script/build.js",
     "build:prod": "pnpm build --prod",
+    "build:await": "node script/build-sync-await.js --required",
+    "benchmark:await": "node script/benchmark-async.js",
+    "install": "node script/build-sync-await.js",
     "clean": "node script/clean.js",
     "fixtures:acorn": "node script/setup-fixtures.js acorn",
     "fixtures:prepare": "node script/setup-fixtures.js",
@@ -56,7 +59,10 @@
     "index.js",
     "index.d.ts",
     "esm.js",
-    "esm/loader.js"
+    "esm/loader.js",
+    "native/*.node",
+    "native/sync-await.cc",
+    "script/build-sync-await.js"
   ],
   "dependencies": {
     "punycode": "^2.3.1"
