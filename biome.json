@@ -79,12 +79,16 @@
         "tooling/**",
         "harness/**",
         "diagnostics/**",
-        "test/**/*.mts"
+        "test/**/*.ts"
       ],
       "linter": {
         "rules": {
-          "style": { "noNonNullAssertion": "off" },
-          "suspicious": { "noConfusingVoidType": "off" }
+          "style": {
+            "noNonNullAssertion": "off"
+          },
+          "suspicious": {
+            "noConfusingVoidType": "off"
+          }
         }
       }
     },
@@ -99,7 +103,7 @@
       }
     },
     {
-      "includes": ["src/own/proxy.ts", "test/dynamic-import-tests.mjs"],
+      "includes": ["src/own/proxy.ts", "harness/dynamic-import-tests.ts"],
       "linter": {
         "rules": {
           "correctness": {
@@ -109,7 +113,7 @@
       }
     },
     {
-      "includes": ["tooling/babel-config.ts", "test/misc-tests.js", "test/misc/import-meta.mjs"],
+      "includes": ["tooling/babel-config.ts", "harness/misc-tests.ts", "test/misc/import-meta.mjs"],
       "linter": {
         "rules": {
           "suspicious": {
@@ -142,6 +146,23 @@
       "includes": ["test/vitest/**"],
       "formatter": {
         "enabled": true
+      }
+    },
+    {
+      "includes": ["harness/**"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noGlobalEval": "off"
+          },
+          "suspicious": {
+            "noShadowRestrictedNames": "off",
+            "noTemplateCurlyInString": "off"
+          },
+          "complexity": {
+            "noArguments": "off"
+          }
+        }
       }
     }
   ]

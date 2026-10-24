@@ -181,7 +181,7 @@ still finish their own external work.
 
 ## Validation
 
-`test/vitest/top-level-await.test.mts` exercises completed exports, async exports,
+`test/vitest/top-level-await.test.ts` exercises completed exports, async exports,
 live bindings, repeated loads, nested awaits, statement boundaries, default
 exports, binding-pattern awaits, sibling/diamond graphs, cycles and TDZ errors,
 timers, filesystem reads, loopback fetch, dynamic imports, primitive rejections,
@@ -193,13 +193,13 @@ load. It also exercises Windows-style paths through its generated subprocess
 source, preventing the template-string/regular-expression escaping bug reported
 by Windows CI.
 
-`test/vitest/async-syntax.test.mts` covers iterator protocols, abrupt cleanup,
+`test/vitest/async-syntax.test.ts` covers iterator protocols, abrupt cleanup,
 destructuring, lexical heads and labels, import assignment errors, exported live
 bindings, module/block/iteration disposal, primitive and suppressed errors,
 disposal fallbacks, and class name inference. Cached cases run again in a fresh
 process against the populated disk cache.
 
-`test/vitest/async-contexts.test.mts` checks callbacks, next ticks, Promise
+`test/vitest/async-contexts.test.ts` checks callbacks, next ticks, Promise
 reactions, microtasks, workers, nested synchronous loads, pending cycle members,
 and abandoned disposers. It also verifies that ordinary asynchronous imports
 complete iteration and disposal in those contexts.
@@ -223,7 +223,7 @@ other test processes can write it on exit. A regression runs the default-cache
 suite concurrently with unrelated bootstrap writers; default-path, disabled-cache,
 restart, and cache-content assertions remain enabled.
 
-`test/vitest/test262-async-evaluation.test.mts` keeps ten pinned Test262 async
+`test/vitest/test262-async-evaluation.test.ts` keeps ten pinned Test262 async
 graph cases and all twelve previously failing for-await syntax cases in the
 required suite, in cached and uncached modes. They cover
 independent siblings, thenables, DFS ordering, cycle roots, dynamic imports,
@@ -232,7 +232,7 @@ The Test262 phase checker validates native await syntax before execution-time
 yield lowering; module tests start the synchronous loader outside a Promise
 reaction. No corpus exclusions or assertions are relaxed.
 
-`test/vitest/test262-async-followup.test.mts` makes the twelve reported failures,
+`test/vitest/test262-async-followup.test.ts` makes the twelve reported failures,
 three dynamic-import/for-await cases, waiting-module import order, script text
 imports, and all ten module-goal resource-management cases required regressions.
 Each cached case runs twice in fresh processes. Fixture preparation includes

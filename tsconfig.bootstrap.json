@@ -6,7 +6,6 @@
   },
   "include": [
     "bootstrap/**/*.ts",
-    "bootstrap/**/*.mts",
     "diagnostics/**/*.ts",
     "src/types/**/*.d.ts",
     "tooling/semver.d.ts"

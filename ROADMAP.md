@@ -98,9 +98,13 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
       and explicit `any`, including collection type arguments.
 - [x] Define private loader, AST, reflection, cache, and native boundary types,
       preserving CommonJS getters, sloppy bootstrap, and native harness imports.
-- [ ] Finish migration validation: rerun the full pinned conformance selection
-      after the local export-binding fix, finish the Node 22/26 production test
-      runs, and benchmark against v1.0.2. See
-      [TypeScript migration](docs/typescript-migration.md) for checkpoint status.
+- [x] Use `.ts` with private ESM package scopes and explicit `.cts` for CommonJS
+      protocols, preserving published CommonJS entry points. Check with `noEmit`
+      and generate JavaScript separately, without tooling declarations.
+- [x] Finish migration validation: the full pinned conformance selection has
+      zero failures or exclusions; Node 24 development and Node 22/24/26 production
+      each pass 1,125 tests. Validate packed entry points on all three runtimes
+      and benchmark against v1.0.2. See
+      [TypeScript migration](docs/typescript-migration.md) for results and limits.
 - [ ] Replace Rspack/Babel with tsdown/Oxc only after verifying equivalent loader
       output, custom transformations, module semantics, and package contents.

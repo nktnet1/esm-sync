@@ -8,6 +8,7 @@ import path from "path"
 import createTestCleanupFilter from "./test-cleanup-paths.js"
 import { minify as terser } from "terser"
 import trash from "./trash.js"
+import { harnessOutputs } from "./esm/outputs.js"
 
 import { program } from "commander"
 
@@ -32,15 +33,13 @@ const keptPaths = [
   path.resolve(rootPath, "script"),
   path.resolve(rootPath, "esm.js"),
   path.resolve(rootPath, "index.js"),
+  path.resolve(rootPath, ".ncurc.mjs"),
   path.resolve(rootPath, "debug/debug.js"),
+  path.resolve(rootPath, "debug/module.js"),
   nodeModulesPath,
   path.resolve(rootPath, "src/vendor"),
   path.resolve(rootPath, "test/vendor"),
-  path.resolve(rootPath, "test/native-suite.cjs"),
-  path.resolve(rootPath, "test/native-test-bootstrap.cjs"),
-  path.resolve(rootPath, "test/native-test-reporter.cjs"),
-  path.resolve(rootPath, "test/test262.mjs"),
-  path.resolve(rootPath, "test/test262")
+  ...Object.values(harnessOutputs).map((filename) => path.resolve(rootPath, filename))
 ]
 const jsPaths = [path.resolve(rootPath, "esm.js"), path.resolve(rootPath, "index.js")]
 const trashPaths = ignorePaths.filter(

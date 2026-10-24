@@ -1,7 +1,12 @@
 declare module "fs-extra" {
-  const fs: Omit<typeof import("node:fs"), "writeFile" | "copyFile"> & {
+  const fs: Omit<typeof import("node:fs"), "writeFile" | "copyFile" | "mkdtemp" | "readFile"> & {
     writeFile: typeof import("node:fs/promises").writeFile
     copyFile: typeof import("node:fs/promises").copyFile
+    mkdtemp: typeof import("node:fs/promises").mkdtemp
+    readFile: typeof import("node:fs/promises").readFile
+    ensureFileSync(filename: string, content?: string, encoding?: BufferEncoding): void
+    emptyDir(directory: string): Promise<void>
+    mkdirp(directory: string): Promise<void>
     copy(source: string, destination: string): Promise<void>
     copySync(source: string, destination: string): void
     ensureDir(directory: string): Promise<void>

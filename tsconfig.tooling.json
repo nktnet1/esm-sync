@@ -5,15 +5,11 @@
     "moduleResolution": "NodeNext",
     "target": "ES2015",
     "lib": ["ESNext", "DOM"],
-    "noEmit": false,
-    "noEmitOnError": true,
-    "rootDir": "tooling",
-    "outDir": "script",
+    "noEmit": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
-    "declaration": true,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["tooling/**/*.ts", "tooling/**/*.mts"],
+  "include": ["tooling/**/*.ts"],
   "exclude": []
 }
