@@ -3,7 +3,7 @@
 ## Scope and review
 
 The published package declares only one runtime dependency, `punycode`. The
-`punycode/` import in `src/real/punycode.js` requires the userland package; it is
+`punycode/` import in `src/real/punycode.ts` requires the userland package; it is
 not a redundant reference to Node's built-in module. The build embeds Acorn and
 other loader code, so a production-only package audit does **not** audit the
 contents of the generated bundle.

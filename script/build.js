@@ -1,76 +1,62 @@
-"use strict"
-
-const execa = require("execa")
-const fs = require("fs-extra")
-const path = require("path")
-const trash = require("./trash.js")
-const buildSyncAwait = require("./build-sync-await.js")
-
-const { program } = require("commander")
-
-program.option("--prod", "enable production mode").option("--test", "enable test mode")
-
-program.parse(process.argv)
-
-const argv = program.opts()
-
-const NODE_ENV = argv.prod ? "production" : "development"
-const ESM_ENV = NODE_ENV + (argv.test ? "-test" : "")
-
-const rootPath = path.resolve(__dirname, "..")
-const buildPath = path.resolve(rootPath, "build")
-const loaderPath = path.resolve(rootPath, "esm/loader.js")
-const acornPath = path.resolve(rootPath, "src/vendor/acorn/acorn/src/state.js")
-const acornPackagePath = path.resolve(rootPath, "src/vendor/acorn/acorn/package.json")
-const acornVersion = require("acorn/package.json").version
-
-const trashPaths = [buildPath, loaderPath]
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const execa_1 = __importDefault(require("execa"));
+const fs_extra_1 = __importDefault(require("fs-extra"));
+const path_1 = __importDefault(require("path"));
+const trash_js_1 = __importDefault(require("./trash.js"));
+const build_sync_await_js_1 = __importDefault(require("./build-sync-await.js"));
+const commander_1 = require("commander");
+commander_1.program.option("--prod", "enable production mode").option("--test", "enable test mode");
+commander_1.program.parse(process.argv);
+const argv = commander_1.program.opts();
+const NODE_ENV = argv.prod ? "production" : "development";
+const ESM_ENV = NODE_ENV + (argv.test ? "-test" : "");
+const rootPath = path_1.default.resolve(__dirname, "..");
+const buildPath = path_1.default.resolve(rootPath, "build");
+const loaderPath = path_1.default.resolve(rootPath, "esm/loader.js");
+const acornPath = path_1.default.resolve(rootPath, "src/vendor/acorn/acorn/src/state.js");
+const acornPackagePath = path_1.default.resolve(rootPath, "src/vendor/acorn/acorn/package.json");
+const package_json_1 = __importDefault(require("acorn/package.json"));
+const acornVersion = package_json_1.default.version;
+const trashPaths = [buildPath, loaderPath];
 function assertFixturesReady() {
-  const isReady =
-    fs.existsSync(acornPath) &&
-    fs.existsSync(acornPackagePath) &&
-    fs.readJSONSync(acornPackagePath).version === acornVersion
-
-  if (!isReady) {
-    throw new Error(
-      "Acorn fixture is missing or outdated. Run `pnpm fixtures:acorn` before building."
-    )
-  }
+    const isReady = fs_extra_1.default.existsSync(acornPath) &&
+        fs_extra_1.default.existsSync(acornPackagePath) &&
+        fs_extra_1.default.readJSONSync(acornPackagePath).version === acornVersion;
+    if (!isReady) {
+        throw new Error("Acorn fixture is missing or outdated. Run `pnpm fixtures:acorn` before building.");
+    }
 }
-
 function cleanRepo() {
-  return Promise.all(trashPaths.map(trash))
+    return Promise.all(trashPaths.map(trash_js_1.default));
 }
-
 function copyBundle() {
-  const srcPath = path.resolve(buildPath, "esm.js")
-
-  if (!fs.existsSync(srcPath)) {
-    throw new Error("Rspack completed without producing build/esm.js")
-  }
-
-  return fs.copy(srcPath, loaderPath)
+    const srcPath = path_1.default.resolve(buildPath, "esm.js");
+    if (!fs_extra_1.default.existsSync(srcPath)) {
+        throw new Error("Rspack completed without producing build/esm.js");
+    }
+    return fs_extra_1.default.copy(srcPath, loaderPath);
 }
-
 function makeBundle() {
-  return execa("rspack", {
-    cwd: rootPath,
-    env: {
-      ESM_ENV,
-      NODE_ENV
-    },
-    stdio: "inherit"
-  })
+    return (0, execa_1.default)("rspack", ["--config", "script/rspack-config.js"], {
+        cwd: rootPath,
+        env: {
+            ESM_ENV,
+            NODE_ENV
+        },
+        stdio: "inherit"
+    });
 }
-
 Promise.resolve()
-  .then(assertFixturesReady)
-  .then(() => buildSyncAwait({ required: argv.test }))
-  .then(cleanRepo)
-  .then(makeBundle)
-  .then(copyBundle)
-  .catch((error) => {
-    console.error(error)
-    process.exitCode = 1
-  })
+    .then(assertFixturesReady)
+    .then(() => (0, build_sync_await_js_1.default)({ required: argv.test }))
+    .then(cleanRepo)
+    .then(makeBundle)
+    .then(copyBundle)
+    .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+});

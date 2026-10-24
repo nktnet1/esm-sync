@@ -60,7 +60,7 @@ jobs:
         if: runner.os == 'Linux' && matrix.node-version == 26
         run: pnpm lint
 
-      - name: Type-check declarations and fixtures
+      - name: Type-check implementation, tooling, harness, declarations and fixtures
         run: pnpm typecheck
 
       - name: Prepare vendor fixtures

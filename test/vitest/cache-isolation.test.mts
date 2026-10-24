@@ -175,8 +175,20 @@ describe("isolated native Node loader caches", () => {
       const summary = result.stdout
         .split(/\r?\n/)
         .filter((line) => line.startsWith("ESM_SYNC_TEST_EVENT "))
-        .map((line) => JSON.parse(line.slice("ESM_SYNC_TEST_EVENT ".length)))
-        .find((record) => record.kind === "summary")
+        .map((line): unknown => JSON.parse(line.slice("ESM_SYNC_TEST_EVENT ".length)))
+        .find(
+          (
+            record
+          ): record is {
+            kind: "summary"
+            success: boolean
+            counts: { passed: number; failed: number }
+          } =>
+            record !== null &&
+            typeof record === "object" &&
+            "kind" in record &&
+            record.kind === "summary"
+        )
       assert.ok(summary, result.stdout)
       assert.equal(summary.success, true, result.stdout)
       assert.ok(summary.counts.passed > 0, result.stdout)

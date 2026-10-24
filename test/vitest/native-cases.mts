@@ -54,7 +54,7 @@ export function collectNativeCases(filename: string, platform = process.platform
   function walk(node: unknown, suites: string[]) {
     if (!node || typeof node !== "object") return
     if (Array.isArray(node)) {
-      for (const child of node) walk(child, suites)
+      for (const child of node as unknown[]) walk(child, suites)
       return
     }
 

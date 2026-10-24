@@ -12,7 +12,7 @@ const testURL = pathToFileURL(testPath)
 // Node 22.10-22.17 and Node 23 require two arguments and abort the process
 // rather than throwing. This is an external host ABI limitation, not an esm-sync
 // failure. Continue exercising it on unaffected Node releases, including 24/26.
-const [nodeMajor, nodeMinor] = process.versions.node.split(".").map(Number)
+const [nodeMajor = 0, nodeMinor = 0] = process.versions.node.split(".").map(Number)
 const stdEsmHasUnsafeStatABI =
   (nodeMajor === 22 && nodeMinor >= 10 && nodeMinor < 18) || nodeMajor === 23
 

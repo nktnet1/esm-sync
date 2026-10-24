@@ -7,6 +7,9 @@ declare const mod: Module
 const load = esm(mod)
 const configuredLoad = esm(mod, {
   await: true,
+  cache: ".cache/esm-sync",
+  debug: true,
+  sourceMap: false,
   cjs: {
     cache: true,
     dedefault: false,

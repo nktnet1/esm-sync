@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.source.json",
+  "compilerOptions": {
+    "module": "Preserve",
+    "lib": ["ESNext", "DOM"],
+    "esModuleInterop": true,
+    "resolveJsonModule": true
+  },
+  "include": [
+    "harness/**/*.ts",
+    "harness/**/*.cts",
+    "harness/**/*.mts",
+    "src/types/**/*.d.ts",
+    "tooling/**/*.d.ts"
+  ],
+  "exclude": ["src/vendor"]
+}

@@ -80,7 +80,7 @@ describe("Test262 case selection", () => {
     const selected = selectCases(cases, { filter: "MODULE-CODE" })
     assert.deepEqual(
       selected.map(({ relativePath }) => relativePath),
-      [cases[0].relativePath, cases[3].relativePath]
+      [cases[0]!.relativePath, cases[3]!.relativePath]
     )
   })
 
@@ -88,7 +88,7 @@ describe("Test262 case selection", () => {
     const selected = selectCases(cases, { filter: "dynamic-import", limit: 1 })
     assert.deepEqual(
       selected.map(({ relativePath }) => relativePath),
-      [cases[1].relativePath]
+      [cases[1]!.relativePath]
     )
   })
 
@@ -109,14 +109,14 @@ describe("Test262 case selection", () => {
         excludeFeatures: ["top-level-await"],
         limit: 2
       }).map(({ relativePath }) => relativePath),
-      [tagged[0].relativePath, tagged[2].relativePath]
+      [tagged[0]!.relativePath, tagged[2]!.relativePath]
     )
     assert.equal(selectCases(tagged).length, 4)
     assert.deepEqual(
       selectCases(tagged, { excludeFeatures: ["top-level-await", "async-iteration"] }).map(
         ({ relativePath }) => relativePath
       ),
-      [tagged[0].relativePath, tagged[2].relativePath]
+      [tagged[0]!.relativePath, tagged[2]!.relativePath]
     )
   })
 

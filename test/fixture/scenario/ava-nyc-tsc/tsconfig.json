@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
     "inlineSourceMap": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
     "inlineSources": true,
     "lib": ["es6"],
     "module": "ESNext",

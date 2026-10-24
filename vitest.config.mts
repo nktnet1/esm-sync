@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config"
 // test/vitest/native-suites.test.mts in real Node subprocesses.
 export default defineConfig(({ mode }) => ({
   test: {
-    include: ["test/*.test.mjs", "test/vitest/**/*.test.{mjs,mts}"],
+    include: ["test/*.test.mts", "test/vitest/**/*.test.mts"],
     environment: "node",
     setupFiles: ["./test/vitest/setup.mts"],
     fsModuleCache: true,

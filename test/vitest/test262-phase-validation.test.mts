@@ -388,8 +388,8 @@ throw new SyntaxError("unrelated synchronous exception");`
       assert.equal(report.selected, 1)
       assert.equal(report.passed, 1)
       assert.equal(report.failed, 0)
-      assert.equal(report.cases[0].syntaxOnly, undefined)
-      assert.equal(report.cases[0].status, "pass")
+      assert.equal(report.cases[0]!.syntaxOnly, undefined)
+      assert.equal(report.cases[0]!.status, "pass")
     } finally {
       await rm(directory, { force: true, recursive: true })
     }

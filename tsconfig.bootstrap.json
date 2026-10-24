@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.source.json",
+  "compilerOptions": {
+    "module": "Preserve",
+    "lib": ["ESNext", "DOM"]
+  },
+  "include": [
+    "bootstrap/**/*.ts",
+    "bootstrap/**/*.mts",
+    "diagnostics/**/*.ts",
+    "src/types/**/*.d.ts",
+    "tooling/semver.d.ts"
+  ],
+  "exclude": ["src/vendor"]
+}

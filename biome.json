@@ -73,7 +73,23 @@
   },
   "overrides": [
     {
-      "includes": ["src/**", "esm.js"],
+      "includes": [
+        "src/**/*.ts",
+        "bootstrap/**",
+        "tooling/**",
+        "harness/**",
+        "diagnostics/**",
+        "test/**/*.mts"
+      ],
+      "linter": {
+        "rules": {
+          "style": { "noNonNullAssertion": "off" },
+          "suspicious": { "noConfusingVoidType": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["src/**", "bootstrap/esm.ts"],
       "linter": {
         "rules": {
           "suspicious": {
@@ -83,7 +99,7 @@
       }
     },
     {
-      "includes": ["src/own/proxy.js", "test/dynamic-import-tests.mjs"],
+      "includes": ["src/own/proxy.ts", "test/dynamic-import-tests.mjs"],
       "linter": {
         "rules": {
           "correctness": {
@@ -93,7 +109,7 @@
       }
     },
     {
-      "includes": [".babel.config.js", "test/misc-tests.js", "test/misc/import-meta.mjs"],
+      "includes": ["tooling/babel-config.ts", "test/misc-tests.js", "test/misc/import-meta.mjs"],
       "linter": {
         "rules": {
           "suspicious": {

@@ -36,3 +36,15 @@
 *.patch
 *.tar.gz
 
+
+/script/
+/esm.js
+/index.js
+/.ncurc.mjs
+/debug/debug.js
+/test/native-suite.cjs
+/test/native-test-bootstrap.cjs
+/test/native-test-reporter.cjs
+/test/test262.mjs
+/test/test262/*.cjs
+/test/test262/wrapper.js

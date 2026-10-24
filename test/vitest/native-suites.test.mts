@@ -137,7 +137,7 @@ async function executeQueuedSuites() {
 
   async function worker() {
     while (nextIndex < nativeJobs.length) {
-      const job = nativeJobs[nextIndex++]
+      const job = nativeJobs[nextIndex++]!
       const mustSerialise = job.suite === "scenario-tests.mjs" || job.suite === "misc-tests.js"
       const previous = mustSerialise ? locks.get(job.suite) : undefined
       let unlock = () => {}
