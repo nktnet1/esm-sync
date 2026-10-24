@@ -3,14 +3,14 @@ import Reflect from "../../reflection.js"
 // Copyright Node.js contributors. Released under MIT license:
 // https://github.com/nodejs/node/blob/master/lib/internal/modules/cjs/loader.js
 
-import { basename, dirname, resolve, sep, join } from "../../safe/path.js"
+import { basename, dirname, resolve, sep } from "../../safe/path.js"
 
 import CHAR_CODE from "../../constant/char-code.js"
 import ENV from "../../constant/env.js"
 
 import GenericArray from "../../generic/array.js"
 import Module from "../../module.js"
-import { Stats, existsSync } from "../../safe/fs.js"
+import { Stats } from "../../safe/fs.js"
 
 import { emitWarning } from "../../safe/process.js"
 import errors from "../../errors.js"
@@ -21,6 +21,7 @@ import isExtMJS from "../../path/is-ext-mjs.js"
 import isSep from "../../path/is-sep.js"
 import keys from "../../util/keys.js"
 import readPackage from "./read-package.js"
+import resolveExports from "./resolve-exports.js"
 import realpath from "../../fs/realpath.js"
 import shared from "../../shared.js"
 import statFast from "../../fs/stat-fast.js"
@@ -310,72 +311,6 @@ function tryPackage(
   }
 
   return foundPath
-}
-
-function resolveExports(exports: unknown, packagePath: string, subpath: string): string {
-  if (typeof exports === "string") {
-    return join(packagePath, exports)
-  }
-
-  if (Array.isArray(exports)) {
-    const availableExport: unknown = exports.find(
-      (exportPath: unknown) =>
-        typeof exportPath === "string" && existsSync(join(packagePath, exportPath))
-    )
-    if (availableExport) {
-      return join(packagePath, availableExport as string)
-    }
-    return ""
-  }
-
-  if (typeof exports !== "object" || exports === null) return ""
-  const record = exports as Record<string, unknown>
-  if (record.require) {
-    return resolveExports(record.require, packagePath, subpath)
-  }
-
-  if (record.node) {
-    return resolveExports(record.node, packagePath, subpath)
-  }
-
-  if (record.default) {
-    return resolveExports(record.default, packagePath, subpath)
-  }
-
-  if (record["."] && !subpath) {
-    return resolveExports(record["."], packagePath, subpath)
-  }
-
-  const wellKnownConditions = ["import", "require", "node", "default", "."]
-  const conditions = Object.keys(record)
-    .filter((condition) => !wellKnownConditions.includes(condition))
-    .map((condition) => {
-      const [startsWith, endsWith] = condition.split("*")
-      return { endsWith, exports: record[condition], startsWith }
-    })
-
-  if (subpath) {
-    // Ensure the subpath format is correct
-    const normalizedSubpath = `./${subpath}`
-
-    const matchedCondition = conditions.find(
-      ({ startsWith, endsWith }) =>
-        normalizedSubpath.startsWith(startsWith!) &&
-        (!endsWith || normalizedSubpath.endsWith(endsWith))
-    )
-    if (matchedCondition) {
-      if (matchedCondition.endsWith && typeof matchedCondition.exports === "string") {
-        const pathToReplace = normalizedSubpath.substring(
-          matchedCondition.startsWith!.length,
-          normalizedSubpath.length - matchedCondition.endsWith.length
-        )
-        return join(packagePath, matchedCondition.exports.replace("*", pathToReplace))
-      }
-      return resolveExports(matchedCondition.exports, packagePath, subpath)
-    }
-  }
-
-  return ""
 }
 
 export default findPath

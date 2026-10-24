@@ -3,6 +3,10 @@ declare module "*/build/compiler.js" {
   const compiler: typeof import("../src/compiler.js").default
   export default compiler
 }
+declare module "*/build/resolve-exports.js" {
+  const resolveExports: typeof import("../src/module/internal/resolve-exports.js").default
+  export default resolveExports
+}
 declare module "*/build/get-file-path-from-url.js" {
   const value: typeof import("../src/util/get-file-path-from-url.js").default
   export default value

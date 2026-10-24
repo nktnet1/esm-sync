@@ -99,7 +99,46 @@ and indexed-access checks still enabled.
 
 ## Validation
 
-The module-scope and no-emit follow-up passes:
+### Clean-checkout and resolution follow-up
+
+Strict checking can run before vendor preparation. The Acorn boundary now
+declares each of its eight side-effect-only parser modules explicitly, alongside
+the existing typed value imports. No wildcard catch-all or compiler-check
+suppression is needed. Builds still require the real downloaded sources.
+
+The clean-checkout regression copies maintained sources without `src/vendor`,
+`script`, or bundles and runs the real fixture CLI against a local ZIP response.
+It checks extraction and JavaScript-only generation, then verifies that a
+missing owned side-effect import still fails with TS2882. A separate source-only
+snapshot also passes aggregate checking before fixture preparation and builds
+after extracting the real Acorn sources from a local archive.
+
+The four supplied CodeQL annotations are addressed as follows:
+
+- Path query/fragment removal finds the first delimiter with a single-character
+  search and slices there. It handles line terminators without the previous
+  backtracking suffix expression.
+- Package export targets replace every wildcard using a callback, preserving
+  literal `$&`, `$`-backtick, `$'`, `$$`, and `*` characters in captured subpaths.
+  Captures propagate through conditions and array fallbacks, including patterns
+  without suffixes. Exact keys require an exact match and take precedence over
+  patterns. This remains the existing limited CommonJS exports fallback rather
+  than a complete implementation of Node's package exports algorithm.
+- The two percent-encoding test cases replace every `abc` occurrence.
+
+Dedicated resolution tests cover these cases and long multiline suffixes with
+200,000 delimiters in bounded native Node processes. This follow-up passes
+Biome, strict no-emit checking, and the inferred-`any` audit. All 28 Vitest files
+and 1,140 tests pass on Node 24.21.0 in development and production. The 15 focused
+bootstrap/resolution tests pass on Node 22.23.4/24.21.0/26.12.0, and the 14
+resolution tests also pass against production bundles on Node 22/26. These new
+checks ran on Linux. The offline bootstrap test gives its child processes a
+separate bounded budget for checking several TypeScript projects on busy runners.
+The CodeQL CLI is unavailable locally, so a fresh CodeQL scan is not claimed.
+
+### Module-scope and no-emit follow-up
+
+The v1.0.4 module-scope and no-emit follow-up passes:
 
 - Supplied Biome formatting/lint checks, strict no-emit checking, and the
   inferred-`any` audit. Checking also succeeds with `script/` absent and leaves it
@@ -123,12 +162,12 @@ sources, native bridge implementation, and `README.md` are unchanged.
 
 ### Benchmark against v1.0.2
 
-Both checkouts used production test bundles on Node 24.21.0. The existing
+The v1.0.2 and v1.0.4 checkouts used production test bundles on Node 24.21.0. The existing
 `benchmark:await` runner alternated their process order and measured seven fresh
 processes per case, with 5,000 cached loads each. Values below are medians;
 shared-host scheduling and startup noise limit conclusions from this sample.
 
-| Case | v1.0.2 cold ms | Current cold ms | v1.0.2 cached us/load | Current cached us/load |
+| Case | v1.0.2 cold ms | v1.0.4 cold ms | v1.0.2 cached us/load | v1.0.4 cached us/load |
 | --- | ---: | ---: | ---: | ---: |
 | Synchronous module | 11.769 | 11.401 | 6.333 | 5.856 |
 | Synchronous graph | 13.157 | 14.401 | 6.175 | 5.715 |

@@ -720,11 +720,11 @@ describe("miscellaneous tests", () => {
           abcPath + "?a",
           abcPath + "#a",
           abcPath + "?a#a",
-          abcPath.replace("abc", "%61%62%63") + "?a#a",
+          abcPath.replace(/abc/g, "%61%62%63") + "?a#a",
           abcURL + "?a",
           abcURL + "#a",
           abcURL + "?a#a",
-          abcURL.replace("abc", "%61%62%63") + "?a#a"
+          abcURL.replace(/abc/g, "%61%62%63") + "?a#a"
         ].map((request) =>
           (import(request as string) as Promise<Namespace>).then((ns) =>
             assert.deepStrictEqual(ns, abcNs)

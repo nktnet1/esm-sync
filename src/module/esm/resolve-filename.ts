@@ -45,7 +45,7 @@ const {
 } = errors
 
 const localhostRegExp = /^\/\/localhost\b/
-const queryHashRegExp = /[?#].*$/
+const queryHashRegExp = /[?#]/
 
 const strictExts = [".mjs", ".js", ".json", ".node"]
 const strictFields = ["main"]
@@ -141,7 +141,8 @@ function resolveFilename(
       foundPath = _resolveFilename(foundPath, parent, isMain, options, emptyArray, emptyArray, true)
     }
   } else if (isPath) {
-    let pathname = request.replace(queryHashRegExp, "")
+    const suffixIndex = request.search(queryHashRegExp)
+    let pathname = suffixIndex === -1 ? request : request.slice(0, suffixIndex)
 
     if (!hasEncodedSep(pathname)) {
       const paths = isAbs ? [""] : [fromPath!]

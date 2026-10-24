@@ -1,3 +1,14 @@
+// These modules install parser methods for their side effects. Fixture setup
+// must be type-checkable before their downloaded JavaScript exists.
+declare module "*acorn/src/expression.js" {}
+declare module "*acorn/src/location.js" {}
+declare module "*acorn/src/lval.js" {}
+declare module "*acorn/src/node.js" {}
+declare module "*acorn/src/scope.js" {}
+declare module "*acorn/src/statement.js" {}
+declare module "*acorn/src/tokencontext.js" {}
+declare module "*acorn/src/tokenize.js" {}
+
 declare module "*acorn/src/identifier.js" {
   export function isIdentifierChar(code: number, astral?: boolean): boolean
   export function isIdentifierStart(code: number, astral?: boolean): boolean

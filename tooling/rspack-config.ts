@@ -137,6 +137,7 @@ if (isTest) {
   Object.assign(config.entry!, {
     compiler: "./src/compiler.ts",
     entry: "./src/entry.ts",
+    "resolve-exports": "./src/module/internal/resolve-exports.ts",
     "get-file-path-from-url": "./src/util/get-file-path-from-url.ts",
     "get-url-from-file-path": "./src/util/get-url-from-file-path.ts",
     runtime: "./src/runtime.ts"

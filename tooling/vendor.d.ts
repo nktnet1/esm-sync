@@ -20,8 +20,10 @@ declare module "fs-extra" {
 }
 declare module "adm-zip" {
   class AdmZip {
-    constructor(buffer: Buffer)
+    constructor(buffer?: Buffer)
+    addFile(filename: string, content: Buffer): void
     getEntries(): { entryName: string; isDirectory: boolean; getData(): Buffer }[]
+    toBuffer(): Buffer
   }
   export = AdmZip
 }

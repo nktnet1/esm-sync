@@ -101,6 +101,13 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
 - [x] Use `.ts` with private ESM package scopes and explicit `.cts` for CommonJS
       protocols, preserving published CommonJS entry points. Check with `noEmit`
       and generate JavaScript separately, without tooling declarations.
+- [x] Bootstrap fixture preparation and strict checking after a clean checkout,
+      before downloaded Acorn sources exist. Declare its side-effect-only
+      modules precisely and retain missing-owned-import diagnostics.
+- [x] Address the four reported CodeQL annotations in path resolution, export
+      wildcard substitution, and percent-encoding tests. Cover literal captured
+      subpaths and long multiline suffixes with regression tests. A fresh CodeQL
+      scan remains a CI check.
 - [x] Finish migration validation: the full pinned conformance selection has
       zero failures or exclusions; Node 24 development and Node 22/24/26 production
       each pass 1,125 tests. Validate packed entry points on all three runtimes
