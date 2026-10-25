@@ -1,6 +1,6 @@
 import { createRequire } from "node:module"
 
-// Rspack test entry points normally receive these from esm.js. Expose only
+// Bundled test entry points normally receive these from esm.js. Expose only
 // their runtime globals in Vitest; do not install the native loader hooks.
 Object.assign(globalThis, {
   __global__: globalThis,

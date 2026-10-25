@@ -221,4 +221,4 @@ defineProperty(makeRequireFunction, symbolFor("esm:package"), {
 
 freeze(makeRequireFunction)
 
-export = makeRequireFunction
+export default makeRequireFunction

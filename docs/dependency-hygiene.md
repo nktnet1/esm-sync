@@ -8,13 +8,15 @@ not a redundant reference to Node's built-in module. The build embeds Acorn and
 other loader code, so a production-only package audit does **not** audit the
 contents of the generated bundle.
 
-Direct development dependencies were checked against build scripts, Babel and
-Rspack configuration, fixture preparation, CLI executables and the active
-third-party interoperability scenarios. There is no confirmed unused direct
-dependency to remove safely at this point. In particular:
+Direct development dependencies were checked against build scripts, bundler
+configuration, fixture preparation, CLI executables and the active third-party
+interoperability scenarios. The tsdown migration removes `@rspack/cli`,
+`@rspack/core`, `babel-loader`, `terser-webpack-plugin`, `unused-webpack-plugin`,
+and `webpack-bundle-analyzer`. In particular:
 
-- Babel plugins and Webpack/Rspack tooling are still used by the current build;
-  remove them as part of Phase 8, not ahead of the bundler migration.
+- tsdown bundles the loader and emits the public CommonJS entry points. Babel
+  plugins retain the loader's custom strict/sloppy transformations and legacy
+  syntax target. Terser remains the production minifier through its direct API.
 - Mocha, AVA, Jest, Jasmine, Lab, NYC, `ts-node`, Babel register and Webpack
   CLI cover real external-host scenarios. See
   [test-fixtures-and-compatibility.md](test-fixtures-and-compatibility.md).
@@ -63,6 +65,6 @@ audit including development tools and interoperability dependencies. Triage
 those advisories individually rather than applying automated major upgrades
 to the legacy build or runner stack immediately before Phase 8.
 
-The local audit environment has no access to the npm registry. A fresh
-registry-backed `pnpm audit:all` and `pnpm outdated` review therefore remain
-necessary before marking the full dependency-security review complete.
+The original local audit did not have access to the npm registry. A fresh
+registry-backed `pnpm audit:all` and `pnpm outdated` review remain necessary
+before marking the full dependency-security review complete.

@@ -228,7 +228,6 @@ export interface ModuleRegistry {
   visitorRequire: import("../visitor/require.js").CachedModule
   visitorUndeclared: import("../visitor/undeclared.js").CachedModule
   visitorImportExport: import("../visitor/import-export.js").CachedModule
-  visitorRequireDeclaration: import("../visitor/require-declaration.js").CachedModule
   visitorEval: import("../visitor/eval.js").CachedModule
   topLevelAwaitVisitor: import("../visitor/top-level-await.js").CachedModule
   errorConstructError: import("../error/construct-error.js").CachedModule

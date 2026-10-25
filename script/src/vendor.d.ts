@@ -41,33 +41,3 @@ declare module "test262-parser" {
   }
   export function parseFile(source: string): { attrs: Attributes; contents: string }
 }
-declare module "webpack" {
-  export type Compiler = import("@rspack/core").Compiler
-  export type Compilation = import("@rspack/core").Compilation
-  export type Asset = import("@rspack/core").Asset
-  export type AssetInfo = import("@rspack/core").AssetInfo
-  export type TemplatePath = Parameters<import("@rspack/core").Compilation["getPath"]>[0]
-  export type Configuration = import("@rspack/core").Configuration
-  export namespace sources {
-    type Source = import("@rspack/core").sources.Source
-  }
-}
-declare module "webpack-bundle-analyzer" {
-  export class BundleAnalyzerPlugin {
-    constructor(options: {
-      analyzerMode: string
-      defaultSizes: string
-      logLevel: string
-      openAnalyzer: boolean
-      reportFilename: string
-    })
-    apply(compiler: import("@rspack/core").Compiler): void
-  }
-}
-declare module "unused-webpack-plugin" {
-  class UnusedPlugin {
-    constructor(options: { directories: string[]; exclude: string[]; root: string })
-    apply(compiler: import("@rspack/core").Compiler): void
-  }
-  export = UnusedPlugin
-}

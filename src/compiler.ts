@@ -22,9 +22,6 @@ import stripShebang from "./util/strip-shebang.js"
 import temporalVisitor from "./visitor/temporal.js"
 import topLevelAwaitVisitor from "./visitor/top-level-await.js"
 import undeclaredVisitor from "./visitor/undeclared.js"
-import requireDeclarationVisitor, {
-  getEsmRequireReplacementName
-} from "./visitor/require-declaration.js"
 
 function init() {
   const {
@@ -66,7 +63,6 @@ function init() {
       temporalVisitor.reset()
       topLevelAwaitVisitor.reset()
       undeclaredVisitor.reset()
-      requireDeclarationVisitor.reset()
 
       const result: CompiledSource = {
         circular: 0,
@@ -296,19 +292,6 @@ function init() {
         })
       }
 
-      if (topIdentifiers.has("require") && sourceType === SOURCE_TYPE_MODULE) {
-        magicString.overwrite(
-          0,
-          0,
-          `const ${getEsmRequireReplacementName(runtimeName)} = require;\n`
-        )
-        requireDeclarationVisitor.visit(rootPath, {
-          magicString,
-          possibleIndexes: possibleRequireIndexes,
-          runtimeName
-        })
-      }
-
       if (
         options.transformTopLevelAwait &&
         sourceType === SOURCE_TYPE_MODULE &&
@@ -330,8 +313,7 @@ function init() {
         evalVisitor.transforms |
         globalsVisitor.transforms |
         importExportTransforms |
-        undeclaredVisitor.transforms |
-        requireDeclarationVisitor.transforms
+        undeclaredVisitor.transforms
 
       if (result.transforms !== 0) {
         yieldIndex = importExportVisitor.yieldIndex + topLevelAwaitVisitor.prefixLength

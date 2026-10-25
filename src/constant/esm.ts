@@ -1,8 +1,7 @@
 import encodeId from "../util/encode-id.js"
 import setDeferred from "../util/set-deferred.js"
 
-// The `process.env` properties are replaced at build time.
-// https://webpack.js.org/plugins/environment-plugin/
+// Package metadata is replaced at build time.
 const PACKAGE_FILENAMES = __ESM_PACKAGE_FILENAMES__
 const PACKAGE_VERSION = __ESM_PACKAGE_VERSION__
 
