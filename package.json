@@ -36,7 +36,7 @@
     "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio"
   },
   "main": "dist/esm.js",
-  "types": "index.d.ts",
+  "types": "dist/esm.d.ts",
   "private": false,
   "runkitExample": "require = require(\"esm-sync\")(module)\nrequire(\"lodash-es\")",
   "esm": true,
@@ -57,7 +57,8 @@
     "url": "https://github.com/nktnet1/esm-sync"
   },
   "files": [
-    "index.d.ts",
+    "dist/esm.d.ts",
+    "dist/index.d.ts",
     "dist/esm.js",
     "dist/index.js",
     "dist/esm/loader.js",
@@ -136,23 +137,23 @@
   "packageManager": "pnpm@12.15.0",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
+      "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
     },
     "./esm": {
-      "types": "./index.d.ts",
+      "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
     },
     "./esm.js": {
-      "types": "./index.d.ts",
+      "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
     },
     "./index": {
-      "types": "./index.d.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./index.js": {
-      "types": "./index.d.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./package.json": "./package.json"

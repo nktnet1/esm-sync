@@ -3,7 +3,7 @@ import path from "node:path"
 
 function loadOwnProtocol() {
   const root = path.resolve(__dirname, "../../..")
-  const esm = require(root) as typeof import("../../../index.js")
+  const esm = require(root) as import("../../../src/types/public.js").EsmFactory
   const ownModule = require.cache[require.resolve(root)]
   if (!ownModule) throw new Error("Test262: esm-sync module is not loaded")
   const metadata: unknown = require(path.join(root, "package.json"))

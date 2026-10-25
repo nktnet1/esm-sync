@@ -25,7 +25,9 @@ const acornVersion = acornPackage.version
 // Tooling is executing from dist/script, so clean only bundler-owned output.
 const publicOutputs = [
   "dist/esm.js",
+  "dist/esm.d.ts",
   "dist/index.js",
+  "dist/index.d.ts",
   "dist/esm/loader.js",
   "dist/script/build-sync-await.js"
 ]

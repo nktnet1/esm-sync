@@ -27,7 +27,8 @@ export async function verifyInstalledPackage(
     delete env[key]
   for (const filename of [
     "dist/index.js",
-    "index.d.ts",
+    "dist/esm.d.ts",
+    "dist/index.d.ts",
     "dist/esm.js",
     "dist/esm/loader.js",
     "native/sync-await.cc",

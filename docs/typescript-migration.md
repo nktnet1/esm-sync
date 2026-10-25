@@ -78,10 +78,11 @@ output. The `__shared__` binding is reserved because the bootstrap supplies it
 from outside the bundle. Publishing uses the same production build rather than
 minifying its entry points a second time.
 
-The build task owns cleanup; tsdown never cleans the repository root. Declaration
-generation is disabled. Tests exercise the actual public output without
-rewriting or restoring it. Package entry points and the historical `esm`/`index`
-subpath aliases remain compatible through the explicit package exports.
+The build task owns cleanup; tsdown never cleans the repository root. It
+generates declarations for the two public CommonJS entry points in `dist/`.
+Tests exercise the actual public output without rewriting or restoring it.
+Package entry points and the historical `esm`/`index` subpath aliases remain
+compatible through the explicit package exports.
 
 ## Checking and generation
 
@@ -94,11 +95,13 @@ cleans generated commands and works before any JavaScript output exists.
 Build/test commands first run no-emit checks, then generate JavaScript separately.
 They replace generated commands under `dist/script/`,
 removing stale commands and declarations while preserving maintained `script/src/`
-and the public installer. They do not emit `.d.ts` files. Tests obtain helper
-types directly from maintained TypeScript sources. The native TypeScript CLI and
-its checking helpers remain source-only and require no generated ESM package config.
-`index.d.ts`, source boundary declarations, and fixture contracts are
-maintained declarations, rather than generated command output.
+and the public installer. They emit declarations only for the public `esm` and
+`index` entry points. Tests obtain helper types directly from maintained
+TypeScript sources. The native
+TypeScript CLI and its checking helpers remain source-only and require no
+generated ESM package config. Source boundary declarations and fixture contracts
+remain maintained, while the public declarations are generated from the bootstrap
+TypeScript source.
 
 Use the existing pnpm commands. Build before invoking generated `dist/script/*.js`
 commands directly or packing with lifecycle scripts disabled. Consumers do not

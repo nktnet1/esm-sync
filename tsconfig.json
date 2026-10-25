@@ -9,7 +9,6 @@
     "allowImportingTsExtensions": true
   },
   "include": [
-    "index.d.ts",
     "src/**/*.ts",
     "script/src/**/*.ts",
     "src/bootstrap/**/*.ts",

@@ -1,4 +1,4 @@
-const esm = require("../esm") as typeof import("../index.js")
+const esm = require("../esm") as import("../src/types/public.js").EsmFactory
 
 const myRequire = esm(module)
 

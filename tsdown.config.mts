@@ -138,10 +138,13 @@ export default defineConfig([
     ([name, entry]): UserConfig => ({
       ...base,
       name: `bootstrap:${name}`,
+      // Only the public CommonJS entry points publish declarations.
+      dts: name === "esm" || name === "index" ? { generator: "tsc" } : false,
       entry: { [name]: entry },
       outDir: "dist",
       outputOptions: { ...base.outputOptions, strict: name !== "esm" },
-      deps: { neverBundle: ["./esm.js"] }
+      // Keep private loader types out of the public declaration graph.
+      deps: { neverBundle: ["./esm.js"], dts: { neverBundle: ["../types/runtime.js"] } }
     })
   )
 ])

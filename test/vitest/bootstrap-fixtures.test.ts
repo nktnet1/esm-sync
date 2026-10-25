@@ -22,7 +22,7 @@ it(
           recursive: true,
           filter: (source) => source !== excluded
         })
-      for (const name of ["package.json", "index.d.ts", "tsdown.config.mts"])
+      for (const name of ["package.json", "tsdown.config.mts"])
         await cp(path.join(root, name), path.join(directory, name))
       await symlink(
         await realpath(path.join(root, "node_modules")),

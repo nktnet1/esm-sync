@@ -1,9 +1,11 @@
 import type { Module } from "node:module"
+import type { EsmFactory } from "../../src/types/public.js"
 
-import esm = require("../../index")
-import publicEntry = require("esm-sync")
-import legacyIndex = require("esm-sync/index.js")
-import legacyEsm = require("esm-sync/esm")
+import esm from "../../src/bootstrap/esm.js"
+import legacyIndex from "../../src/bootstrap/index.js"
+
+const publicEntry: EsmFactory = esm
+const legacyEsm: typeof esm = esm
 
 declare const mod: Module
 
