@@ -593,7 +593,11 @@ class Entry {
       mod.exports = exported
       this.exports = exported
     } else {
-      if (this.extname === ".mjs") {
+      if (this.type === TYPE_ESM && has(this.getters, "module.exports")) {
+        // CommonJS receives the explicit interop value; ESM imports continue
+        // to use this entry's getters and complete namespace.
+        mod.exports = this.getters["module.exports"]!()
+      } else if (this.extname === ".mjs") {
         mod.exports = createImmutableExportsProxy(this, this.exportsObject)
       } else {
         const names = getExportsObjectKeys(this)

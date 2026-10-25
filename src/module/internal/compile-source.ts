@@ -80,6 +80,8 @@ function init() {
       }
     }
 
+    // Module lexical bindings may shadow CommonJS bridge parameters such as
+    // require and exports. Preserve those names in a separate lexical scope.
     let content =
       "const " +
       runtimeName +
@@ -91,9 +93,9 @@ function init() {
       "function *" +
       "(" +
       (cjsVars ? "exports,require" : "") +
-      '){"use strict";' +
+      '){"use strict";{' +
       code +
-      "\n}))"
+      "\n}}))"
 
     if (options.sourceMap) {
       content += createInlineSourceMap(compileData.filename!, content)
