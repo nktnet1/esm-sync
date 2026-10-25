@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "rootDir": ".",
+    "rootDir": "..",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
@@ -12,6 +12,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "script/src/semver.d.ts"],
-  "exclude": ["src/vendor", "src/bootstrap"]
+  "include": ["../src/**/*.ts", "../script/src/semver.d.ts"],
+  "exclude": ["../src/vendor", "../src/bootstrap"]
 }

@@ -10,6 +10,6 @@
     "resolveJsonModule": true,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["script/src/**/*.ts"],
+  "include": ["../script/src/**/*.ts", "./**/*.ts", "../tsdown.config.mts"],
   "exclude": []
 }

@@ -1,11 +1,9 @@
-import fs from "node:fs"
 import path from "node:path"
 import { createRequire } from "node:module"
 import ts from "typescript"
-import { minify } from "terser"
 import { defineConfig, type TsdownPlugin, type UserConfig } from "tsdown"
-import babelOptions from "../babel-config.js"
-import packageInfo from "../../../package.json" with { type: "json" }
+import babelOptions from "./config/babel.ts"
+import packageInfo from "./package.json" with { type: "json" }
 
 const require = createRequire(import.meta.url)
 const babel = require("@babel/core") as {
@@ -15,10 +13,6 @@ const isProd = /production/.test(process.env.ESM_ENV ?? "")
 const isTest = /test/.test(process.env.ESM_ENV ?? "")
 // Standalone entries share source work without sharing runtime chunks.
 const transformedSources = new Map<string, { source: string; output: string }>()
-const terserOptions = JSON.parse(
-  fs.readFileSync(".terserrc", "utf8")
-) as import("terser").MinifyOptions
-
 // Retain the loader's per-function strict/sloppy modes and Node 6 transforms.
 // TypeScript erasure stays inside the bundler; only tsdown writes build outputs.
 function legacySources(): TsdownPlugin<unknown> {
@@ -53,18 +47,6 @@ function legacySources(): TsdownPlugin<unknown> {
   }
 }
 
-function productionMinifier(): TsdownPlugin<unknown> {
-  return {
-    name: "esm-sync:terser",
-    async renderChunk(code, chunk) {
-      const result = await minify(code, terserOptions)
-      if (typeof result.code !== "string")
-        throw new Error(`Terser did not produce code for ${chunk.fileName}`)
-      return { code: result.code, map: null }
-    }
-  }
-}
-
 const base: UserConfig = {
   cwd: path.resolve("."),
   format: "cjs",
@@ -73,6 +55,13 @@ const base: UserConfig = {
   dts: false,
   clean: false,
   sourcemap: false,
+  minify: isProd
+    ? {
+        compress: { target: "es2015" },
+        mangle: { reserved: ["__shared__"] },
+        codegen: { asciiOnly: true, legalComments: "inline" }
+      }
+    : false,
   cjsDefault: true,
   outExtensions: () => ({ js: ".js" }),
   outputOptions: { strict: true, codeSplitting: false }
@@ -134,7 +123,7 @@ export default defineConfig([
           ? { "process.env.NODE_DEBUG": JSON.stringify(process.env.NODE_DEBUG ?? false) }
           : {})
       },
-      plugins: [legacySources(), ...(isProd ? [productionMinifier()] : [])]
+      plugins: [legacySources()]
     })
   ),
   // Separate single-entry builds preserve each native CommonJS module context
@@ -150,8 +139,7 @@ export default defineConfig([
       entry: { [name]: entry },
       outDir: ".",
       outputOptions: { ...base.outputOptions, strict: name !== "esm" },
-      deps: { neverBundle: ["./esm.js"] },
-      plugins: isProd ? [productionMinifier()] : []
+      deps: { neverBundle: ["./esm.js"] }
     })
   )
 ])

@@ -34,6 +34,7 @@ function checkConfig(filename: string, audit = false): void {
 
 function outputPath(filename: string): string | undefined {
   const relative = path.relative(root, filename).split(path.sep).join("/")
+  if (relative === "config/ncurc.ts") return path.join(root, ".ncurc.mjs")
   if (relative in harnessOutputs) return path.resolve(root, harnessOutputs[relative]!)
   if (relative === "script/src/build-sync-await.ts")
     return path.resolve(root, "script/build-sync-await-dev.js")
@@ -97,7 +98,7 @@ function importPaths(filename: string): ts.TransformerFactory<ts.SourceFile> {
 
 function emitFile(filename: string, target: string): void {
   const relative = path.relative(root, filename).split(path.sep).join("/")
-  const esmTooling = relative.startsWith("script/src/esm/")
+  const esmTooling = relative.startsWith("script/src/esm/") || relative.startsWith("config/")
   const commonjs = (relative.startsWith("script/src/") && !esmTooling) || filename.endsWith(".cts")
   const result = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
     fileName: filename,
@@ -142,9 +143,9 @@ try {
       !fs.existsSync(path.join(root, "script/src", task + ".ts"))
     )
       throw new Error("Unknown tooling task: " + task)
-    checkConfig("tsconfig.tooling.json")
-    checkConfig("tsconfig.bootstrap.json")
-    checkConfig("tsconfig.harness.json")
+    checkConfig("config/tsconfig.tooling.json")
+    checkConfig("config/tsconfig.bootstrap.json")
+    checkConfig("config/tsconfig.harness.json")
     // Preserve maintained sources and the public installer while replacing
     // generated development commands and removing old declaration output.
     for (const entry of fs.readdirSync(path.join(root, "script"), { withFileTypes: true })) {
@@ -162,7 +163,7 @@ try {
       path.join(root, "script/src/esm/package.json"),
       path.join(root, "script/esm/package.json")
     )
-    fs.copyFileSync(path.join(root, "script/esm/ncurc.js"), path.join(root, ".ncurc.mjs"))
+    emitFile(path.join(root, "config/ncurc.ts"), path.join(root, ".ncurc.mjs"))
     const result = spawnSync(
       process.execPath,
       [outputPath(path.join(root, "script/src", task + ".ts"))!, ...process.argv.slice(3)],

@@ -1,6 +1,7 @@
 "use strict"
 
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 import path from "node:path"
 import { styleText } from "node:util"
 import { Command, InvalidArgumentError } from "commander"
@@ -52,6 +53,13 @@ if (options.excludeFeature.some((feature) => feature.trim() === "")) {
 
 const rootPath = path.resolve(__dirname, "..")
 const testPath = path.join(rootPath, "test/test262.mjs")
+const missingBundles = ["build/compiler.js", "esm/loader.js"].filter(
+  (filename) => !existsSync(path.join(rootPath, filename))
+)
+if (missingBundles.length)
+  program.error(
+    `Missing test bundles: ${missingBundles.join(", ")}. Run pnpm build --test before conformance.`
+  )
 const env = {
   ...process.env,
   TEST262_FILTER: options.filter ?? "",

@@ -12,11 +12,11 @@ import createNamespace from "./create-namespace.cjs"
 import fs from "fs-extra"
 import * as fsExtraNs from "fs-extra"
 import * as fsNs from "fs"
+import os from "os"
 import path from "path"
 import require2 from "./require.cjs"
 import resetState from "./reset-state.js"
 import stream from "stream"
-import trash from "../../script/src/trash.js"
 import util from "util"
 const ESM_OPTIONS = JSON6.parse(process.env.ESM_OPTIONS || "{}") as { debug?: unknown }
 const isDebug = !!ESM_OPTIONS.debug
@@ -926,23 +926,23 @@ describe("miscellaneous tests", () => {
         )
       ]))
     it("should not cache `Module._findPath()` misses", () => {
-      const dirPath = path.resolve("fixture/find-path")
-      const jsonPath = path.resolve(dirPath, "package.json")
-      const mainPath = path.resolve(dirPath, "main.js")
-      const originalContent = fs.readFileSync(jsonPath, "utf8")
-      let actual: Array<string | false> | string | false = []
-      fs.writeFileSync(jsonPath, '"main"\n', "utf8")
-      actual.push(Module._findPath(dirPath, [dirPath]))
-      fs.writeFileSync(jsonPath, '{"main":"main.js"}', "utf8")
-      actual.push(Module._findPath(dirPath, [dirPath]))
-      fs.writeFileSync(jsonPath, originalContent, "utf8")
-      assert.deepStrictEqual(actual, [false, mainPath])
-      const createdPath = path.resolve(dirPath, "created")
-      const createdFilename = path.resolve(createdPath, "index.js")
-      assert.strictEqual(Module._findPath(createdFilename, [createdPath]), false)
-      fs.ensureFileSync(createdFilename, "", "utf8")
-      actual = Module._findPath(createdFilename, [createdPath])
-      return trash(createdPath).then(() => assert.strictEqual(actual, createdFilename))
+      const dirPath = fs.mkdtempSync(path.join(os.tmpdir(), "esm-sync-find-path-"))
+      try {
+        const jsonPath = path.join(dirPath, "package.json")
+        const mainPath = path.join(dirPath, "main.js")
+        fs.writeFileSync(mainPath, "", "utf8")
+        fs.writeFileSync(jsonPath, '"main"\n', "utf8")
+        const missing = Module._findPath(dirPath, [dirPath])
+        fs.writeFileSync(jsonPath, '{"main":"main.js"}', "utf8")
+        assert.deepStrictEqual([missing, Module._findPath(dirPath, [dirPath])], [false, mainPath])
+        const createdPath = path.join(dirPath, "created")
+        const createdFilename = path.join(createdPath, "index.js")
+        assert.strictEqual(Module._findPath(createdFilename, [createdPath]), false)
+        fs.ensureFileSync(createdFilename, "", "utf8")
+        assert.strictEqual(Module._findPath(createdFilename, [createdPath]), createdFilename)
+      } finally {
+        fs.removeSync(dirPath)
+      }
     })
   })
   describe("spec compliance", () => {

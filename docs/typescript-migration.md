@@ -27,7 +27,7 @@ filenames independently of the TypeScript source layout.
 | `src/**/*.ts` | tsdown loader and standalone test bundles, retaining the legacy Babel transforms |
 | `src/bootstrap/esm.ts`, `src/bootstrap/index.ts` | tsdown CommonJS `esm.js`, `index.js` |
 | `script/src/esm/cli.ts` | Native TypeScript development entry point |
-| `script/src/esm/ncurc.ts` | Maintenance configuration `.ncurc.mjs` |
+| `config/ncurc.ts` | Maintenance configuration `.ncurc.mjs` |
 | `script/src/build-sync-await.ts` | tsdown public installer and separate development bridge helper |
 | `script/src/**/*.ts` | JavaScript commands in `script/` |
 | `test/harness/**/*.ts`, `test/harness/**/*.cts` | Native suites, helpers, reporters, and Test262 entry points in `test/` |
@@ -51,8 +51,9 @@ longer needed. `build/`, `esm/`, and `node_modules/` contain generated output or
 installed dependencies.
 
 tsdown owns emission of `esm.js`, `index.js`, and the standalone
-`script/build-sync-await.js` from maintained TypeScript. Its configuration lives
-in `script/src/esm/tsdown-config.ts`, inside the existing private ESM scope.
+`script/build-sync-await.js` from maintained TypeScript. The main configuration is
+`tsdown.config.mts` at the root. Secondary TypeScript configurations and build
+helpers live in `config/`, with a private ESM scope for native TypeScript loading.
 Each entry is built independently with code splitting disabled. The public
 entry sources use default exports that tsdown lowers to direct CommonJS exports.
 The bootstrap's relative `require("./esm.js")` remains external.
@@ -71,8 +72,10 @@ target. TypeScript erasure happens inside the tsdown source plugin, with shared
 source transforms cached across the standalone entry builds. The same plugin
 replaces Acorn's regular-expression implementation. Rolldown bundles the loader,
 and Oxc handles the public bootstrap's TypeScript transformations. Production
-output uses the existing Terser options directly, without a Webpack minimizer
-plugin.
+output uses tsdown's native Oxc minifier with ES2015 compression and ASCII
+output. The `__shared__` binding is reserved because the bootstrap supplies it
+from outside the bundle. Publishing uses the same production build rather than
+minifying its entry points a second time.
 
 The build task owns cleanup; tsdown never cleans the repository root. Declaration
 generation is disabled. Tests exercise the actual public output without
@@ -143,8 +146,9 @@ and indexed-access checks still enabled.
 
 ### tsdown migration
 
-The bundler migration uses tsdown 0.23.2 and retains the existing Babel and Terser
-behaviour through bundler plugins. Supplied Biome checks, strict no-emit checking,
+The initial bundler migration used tsdown 0.23.2 with Babel and Terser
+bundler plugins. The current build uses native minification as described above;
+the following results record the original migration. Supplied Biome checks, strict no-emit checking,
 and the inferred-`any` audit pass. Validation covers the supplied Node 22.23.4,
 24.21.0, and 26.12.0 runtimes on Linux:
 

@@ -17,19 +17,12 @@ it(
     const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-clean-fixtures-"))
     try {
       const excluded = path.join(root, "src/vendor")
-      for (const name of ["src", "script/src", "debug", "test/harness"])
+      for (const name of ["src", "script/src", "config", "debug", "test/harness"])
         await cp(path.join(root, name), path.join(directory, name), {
           recursive: true,
           filter: (source) => source !== excluded
         })
-      for (const name of [
-        "package.json",
-        "index.d.ts",
-        "tsconfig.source.json",
-        "tsconfig.tooling.json",
-        "tsconfig.bootstrap.json",
-        "tsconfig.harness.json"
-      ])
+      for (const name of ["package.json", "index.d.ts", "tsdown.config.mts"])
         await cp(path.join(root, name), path.join(directory, name))
       await symlink(
         await realpath(path.join(root, "node_modules")),

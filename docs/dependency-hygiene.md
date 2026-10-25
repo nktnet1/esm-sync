@@ -12,11 +12,14 @@ Direct development dependencies were checked against build scripts, bundler
 configuration, fixture preparation, CLI executables and the active third-party
 interoperability scenarios. The tsdown migration removes `@rspack/cli`,
 `@rspack/core`, `babel-loader`, `terser-webpack-plugin`, `unused-webpack-plugin`,
-and `webpack-bundle-analyzer`. In particular:
+and `webpack-bundle-analyzer`. Native tsdown minification also replaces the direct
+`terser` dependency and its custom plugin. `golden-fleece` is removed because
+the temporary publish manifest can use the built-in JSON serializer. In particular:
 
 - tsdown bundles the loader and emits the public CommonJS entry points. Babel
   plugins retain the loader's custom strict/sloppy transformations and legacy
-  syntax target. Terser remains the production minifier through its direct API.
+  syntax target. Production minification uses tsdown's native Oxc integration,
+  retaining the external shared binding and the ES2015 output target.
 - Mocha, AVA, Jest, Jasmine, Lab, NYC, `ts-node`, Babel register and Webpack
   CLI cover real external-host scenarios. See
   [test-fixtures-and-compatibility.md](test-fixtures-and-compatibility.md).

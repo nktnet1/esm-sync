@@ -1,8 +1,9 @@
 import type { BabelAPI, BabelPath, BabelNode, PluginFactory } from "./babel-types.js"
 ;("use strict")
 
-import arrayRemove from "./array-remove.js"
-const babel = require("@babel/core") as BabelAPI
+import { createRequire } from "node:module"
+import arrayRemove from "./array-remove.ts"
+const babel = createRequire(import.meta.url)("@babel/core") as BabelAPI
 
 function BabelEqEqEqPlugin() {
   return {
@@ -111,7 +112,7 @@ function BabelRemoveSloppyPlugin() {
 
 const isTest = /test/.test(process.env.ESM_ENV ?? "")
 
-export = {
+export default {
   env: {
     production: {
       plugins: [

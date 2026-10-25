@@ -1,39 +1,24 @@
 "use strict"
 
 import execa from "execa"
-import fleece from "golden-fleece"
 import fs from "fs-extra"
 import path from "path"
-import { minify as terser } from "terser"
+import { createPublishManifest } from "./package-manifest.js"
 
 const rootPath = path.resolve(__dirname, "..")
-const esmPath = path.resolve(rootPath, "esm.js")
-const indexPath = path.resolve(rootPath, "index.js")
 const pkgPath = path.resolve(rootPath, "package.json")
 const readmePath = path.resolve(rootPath, "README.md")
 
 const tableRegExp = /^<table>[\s\S]*?\n<\/table>/gm
-const terserOptions = fs.readJSONSync(
-  path.resolve(rootPath, ".terserrc")
-) as import("terser").MinifyOptions
-
-const defaultScripts = {
-  test: 'echo "Error: no test specified" && exit 1'
-}
-
-const fieldsToRemove = ["devDependencies", "esm", "private", "scripts"]
-
-const jsPaths = [esmPath, indexPath]
-
-async function cleanJS() {
-  for (const filename of jsPaths) {
-    const content = fs.readFileSync(filename, "utf8")
-    const code = await minifyJS(content)
-
-    process.once("exit", () => fs.outputFileSync(filename, content))
-
-    fs.outputFileSync(filename, code)
-  }
+function buildPackage() {
+  return execa(
+    process.execPath,
+    [path.join(rootPath, "script/src/esm/cli.ts"), "build", "--prod"],
+    {
+      cwd: rootPath,
+      stdio: "inherit"
+    }
+  )
 }
 
 function cleanPackageJSON() {
@@ -41,14 +26,8 @@ function cleanPackageJSON() {
 
   process.once("exit", () => fs.outputFileSync(pkgPath, content))
 
-  const pkgJSON = JSON.parse(content) as Record<string, unknown>
-
-  for (const field of fieldsToRemove) {
-    Reflect.deleteProperty(pkgJSON, field)
-  }
-
-  pkgJSON.scripts = defaultScripts
-  fs.outputFileSync(pkgPath, fleece.patch(content, pkgJSON))
+  const pkgJSON = createPublishManifest(JSON.parse(content) as Record<string, unknown>)
+  fs.outputFileSync(pkgPath, JSON.stringify(pkgJSON, null, 2) + "\n")
 }
 
 async function cleanReadme() {
@@ -83,16 +62,6 @@ async function minifyHTML(content: string) {
   })
 }
 
-async function minifyJS(content: string) {
-  const { code } = await terser(content, terserOptions)
-
-  if (typeof code !== "string") {
-    throw new Error("Terser did not produce JavaScript output")
-  }
-
-  return code
-}
-
 function publishPackage() {
   return execa("pnpm", ["publish"], {
     cwd: rootPath,
@@ -100,7 +69,9 @@ function publishPackage() {
   })
 }
 
-Promise.all([cleanJS(), cleanPackageJSON(), cleanReadme()])
+Promise.resolve()
+  .then(buildPackage)
+  .then(() => Promise.all([cleanPackageJSON(), cleanReadme()]))
   .then(publishPackage)
   .catch((error: unknown) => {
     console.error(error)

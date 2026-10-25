@@ -55,18 +55,14 @@ function copyBundle() {
 }
 
 function makeBundle() {
-  return execa(
-    process.execPath,
-    [require.resolve("tsdown/run"), "--config", "script/esm/tsdown-config.js"],
-    {
-      cwd: rootPath,
-      env: {
-        ESM_ENV,
-        NODE_ENV
-      },
-      stdio: "inherit"
-    }
-  )
+  return execa(process.execPath, [require.resolve("tsdown/run"), "--config", "tsdown.config.mts"], {
+    cwd: rootPath,
+    env: {
+      ESM_ENV,
+      NODE_ENV
+    },
+    stdio: "inherit"
+  })
 }
 
 Promise.resolve()

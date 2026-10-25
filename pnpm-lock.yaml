@@ -291,9 +291,6 @@ importers:
       globby:
         specifier: ^11.1.0
         version: 11.1.0
-      golden-fleece:
-        specifier: ^1.0.9
-        version: 1.0.9
       html-minifier-next:
         specifier: ^7.6.0
         version: 7.6.0
@@ -363,9 +360,6 @@ importers:
       strip-ansi:
         specifier: ^6.0.1
         version: 6.0.1
-      terser:
-        specifier: ^5.51.2
-        version: 5.51.2
       test262-parser:
         specifier: ^2.2.0
         version: 2.2.0
@@ -3429,9 +3423,6 @@ packages:
   globby@7.1.1:
     resolution: {integrity: sha512-yANWAN2DUcBtuus5Cpd+SKROzXHs2iVXFZt/Ykrfz6SAXqacLX25NZpltE+39ceMexYF4TtEadjuSTw8+3wX4g==}
     engines: {node: '>=4'}
-
-  golden-fleece@1.0.9:
-    resolution: {integrity: sha512-YSwLaGMOgSBx9roJlNLL12c+FRiw7VECphinc6mGucphc/ZxTHgdEz6gmJqH6NOzYEd/yr64hwjom5pZ+tJVpg==}
 
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
@@ -10148,8 +10139,6 @@ snapshots:
       ignore: 3.3.10
       pify: 3.0.0
       slash: 1.0.0
-
-  golden-fleece@1.0.9: {}
 
   gopd@1.2.0: {}
 

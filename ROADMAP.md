@@ -118,6 +118,6 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
 - [x] Emit and minimize public CommonJS entry points and the standalone installer
       through tsdown, preserving native module context and package paths.
 - [x] Replace Rspack with tsdown/Oxc while retaining the loader's custom Babel
-      transformations, standalone test bundles, and production Terser options.
+      transformations, standalone test bundles, and native production minification.
 - [ ] Evaluate replacing the retained Babel strict/sloppy and legacy transforms
       with Oxc after verifying equivalent module semantics and package contents.

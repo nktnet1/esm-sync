@@ -32,7 +32,8 @@
     "test:vitest:prod": "node script/src/esm/cli.ts test --prod",
     "typecheck": "node script/src/esm/cli.ts typecheck",
     "typecheck:tsc": "node script/src/esm/cli.ts typecheck",
-    "verify:prod": "pnpm build:prod --test && pnpm test:run:prod"
+    "verify:prod": "pnpm build:prod --test && pnpm test:run:prod",
+    "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio"
   },
   "main": "esm.js",
   "types": "index.d.ts",
@@ -100,7 +101,6 @@
     "fs-extra": "^11.4.1",
     "global-prefix": "^4.0.0",
     "globby": "^11.1.0",
-    "golden-fleece": "^1.0.9",
     "html-minifier-next": "^7.6.0",
     "jasmine": "^6.3.0",
     "jest": "^26.6.3",
@@ -124,7 +124,6 @@
     "semver": "^7.8.5",
     "sinon": "^22.1.0",
     "strip-ansi": "^6.0.1",
-    "terser": "^5.51.2",
     "test262-parser": "^2.2.0",
     "trash": "^7.2.0",
     "ts-node": "^10.9.2",

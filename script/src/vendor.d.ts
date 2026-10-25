@@ -13,6 +13,7 @@ declare module "fs-extra" {
     move(source: string, destination: string): Promise<void>
     pathExists(filename: string): Promise<boolean>
     remove(filename: string): Promise<void>
+    removeSync(filename: string): void
     readJSONSync(filename: string): unknown
     outputFileSync(filename: string, content: string | Uint8Array): void
   }
@@ -26,9 +27,6 @@ declare module "adm-zip" {
     toBuffer(): Buffer
   }
   export = AdmZip
-}
-declare module "golden-fleece" {
-  export function patch(source: string, value: unknown): string
 }
 declare module "test262-parser" {
   interface Attributes {
