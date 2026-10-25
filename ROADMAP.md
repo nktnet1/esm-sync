@@ -116,6 +116,8 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
 - [x] Consolidate bootstrap, tooling, native harness and diagnostic TypeScript
       under existing source trees, retaining narrow generated-output ignores.
 - [x] Emit and minimize public CommonJS entry points and the standalone installer
-      through Rspack/SWC, preserving native module context and package paths.
-- [ ] Replace Rspack/Babel with tsdown/Oxc only after verifying equivalent loader
-      output, custom transformations, module semantics, and package contents.
+      through tsdown, preserving native module context and package paths.
+- [x] Replace Rspack with tsdown/Oxc while retaining the loader's custom Babel
+      transformations, standalone test bundles, and production Terser options.
+- [ ] Evaluate replacing the retained Babel strict/sloppy and legacy transforms
+      with Oxc after verifying equivalent module semantics and package contents.

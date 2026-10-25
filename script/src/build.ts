@@ -48,21 +48,25 @@ function copyBundle() {
   const srcPath = path.resolve(buildPath, "esm.js")
 
   if (!fs.existsSync(srcPath)) {
-    throw new Error("Rspack completed without producing build/esm.js")
+    throw new Error("tsdown completed without producing build/esm.js")
   }
 
   return fs.copy(srcPath, loaderPath)
 }
 
 function makeBundle() {
-  return execa("rspack", ["--config", "script/rspack-config.js"], {
-    cwd: rootPath,
-    env: {
-      ESM_ENV,
-      NODE_ENV
-    },
-    stdio: "inherit"
-  })
+  return execa(
+    process.execPath,
+    [require.resolve("tsdown/run"), "--config", "script/esm/tsdown-config.js"],
+    {
+      cwd: rootPath,
+      env: {
+        ESM_ENV,
+        NODE_ENV
+      },
+      stdio: "inherit"
+    }
+  )
 }
 
 Promise.resolve()

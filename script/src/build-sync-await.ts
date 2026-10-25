@@ -87,7 +87,7 @@ function buildSyncAwait(options: { required?: boolean | undefined } = {}): strin
   return null
 }
 
-export = buildSyncAwait
+export default buildSyncAwait
 
 if (require.main === module) {
   try {

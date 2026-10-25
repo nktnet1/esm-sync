@@ -145,7 +145,7 @@ try {
     checkConfig("tsconfig.tooling.json")
     checkConfig("tsconfig.bootstrap.json")
     checkConfig("tsconfig.harness.json")
-    // Preserve maintained sources and Rspack's public installer while replacing
+    // Preserve maintained sources and the public installer while replacing
     // generated development commands and removing old declaration output.
     for (const entry of fs.readdirSync(path.join(root, "script"), { withFileTypes: true })) {
       if (

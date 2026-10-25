@@ -24,11 +24,11 @@ filenames independently of the TypeScript source layout.
 
 | Source | Generated output / purpose |
 | --- | --- |
-| `src/**/*.ts` | Rspack/Babel loader and test bundles |
-| `src/bootstrap/esm.ts`, `src/bootstrap/index.ts` | Public `esm.js`, `index.js` |
+| `src/**/*.ts` | tsdown loader and standalone test bundles, retaining the legacy Babel transforms |
+| `src/bootstrap/esm.ts`, `src/bootstrap/index.ts` | tsdown CommonJS `esm.js`, `index.js` |
 | `script/src/esm/cli.ts` | Native TypeScript development entry point |
 | `script/src/esm/ncurc.ts` | Maintenance configuration `.ncurc.mjs` |
-| `script/src/build-sync-await.ts` | Rspack public installer and separate development bridge helper |
+| `script/src/build-sync-await.ts` | tsdown public installer and separate development bridge helper |
 | `script/src/**/*.ts` | JavaScript commands in `script/` |
 | `test/harness/**/*.ts`, `test/harness/**/*.cts` | Native suites, helpers, reporters, and Test262 entry points in `test/` |
 | `debug/**/*.ts` | `debug/*.js` |
@@ -50,17 +50,32 @@ root `bootstrap/`, `tooling/`, `harness/`, and `diagnostics/` directories are no
 longer needed. `build/`, `esm/`, and `node_modules/` contain generated output or
 installed dependencies.
 
-Rspack now owns emission of `esm.js`, `index.js`, and the standalone
-`script/build-sync-await.js` from maintained TypeScript. A second compiler runs
-after the loader compiler, using built-in SWC to produce ES2015 CommonJS
-resource assets. These execute as native modules: a bundle wrapper would change
-`module.filename`, `module.parent`, and the bootstrap's sloppy global-`this`
-fallback used when unsafe eval is unavailable. No custom bootstrap transpiler
-or post-emission removal of strict mode is needed.
+tsdown owns emission of `esm.js`, `index.js`, and the standalone
+`script/build-sync-await.js` from maintained TypeScript. Its configuration lives
+in `script/src/esm/tsdown-config.ts`, inside the existing private ESM scope.
+Each entry is built independently with code splitting disabled. The public
+entry sources use default exports that tsdown lowers to direct CommonJS exports.
+The bootstrap's relative `require("./esm.js")` remains external.
 
-Production builds minimize these assets with the existing Terser options.
-Auxiliary entry chunks stay in `build/bootstrap/` and are excluded from the
-published package. Tests exercise the actual public build output without
+Public entry code executes in the native CommonJS module context. Disabling the
+output-level strict directive preserves the bootstrap's sloppy global-`this`
+fallback when string code generation is disabled. There is no intermediate
+CommonJS module wrapper or shared runtime chunk that could change
+`module.filename`, `module.parent`, or require additional packaged files.
+The loader, index, and standalone installer retain strict CommonJS output.
+Loader host aliases are inserted after the directive so they cannot accidentally
+disable strict execution.
+
+The loader keeps its per-function Babel strict/sloppy transformations and Node 6
+target. TypeScript erasure happens inside the tsdown source plugin, with shared
+source transforms cached across the standalone entry builds. The same plugin
+replaces Acorn's regular-expression implementation. Rolldown bundles the loader,
+and Oxc handles the public bootstrap's TypeScript transformations. Production
+output uses the existing Terser options directly, without a Webpack minimizer
+plugin.
+
+The build task owns cleanup; tsdown never cleans the repository root. Declaration
+generation is disabled. Tests exercise the actual public output without
 rewriting or restoring it. Public filenames, CommonJS entry points, and deep
 requires remain compatible.
 
@@ -81,7 +96,7 @@ maintained declarations, rather than generated command output.
 
 Use the existing pnpm commands. Build before invoking generated `script/*.js`
 commands directly or packing with lifecycle scripts disabled. Consumers do not
-need TypeScript. Rspack emits the public native bridge installer as CommonJS
+need TypeScript. tsdown emits the public native bridge installer as CommonJS
 JavaScript with no dependency on development ESM scopes. Preparation emits a separate
 `script/build-sync-await-dev.js` so the bridge can be compiled before bundling.
 It never creates, deletes, or overwrites the published `esm.js`, `index.js`,
@@ -90,8 +105,8 @@ or `script/build-sync-await.js`.
 `script/src/esm/outputs.ts` lists native test output filenames. The emitter rewrites
 owned helper imports to those destinations while leaving compatibility fixture
 requests unchanged. Keeping `.mjs` output for helpers imported by strict `.mjs`
-suites preserves the loader's extension checks. Rspack still strips source types
-with its built-in SWC loader before applying the existing Babel transforms.
+suites preserves the loader's extension checks. The tsdown source plugin strips
+loader source types before applying the existing Babel transforms.
 
 ## Ignore rules
 
@@ -125,6 +140,32 @@ initialization and checked-index assertions remain explicit, with strict null
 and indexed-access checks still enabled.
 
 ## Validation
+
+### tsdown migration
+
+The bundler migration uses tsdown 0.23.2 and retains the existing Babel and Terser
+behaviour through bundler plugins. Supplied Biome checks, strict no-emit checking,
+and the inferred-`any` audit pass. Validation covers the supplied Node 22.23.4,
+24.21.0, and 26.12.0 runtimes on Linux:
+
+- All 30 Vitest files and 1,152 tests pass against production output on each
+  runtime. Development output also passes the existing Node 22 suite.
+- The full pinned Test262 selection passes on Node 24: 1,755 selected, 1,746
+  passed, nine declared unsupported, zero failures, zero exclusions, and a
+  complete report.
+- Packed CommonJS consumers and CLI preloads pass on all three runtimes using
+  pnpm 12.14.0. The package retains its existing public declaration, entry paths,
+  loader, and standalone native bridge installer without development chunks.
+- Rebuilding on the three runtimes produces byte-identical public JavaScript
+  and loader output. Type-checking and test preparation preserve those bytes.
+- New artifact checks require standalone test bundles and ES2015 JavaScript
+  syntax, including effective strict directives in loader, index, and installer
+  output. Public requires also run with string code generation disabled, in both
+  cached and uncached test modes.
+
+These are local Linux checks; fresh macOS and Windows CI results are not claimed.
+The historical runtime engine metadata is retained, without claiming a new
+Node 6 runtime verification.
 
 ### Consolidated layout and bundler emission
 
