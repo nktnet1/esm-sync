@@ -10,4 +10,4 @@ function arrayRemove<T>(array: T[] | null | undefined, iteratee: (value: T) => u
   }
 }
 
-export = arrayRemove
+export default arrayRemove

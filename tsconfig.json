@@ -1,5 +1,5 @@
 {
-  "extends": "./tsconfig.source.json",
+  "extends": "./config/tsconfig.source.json",
   "compilerOptions": {
     "module": "Preserve",
     "target": "ESNext",
@@ -19,7 +19,9 @@
     "test/typecheck/**/*.ts",
     "test/fixture/scenario/ts-node/**/*.ts",
     "test/vitest/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "config/**/*.ts",
+    "tsdown.config.mts"
   ],
   "exclude": ["src/vendor", "test/vendor"]
 }

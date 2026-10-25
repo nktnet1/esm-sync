@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import path from "node:path"
-import { rm } from "node:fs/promises"
+import os from "node:os"
+import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises"
 import { beforeAll, describe, it } from "vitest"
 import { collectNativeCases, location } from "./native-cases.ts"
 import { runNode, testEnvironments, testPath, type NodeResult } from "./helpers/run-node.ts"
@@ -93,8 +94,20 @@ async function executeNativeSuite(job: NativeJob): Promise<void> {
   // The cache suite's consumers use private package copies to test default
   // paths; the suite runner itself uses the same isolation as other suites.
   const cachePath = path.join(testPath, "env/native-cache", job.esmEnv, job.suite)
+  let temporary: string | undefined
   try {
     await rm(cachePath, { recursive: true, force: true })
+    const temporaryEnv: NodeJS.ProcessEnv = {}
+    if (job.suite === "misc-tests.js") {
+      // Exercise the same alias/canonical-path distinction as macOS /var vs
+      // /private/var, including on Linux. Directory junctions work on Windows.
+      temporary = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-sync-misc-")))
+      const actual = path.join(temporary, "actual")
+      const alias = path.join(temporary, "alias")
+      await mkdir(actual)
+      await symlink(actual, alias, "junction")
+      Object.assign(temporaryEnv, { TMPDIR: alias, TMP: alias, TEMP: alias })
+    }
     const result = await runNode(
       [
         "--test-reporter=./native-test-reporter.cjs",
@@ -108,6 +121,7 @@ async function executeNativeSuite(job: NativeJob): Promise<void> {
       job.esmEnv,
       {
         ...nativeOptions,
+        ...temporaryEnv,
         ESM_OPTIONS: JSON.stringify({ cjs: false, mode: "auto", cache: cachePath })
       },
       {
@@ -123,7 +137,10 @@ async function executeNativeSuite(job: NativeJob): Promise<void> {
   } catch (error) {
     job.finish({ error })
   } finally {
-    await rm(cachePath, { recursive: true, force: true })
+    await Promise.all([
+      rm(cachePath, { recursive: true, force: true }),
+      ...(temporary === undefined ? [] : [rm(temporary, { recursive: true, force: true })])
+    ])
   }
 }
 

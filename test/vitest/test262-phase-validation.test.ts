@@ -8,7 +8,7 @@ import { describe, it } from "vitest"
 import { testPath } from "./helpers/run-node.ts"
 
 const require = createRequire(import.meta.url)
-const { assertTest262Outcome } = require("../../script/test262-outcome.js") as {
+const { assertTest262Outcome } = require("../../dist/script/test262-outcome.js") as {
   assertTest262Outcome: (
     filename: string,
     stdout: string,

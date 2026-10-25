@@ -7,10 +7,10 @@
     "resolveJsonModule": true
   },
   "include": [
-    "test/harness/**/*.ts",
-    "test/harness/**/*.cts",
-    "src/types/**/*.d.ts",
-    "script/src/**/*.d.ts"
+    "../test/harness/**/*.ts",
+    "../test/harness/**/*.cts",
+    "../src/types/**/*.d.ts",
+    "../script/src/**/*.d.ts"
   ],
-  "exclude": ["src/vendor"]
+  "exclude": ["../src/vendor"]
 }

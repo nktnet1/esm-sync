@@ -1,5 +1,5 @@
 import { describe, it } from "vitest"
-import Compiler from "../../build/compiler.js"
+import Compiler from "../../dist/build/compiler.js"
 
 import assert from "assert"
 

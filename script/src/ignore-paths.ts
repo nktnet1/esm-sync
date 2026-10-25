@@ -4,7 +4,7 @@ import fs from "fs-extra"
 import globby from "globby"
 import path from "path"
 
-const rootPath = path.resolve(__dirname, "..")
+const rootPath = path.resolve(__dirname, "../..")
 const gitignorePath = path.resolve(rootPath, ".gitignore")
 
 const patterns = fs

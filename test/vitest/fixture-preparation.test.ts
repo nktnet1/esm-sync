@@ -6,7 +6,7 @@ import { createRequire } from "node:module"
 import { afterEach, describe, it } from "vitest"
 
 const require = createRequire(import.meta.url)
-const setupTest262 = require("../../script/setup-test262.js") as {
+const setupTest262 = require("../../dist/script/setup-test262.js") as {
   isPrepared(directory: string): boolean
   revision: string
 }

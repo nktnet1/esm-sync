@@ -43,7 +43,7 @@ const { Script } = require("vm") as typeof import("node:vm")
 
 const { createCachedData, runInNewContext, runInThisContext } = Script.prototype
 
-const { sep } = require("path") as typeof import("node:path")
+const { resolve, sep } = require("path") as typeof import("node:path")
 const { readFileSync } = require("fs") as typeof import("node:fs")
 
 const esmModule = new Module(id)
@@ -108,7 +108,9 @@ if (nativeContent !== "") {
     filename: "esm.js"
   }
 } else {
-  cachePath = __dirname + sep + "node_modules" + sep + ".cache" + sep + "esm"
+  // Keep bootstrap and compiler cache data together at the package root even
+  // though the generated bootstrap itself lives in dist/.
+  cachePath = resolve(__dirname, "..", "node_modules/.cache/esm")
   cachedData = readFile(cachePath + sep + ".data.blob") ?? undefined
   content = readFile(__dirname + sep + "esm" + sep + "loader.js", "utf8") ?? ""
 

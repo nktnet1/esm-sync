@@ -12,7 +12,7 @@ const { parseFile } = require("test262-parser") as {
     attrs: { flags: Partial<Record<"module" | "async", boolean>>; includes?: string[] }
   }
 }
-const { assertTest262Outcome } = require("../../script/test262-outcome.js") as {
+const { assertTest262Outcome } = require("../../dist/script/test262-outcome.js") as {
   assertTest262Outcome(filename: string, stdout: string): void
 }
 const cases = [

@@ -129,8 +129,7 @@ mechanism. Removing the guards would recursively enter an executing loop; moving
 the work to a different loop/thread would change the execution context and
 module identity. This is a documented unsupported capability under the current
 runtime APIs, with regression-tested errors in JavaScript and the native poll
-entry point. The roadmap records that support decision as resolved; it does
-not claim that synchronous callback I/O has been implemented.
+entry point. That support decision is resolved; synchronous callback I/O remains unsupported.
 
 The install script attempts to compile the bridge using matching Node headers
 and a C++20 compiler. Builds used for testing require compilation to succeed.
@@ -151,8 +150,14 @@ optional bridge targets Node 22 and newer.
 
 `ESM_SYNC_AWAIT_TIMEOUT_MS` sets the polling deadline in milliseconds. It must be
 a positive safe integer; the default is **5000 ms**. The deadline uses a monotonic
-clock. The evaluator never uses blocking `UV_RUN_ONCE`, and sleeps for at most
-one millisecond between nonblocking polls.
+clock, starting when native polling is first required. The evaluator never uses
+blocking `UV_RUN_ONCE`, and requests a one-millisecond sleep between nonblocking
+polls. OS scheduling and callbacks can exceed that interval. It checks the deadline before and
+after polling, and before a Promise reaction resumes a synchronously waiting
+module. Slow callbacks or OS descheduling therefore cannot turn an expired wait
+into a successful load. Ordinary detached asynchronous imports keep their normal
+completion semantics. Timeout regressions use an explicitly settled pending
+operation, rather than racing two short timers.
 
 | Error code | Meaning |
 | --- | --- |

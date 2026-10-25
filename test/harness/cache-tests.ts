@@ -26,7 +26,7 @@ function node(args: string[], env: NodeJS.ProcessEnv = {}) {
   })
 }
 function runMain(filename: string, env: NodeJS.ProcessEnv = {}) {
-  return node(["-r", path.join(sandboxPath, "index.js"), filename], env)
+  return node(["-r", path.join(sandboxPath, "dist/index.js"), filename], env)
 }
 describe("cache tests", { skip: !canTestCache }, () => {
   before(async () => {
@@ -42,8 +42,8 @@ describe("cache tests", { skip: !canTestCache }, () => {
     loaderCachePath = path.join(sandboxPath, "node_modules/.cache/esm")
     fixtureCachePath = path.join(fixturePath, ".cache")
     await Promise.all([
-      ...["index.js", "esm.js", "package.json", "esm/loader.js"].map((filename) =>
-        fs.copy(path.resolve("..", filename), path.join(sandboxPath, filename))
+      ...["dist/index.js", "dist/esm.js", "package.json", "dist/esm/loader.js"].map((filename) =>
+        fs.copy(path.resolve("../..", filename), path.join(sandboxPath, filename))
       ),
       ...["index.js", "main.mjs", "a.mjs", "b.mjs"].map((filename) =>
         fs.copy(path.resolve("fixture/cache", filename), path.join(fixturePath, filename))

@@ -9,8 +9,7 @@
     "ignoreUnknown": true,
     "includes": [
       "**",
-      "!!build",
-      "!!esm",
+      "!!dist",
       "!!src/vendor",
       "!!test/vendor",
       "!!test/node_modules",
@@ -77,6 +76,8 @@
         "src/**/*.ts",
         "src/bootstrap/**",
         "script/src/**",
+        "config/**/*.ts",
+        "tsdown.config.mts",
         "test/harness/**",
         "debug/**",
         "test/**/*.ts"
@@ -113,11 +114,7 @@
       }
     },
     {
-      "includes": [
-        "script/src/babel-config.ts",
-        "test/harness/misc-tests.ts",
-        "test/misc/import-meta.mjs"
-      ],
+      "includes": ["config/babel.ts", "test/harness/misc-tests.ts", "test/misc/import-meta.mjs"],
       "linter": {
         "rules": {
           "suspicious": {

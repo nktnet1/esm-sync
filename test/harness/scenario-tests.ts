@@ -39,6 +39,13 @@ const scenarioCacheRoot = path.resolve(
 )
 let scenarioCacheCounter = 0
 function exec(filename: string, args: string[], env: NodeJS.ProcessEnv | undefined = undefined) {
+  // Cached/uncached runs and NYC's child writers must not clean or share a
+  // fixture's .nyc_output. Each invocation starts with a fresh empty directory;
+  // the disposable test workspace owns its eventual cleanup.
+  const commandArgs =
+    filename === "nyc"
+      ? ["--no-clean", "--temp-dir", fs.mkdtempSync(path.resolve("env/nyc-")), ...args]
+      : args
   const childEnv =
     env === envAuto
       ? {
@@ -46,7 +53,7 @@ function exec(filename: string, args: string[], env: NodeJS.ProcessEnv | undefin
           ESM_OPTIONS: `{cache:${JSON.stringify(path.join(scenarioCacheRoot, `${process.pid}-${++scenarioCacheCounter}`))},${envAuto.ESM_OPTIONS.slice(1)}`
         }
       : env
-  return execa(filename, args, {
+  return execa(filename, commandArgs, {
     cwd: testPath,
     encoding: "utf8",
     ...(childEnv === undefined ? {} : { env: childEnv })

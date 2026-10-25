@@ -3,11 +3,15 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { parseArgs } from "node:util"
 import execa from "execa"
+import { consumerFormats, verifyInstalledPackage } from "./package-smoke.js"
 
-const rootPath = path.resolve(__dirname, "..")
-const loaderPath = path.resolve(rootPath, "esm/loader.js")
+const rootPath = path.resolve(__dirname, "../..")
+const loaderPath = path.resolve(rootPath, "dist/esm/loader.js")
 const fixturePath = path.resolve(rootPath, "test/packed")
+const { values } = parseArgs({ options: { format: { type: "string", default: "cjs" } } })
+const formats = consumerFormats(values.format ?? "cjs")
 
 async function testPackedPackage() {
   try {
@@ -39,29 +43,7 @@ async function testPackedPackage() {
       stdio: "inherit"
     })
 
-    const installedPath = path.join(consumerPath, "node_modules/esm-sync")
-
-    for (const filename of [
-      "index.js",
-      "index.d.ts",
-      "esm.js",
-      "esm/loader.js",
-      "native/sync-await.cc",
-      `native/${process.platform}-${process.arch}-${process.versions.modules}.node`,
-      "script/build-sync-await.js"
-    ]) {
-      await fs.access(path.join(installedPath, filename))
-    }
-
-    await execa(process.execPath, ["consumer.cjs"], {
-      cwd: consumerPath,
-      stdio: "inherit"
-    })
-
-    await execa(process.execPath, ["--require", "esm-sync", "cli.js"], {
-      cwd: consumerPath,
-      stdio: "inherit"
-    })
+    await verifyInstalledPackage(consumerPath, formats)
   } finally {
     await fs.rm(tempPath, { force: true, recursive: true })
   }

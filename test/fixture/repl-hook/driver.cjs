@@ -54,7 +54,7 @@ async function run() {
       break
     }
     case "json": {
-      const pkgPath = path.resolve(__dirname, "../../../package.json")
+      const pkgPath = path.resolve(__dirname, "../../../../package.json")
       const pkgURL = pathToFileURL(pkgPath).href
       const pkgJSON = JSON.parse(readFileSync(pkgPath, "utf8"))
 

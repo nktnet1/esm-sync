@@ -4,8 +4,8 @@ import { spawn } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 
-const rootPath = path.resolve(__dirname, "..")
-const fixturePath = path.join(rootPath, "test/fixture/scenario/native")
+const rootPath = path.resolve(__dirname, "../..")
+const fixturePath = path.join(rootPath, "dist/test/fixture/scenario/native")
 const sourcePath = path.join(fixturePath, "addon.c")
 const outputPath = path.join(fixturePath, "addon.node")
 const nodeDir = path.dirname(fs.realpathSync(process.execPath))

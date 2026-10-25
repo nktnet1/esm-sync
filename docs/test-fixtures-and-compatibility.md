@@ -51,6 +51,40 @@ if no runnable cases are found. The conformance suite is intentionally not part
 of the default Vitest matrix. Likewise, the Acorn source corpus is vendored for
 compilation, rather than counted as Vitest cases.
 
+## Installed CommonJS and ESM consumers
+
+`pnpm test:packed` keeps the existing CommonJS consumer and CLI-preload checks.
+Use `pnpm test:packed --format=esm` or `--format=both` to exercise a native ESM
+consumer too. Both consumer formats run the same live-binding, synchronous
+await, async-syntax, deferred-import, and cache-identity assertions. The ESM
+consumer imports the package's CommonJS factory through Node's default-export
+interoperability and supplies a native `Module` context for the loader.
+Native ESM startup runs in a microtask, where synchronous event-loop polling is
+guarded. That consumer prepares TLA modules through the loader's asynchronous
+`import()` path, then checks the same synchronous cached view and namespace
+identities. CommonJS startup exercises the cold synchronous TLA path.
+
+`pnpm test:verdaccio` builds the production package, starts a pinned Verdaccio
+6.10.4 in a disposable directory, publishes the actual tarball to its loopback
+registry, and installs it into a clean project. The staged manifest uses the
+same preparation as publishing, retaining installation hooks while removing
+development commands and metadata. Only this package's installation scripts
+are approved in the temporary consumer.
+It verifies registry metadata, the installed native bridge and public files,
+both consumer formats, and the CLI preload. It also removes the installed native
+binary and requires the shipped production installer to rebuild it from source.
+Registry storage, npm configuration,
+credentials, and install cache are temporary. The registry binds an OS-assigned
+loopback port and reports readiness through IPC; startup is bounded, failures
+include the registry log tail, and teardown stops the actual server process.
+Verdaccio is installed into the temporary harness only, so it adds no workspace
+development dependency. Initial setup and the runtime dependency uplink require
+access to npmjs.
+
+CI retains the existing OS/Node matrix. ESM tarball coverage and the Verdaccio
+publish/install check run only on Linux / Node 24, without adding a format axis
+or multiplying the jobs.
+
 ## Focused Test262 investigations
 
 The Test262 corpus is downloaded by `pnpm fixtures:test262` and is pinned to

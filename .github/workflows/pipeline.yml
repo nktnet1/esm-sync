@@ -45,8 +45,8 @@ jobs:
         with:
           arch: x64
 
-      # The lockfile must be refreshed after the Lefthook migration before
-      # frozen installs can be re-enabled. Lockfile changes are kept out of patches.
+      # Refresh the lockfile before re-enabling frozen installs; lockfile
+      # changes are kept out of incremental patches.
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -95,5 +95,10 @@ jobs:
         if: matrix.node-version == 26
         run: pnpm verify:prod
 
+      # Keep CJS coverage on the existing matrix; add an ESM consumer only once.
       - name: Test installed package from tarball
-        run: pnpm test:packed
+        run: pnpm test:packed --format=${{ runner.os == 'Linux' && matrix.node-version == 24 && 'both' || 'cjs' }}
+
+      - name: Test registry publish/install with CJS and ESM consumers (Linux / Node 24)
+        if: runner.os == 'Linux' && matrix.node-version == 24
+        run: pnpm test:verdaccio

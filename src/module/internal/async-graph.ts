@@ -37,7 +37,14 @@ import promiseThen, { promiseResolve } from "../../util/promise-then.js"
 import { evaluationDependencies } from "./evaluation-dependencies.js"
 import { setImmediate } from "../../safe/timers.js"
 import validateShallow from "../esm/validate-shallow.js"
-import { asyncError, awaitDeadline, drainMicrotasks, isAwait, poll } from "./sync-await.js"
+import {
+  asyncError,
+  awaitDeadline,
+  checkDeadline,
+  drainMicrotasks,
+  isAwait,
+  poll
+} from "./sync-await.js"
 
 const { STATE_INITIAL, STATE_EXECUTION_STARTED, STATE_EXECUTION_COMPLETED, UPDATE_TYPE_INIT } =
   ENTRY
@@ -246,6 +253,9 @@ class Evaluation {
     this.executing = entry
     entry.running = true
     try {
+      // Node may run Promise reactions inside a native event-loop turn. Check
+      // before resuming user code as well as on either side of that turn.
+      if (!this.detached && this.deadline !== null) checkDeadline(this.deadline)
       this.finalizeChildren(entry)
       const result = entry.runtime === null ? void 0 : entry.runtime.runResult
       if (result === void 0) {

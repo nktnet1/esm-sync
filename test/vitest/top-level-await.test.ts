@@ -135,9 +135,16 @@ finally { globalThis.__finalized = true }
 complete = true
 globalThis.__completed = true
 `,
-  "late.mjs": `await new Promise(resolve => setTimeout(resolve, 50))
+  "late.mjs": `await new Promise(resolve => globalThis.__resolveLate = resolve)
 globalThis.__lateCompleted = true
 export const value = 1
+`,
+  "overdue.mjs": `await new Promise(resolve => setTimeout(() => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 40)
+  resolve(42)
+}, 1))
+globalThis.__overdueCompleted = true
+export const value = 42
 `,
   "throw-value.mjs": `globalThis.__throws = (globalThis.__throws || 0) + 1
 await Promise.reject(globalThis.__failure)
@@ -425,18 +432,49 @@ setImmediate(() => {
         "deadline",
         `
 let first
+// Keep a real handle alive, but settle the module only after timeout. This
+// exercises native polling without racing two short timers on a busy runner.
+const keepAlive = setInterval(() => {}, 1000)
+try {
+  for (let n = 0; n < 2; n++) {
+    assert.throws(() => load('late.mjs'), error => {
+      assert.equal(error.code, 'ERR_ESM_SYNC_ASYNC_TIMEOUT')
+      if (first) assert.strictEqual(error, first)
+      first = error
+      return true
+    })
+  }
+} finally {
+  clearInterval(keepAlive)
+}
+assert.equal(typeof globalThis.__resolveLate, 'function')
+globalThis.__resolveLate(42)
+setImmediate(() => {
+  assert.equal(globalThis.__lateCompleted, undefined)
+  console.log('deadline:ok')
+})
+`,
+        { ESM_SYNC_AWAIT_TIMEOUT_MS: "10" }
+      )
+    })
+
+    it("rejects completion after a native poll overruns its deadline", async () => {
+      await scenario(
+        "overdue",
+        `
+let first
 for (let n = 0; n < 2; n++) {
-  assert.throws(() => load('late.mjs'), error => {
+  assert.throws(() => load('overdue.mjs'), error => {
     assert.equal(error.code, 'ERR_ESM_SYNC_ASYNC_TIMEOUT')
     if (first) assert.strictEqual(error, first)
     first = error
     return true
   })
 }
-setTimeout(() => {
-  assert.equal(globalThis.__lateCompleted, undefined)
-  console.log('deadline:ok')
-}, 80)
+setImmediate(() => {
+  assert.equal(globalThis.__overdueCompleted, undefined)
+  console.log('overdue:ok')
+})
 `,
         { ESM_SYNC_AWAIT_TIMEOUT_MS: "10" }
       )

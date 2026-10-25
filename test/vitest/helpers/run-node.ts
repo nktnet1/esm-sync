@@ -10,7 +10,7 @@ export interface NodeResult {
 
 export const nodeEnv = process.env.ESM_SYNC_NODE_ENV || "development"
 export const testEnvironments = [`${nodeEnv}-test`, `${nodeEnv}-test-cached`]
-export const testPath = fileURLToPath(new URL("../../", import.meta.url))
+export const testPath = fileURLToPath(new URL("../../../dist/test/", import.meta.url))
 
 // Each Vitest file uses a separate disk cache. Node subprocesses write cache
 // metadata on exit, so sharing the default cache across parallel test files can

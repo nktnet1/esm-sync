@@ -3,7 +3,7 @@ import path from "node:path"
 import { describe, it } from "vitest"
 import { createRequire } from "node:module"
 const createTestCleanupFilter = createRequire(import.meta.url)(
-  "../../script/test-cleanup-paths.js"
+  "../../dist/script/test-cleanup-paths.js"
 ) as typeof import("../../script/src/test-cleanup-paths.js")
 
 function filterFor(root: string, paths: typeof path) {

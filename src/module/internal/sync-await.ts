@@ -83,6 +83,15 @@ function awaitDeadline() {
   return now() + timeout
 }
 
+function checkDeadline(deadline: number) {
+  if (now() >= deadline) {
+    throw asyncError(
+      "ERR_ESM_SYNC_ASYNC_TIMEOUT",
+      "Top-level await exceeded its synchronous deadline"
+    )
+  }
+}
+
 function poll(deadline: number) {
   const native = getBridge()
   if (native === null) {
@@ -98,12 +107,7 @@ function poll(deadline: number) {
       "Top-level await cannot poll the event loop from an async callback or microtask"
     )
   }
-  if (now() >= deadline) {
-    throw asyncError(
-      "ERR_ESM_SYNC_ASYNC_TIMEOUT",
-      "Top-level await exceeded its synchronous deadline"
-    )
-  }
+  checkDeadline(deadline)
   if (!native.alive()) {
     throw asyncError(
       "ERR_ESM_SYNC_ASYNC_PENDING",
@@ -111,6 +115,9 @@ function poll(deadline: number) {
     )
   }
   native.poll()
+  // A callback or a descheduled CI process can overrun the deadline while
+  // libuv is running. Do not drain its queued module continuations afterward.
+  checkDeadline(deadline)
 }
 
-export { asyncError, awaitDeadline, drainMicrotasks, isAwait, makeAwait, poll }
+export { asyncError, awaitDeadline, checkDeadline, drainMicrotasks, isAwait, makeAwait, poll }

@@ -5,7 +5,7 @@ import fsp from "fs/promises"
 import path from "path"
 import AdmZip from "adm-zip"
 
-const rootPath = path.resolve(__dirname, "..")
+const rootPath = path.resolve(__dirname, "../..")
 const vendorPath = path.resolve(rootPath, "src/vendor")
 
 const acornPath = path.resolve(vendorPath, "acorn")
