@@ -36,3 +36,47 @@
 *.patch
 *.tar.gz
 
+# Generated JavaScript commands from script/src/
+/script/*.js
+/script/*.mjs
+/script/*.cjs
+/script/*.d.ts
+/script/*.d.mts
+/script/*.d.cts
+/script/esm/
+
+# Generated entry points, maintenance config and diagnostics
+/esm.js
+/index.js
+/.ncurc.mjs
+/debug/debug.js
+/debug/module.js
+
+# Generated native test files from script/src/esm/outputs.ts
+/test/cache-tests.js
+/test/create-meta.js
+/test/create-namespace.js
+/test/dynamic-import-tests.mjs
+/test/export-tests.mjs
+/test/file-extension-tests.js
+/test/import-tests.js
+/test/misc-tests.js
+/test/module.js
+/test/native-suite.cjs
+/test/native-test-bootstrap.cjs
+/test/native-test-reporter.cjs
+/test/pm2-environment.mjs
+/test/pm2-processes.mjs
+/test/require-hook-tests.js
+/test/require.js
+/test/reset-state.js
+/test/scenario-tests.mjs
+/test/setter-tests.js
+/test/test262.mjs
+/test/test262/import-promise-tracking.cjs
+/test/test262/phase-analysis.cjs
+/test/test262/protocol.cjs
+/test/test262/wrapper.js
+/test/top-level-await-tests.js
+/test/url-tests.mjs
+/test/wasm-tests.js

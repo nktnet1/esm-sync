@@ -22,8 +22,8 @@ clear error rather than hanging or returning incomplete exports otherwise.
 
 ### Implemented async handling
 
-- [x] Trace TLA through parsing, linking, and evaluation (`src/entry.js` and
-      `src/module/internal/compile.js`); classify direct/transitive async graphs
+- [x] Trace TLA through parsing, linking, and evaluation (`src/entry.ts` and
+      `src/module/internal/compile.ts`); classify direct/transitive async graphs
       and cycles before execution.
 - [x] Extend microtask-settled TLA support to timers, filesystem, and network
       I/O where safe; validate re-entrancy, runtime portability, and overhead
@@ -86,9 +86,36 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
 - [x] Resolve the remaining Test262 failures without broadening exclusions.
       The expanded pinned selection has no failures or exclusions; nine cases
       retain explicit host/ModuleSource unsupported classifications.
-- [ ] Verify Node 22/24/26 CI on Linux, macOS, and Windows, including production
-      builds, Node internals, and packed-package integration tests.
-- [ ] Complete pnpm 12 reproducible installs and frozen-lockfile CI; review
-      dependency updates and outstanding audit findings.
+- [x] Verify Node 22/24/26 CI on Linux, macOS, and Windows, including production
+      builds, Node internals, and packed-package integration tests. Confirmed
+      for v1.0.2.
+- [x] Complete pnpm 12 reproducible installs and frozen-lockfile CI; review
+      dependency updates and outstanding audit findings. Confirmed for v1.0.2.
+- [x] Convert implementation, bootstrap, build tooling, native/Test262 harness,
+      and maintained Vitest tests to TypeScript, retaining generated JavaScript
+      package entry points and compatibility fixtures.
+- [x] Enable strict checks across owned TypeScript and add an audit for inferred
+      and explicit `any`, including collection type arguments.
+- [x] Define private loader, AST, reflection, cache, and native boundary types,
+      preserving CommonJS getters, sloppy bootstrap, and native harness imports.
+- [x] Use `.ts` with private ESM package scopes and explicit `.cts` for CommonJS
+      protocols, preserving published CommonJS entry points. Check with `noEmit`
+      and generate JavaScript separately, without tooling declarations.
+- [x] Bootstrap fixture preparation and strict checking after a clean checkout,
+      before downloaded Acorn sources exist. Declare its side-effect-only
+      modules precisely and retain missing-owned-import diagnostics.
+- [x] Address the four reported CodeQL annotations in path resolution, export
+      wildcard substitution, and percent-encoding tests. Cover literal captured
+      subpaths and long multiline suffixes with regression tests. A fresh CodeQL
+      scan remains a CI check.
+- [x] Finish migration validation: the full pinned conformance selection has
+      zero failures or exclusions; Node 24 development and Node 22/24/26 production
+      each pass 1,125 tests. Validate packed entry points on all three runtimes
+      and benchmark against v1.0.2. See
+      [TypeScript migration](docs/typescript-migration.md) for results and limits.
+- [x] Consolidate bootstrap, tooling, native harness and diagnostic TypeScript
+      under existing source trees, retaining narrow generated-output ignores.
+- [x] Emit and minimize public CommonJS entry points and the standalone installer
+      through Rspack/SWC, preserving native module context and package paths.
 - [ ] Replace Rspack/Babel with tsdown/Oxc only after verifying equivalent loader
       output, custom transformations, module semantics, and package contents.

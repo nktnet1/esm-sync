@@ -1,14 +1,25 @@
 {
+  "extends": "./tsconfig.source.json",
   "compilerOptions": {
-    "forceConsistentCasingInFileNames": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "allowImportingTsExtensions": true,
-    "rootDir": ".",
-    "noEmit": true,
-    "strict": true,
-    "target": "ES2022",
-    "types": ["node"]
+    "module": "Preserve",
+    "target": "ESNext",
+    "lib": ["ESNext", "DOM"],
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["index.d.ts", "test/typecheck/**/*.ts", "test/vitest/**/*.mts"]
+  "include": [
+    "index.d.ts",
+    "src/**/*.ts",
+    "script/src/**/*.ts",
+    "src/bootstrap/**/*.ts",
+    "debug/**/*.ts",
+    "test/harness/**/*.ts",
+    "test/harness/**/*.cts",
+    "test/typecheck/**/*.ts",
+    "test/fixture/scenario/ts-node/**/*.ts",
+    "test/vitest/**/*.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["src/vendor", "test/vendor"]
 }

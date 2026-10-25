@@ -1,5 +1,5 @@
 pre-commit:
   jobs:
     - name: biome
-      glob: "*.{js,mjs,cjs,ts,tsx,json,jsonc,yaml,yml}"
+      glob: "*.{js,mjs,cjs,ts,mts,cts,tsx,json,jsonc,yaml,yml}"
       run: pnpm exec biome check --no-errors-on-unmatched {staged_files}

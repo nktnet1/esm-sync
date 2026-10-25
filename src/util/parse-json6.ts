@@ -1,0 +1,27 @@
+import JSON6 from "json-6"
+import quotifyJSON from "./quotify-json.js"
+import shared from "../shared.js"
+
+function init() {
+  function parseJSON6(string: unknown): unknown {
+    return tryParse(string) || tryParse(quotifyJSON(string))
+  }
+
+  function tryParse(string: unknown): unknown {
+    if (typeof string === "string" && string.length) {
+      try {
+        return JSON6.parse(string)
+      } catch {}
+    }
+
+    return null
+  }
+
+  return parseJSON6
+}
+
+export default shared.inited
+  ? shared.module.utilParseJSON6
+  : (shared.module.utilParseJSON6 = init())
+
+export type CachedModule = ReturnType<typeof init>

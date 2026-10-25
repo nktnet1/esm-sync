@@ -14,6 +14,9 @@ declare namespace Options {
   }
 
   interface Options {
+    cache: boolean | string
+    debug: boolean
+    sourceMap: boolean
     cjs: boolean | Partial<Esm>
     mainFields: string[]
     mode: "auto" | "all" | "strict"

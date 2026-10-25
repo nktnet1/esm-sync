@@ -13,7 +13,7 @@
   be prepared again.
   Failed downloads or transformations do not replace a previously prepared
   corpus. To intentionally update Test262, review the new SHA, update
-  `script/setup-test262.js`, and verify the selected corpus against the loader.
+  `script/src/setup-test262.ts`, and verify the selected corpus against the loader.
 - `pnpm fixtures:prepare` prepares Acorn and Test262 together; `pnpm test` and
   `pnpm test:prod` prepare the fixtures, rebuild, and execute the Vitest suite.
 - `pnpm test:run` and `pnpm test:run:prod` reuse an existing JavaScript test

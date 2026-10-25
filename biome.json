@@ -73,7 +73,27 @@
   },
   "overrides": [
     {
-      "includes": ["src/**", "esm.js"],
+      "includes": [
+        "src/**/*.ts",
+        "src/bootstrap/**",
+        "script/src/**",
+        "test/harness/**",
+        "debug/**",
+        "test/**/*.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          },
+          "suspicious": {
+            "noConfusingVoidType": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/**", "src/bootstrap/esm.ts"],
       "linter": {
         "rules": {
           "suspicious": {
@@ -83,7 +103,7 @@
       }
     },
     {
-      "includes": ["src/own/proxy.js", "test/dynamic-import-tests.mjs"],
+      "includes": ["src/own/proxy.ts", "test/harness/dynamic-import-tests.ts"],
       "linter": {
         "rules": {
           "correctness": {
@@ -93,7 +113,11 @@
       }
     },
     {
-      "includes": [".babel.config.js", "test/misc-tests.js", "test/misc/import-meta.mjs"],
+      "includes": [
+        "script/src/babel-config.ts",
+        "test/harness/misc-tests.ts",
+        "test/misc/import-meta.mjs"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
@@ -124,6 +148,29 @@
     },
     {
       "includes": ["test/vitest/**"],
+      "formatter": {
+        "enabled": true
+      }
+    },
+    {
+      "includes": ["test/harness/**"],
+      "linter": {
+        "rules": {
+          "security": {
+            "noGlobalEval": "off"
+          },
+          "suspicious": {
+            "noShadowRestrictedNames": "off",
+            "noTemplateCurlyInString": "off"
+          },
+          "complexity": {
+            "noArguments": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["test/harness/**"],
       "formatter": {
         "enabled": true
       }
