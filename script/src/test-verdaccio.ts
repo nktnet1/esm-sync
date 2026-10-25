@@ -69,7 +69,6 @@ async function stopRegistry(child: ChildProcess | undefined): Promise<void> {
 async function testRegistry(formats: readonly ConsumerFormat[]): Promise<void> {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "esm-sync-registry-"))
   const registryRoot = path.join(temporary, "registry")
-  const consumer = path.join(temporary, "consumer")
   const npmrc = path.join(temporary, ".npmrc")
   const globalNpmrc = path.join(temporary, "global.npmrc")
   const configPath = path.join(registryRoot, "config.json")
@@ -250,41 +249,44 @@ runServer(process.argv[2]).then((app) => {
     )
       throw new Error(`Published package metadata is incorrect (${response.status})`)
 
-    await fs.cp(path.join(root, "test/packed"), consumer, { recursive: true })
-    await fs.writeFile(
-      path.join(consumer, "package.json"),
-      JSON.stringify({
-        name: "esm-sync-registry-consumer",
-        private: true,
-        type: "commonjs",
-        allowScripts: { [packageInfo.name]: true }
+    for (const format of formats) {
+      const consumer = path.join(temporary, `consumer-${format}`)
+      await fs.cp(path.join(root, "test/packed"), consumer, { recursive: true })
+      await fs.writeFile(
+        path.join(consumer, "package.json"),
+        JSON.stringify({
+          name: `esm-sync-registry-consumer-${format}`,
+          private: true,
+          type: format === "cjs" ? "commonjs" : "module",
+          allowScripts: { [packageInfo.name]: true }
+        })
+      )
+      stage(`Installing into ${format.toUpperCase()} project from`, registry)
+      await execa(
+        "npm",
+        [
+          "install",
+          `${packageInfo.name}@${packageInfo.version}`,
+          "--registry",
+          registry,
+          "--ignore-scripts=false",
+          "--foreground-scripts",
+          "--package-lock=false",
+          "--no-audit",
+          "--no-fund"
+        ],
+        { ...command, cwd: consumer }
+      )
+      const installed = path.join(consumer, "node_modules", packageInfo.name)
+      const binary = `dist/native/${process.platform}-${process.arch}-${process.versions.modules}.node`
+      await fs.rm(path.join(installed, binary))
+      stage(`Rebuilding with the ${format.toUpperCase()} project's production installer`, binary)
+      await execa(process.execPath, ["dist/script/build-sync-await.js", "--required"], {
+        ...command,
+        cwd: installed
       })
-    )
-    stage("Installing with lifecycle scripts enabled from", registry)
-    await execa(
-      "npm",
-      [
-        "install",
-        `${packageInfo.name}@${packageInfo.version}`,
-        "--registry",
-        registry,
-        "--ignore-scripts=false",
-        "--foreground-scripts",
-        "--package-lock=false",
-        "--no-audit",
-        "--no-fund"
-      ],
-      { ...command, cwd: consumer }
-    )
-    const installed = path.join(consumer, "node_modules", packageInfo.name)
-    const binary = `dist/native/${process.platform}-${process.arch}-${process.versions.modules}.node`
-    await fs.rm(path.join(installed, binary))
-    stage("Rebuilding with the installed production installer", binary)
-    await execa(process.execPath, ["dist/script/build-sync-await.js", "--required"], {
-      ...command,
-      cwd: installed
-    })
-    await verifyInstalledPackage(consumer, formats)
+      await verifyInstalledPackage(consumer, [format])
+    }
   } catch (error) {
     if (registryLog) console.error(`[verdaccio] Registry log:\n${registryLog}`)
     throw error

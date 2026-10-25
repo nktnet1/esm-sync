@@ -47,10 +47,14 @@ export async function verifyInstalledPackage(
     })
   }
 
-  await execa(process.execPath, ["--require", "esm-sync", "cli.js"], {
-    cwd: consumerPath,
-    env,
-    extendEnv: false,
-    stdio: "inherit"
-  })
+  if (formats.includes("cjs")) {
+    // A .js CLI in a type:module consumer uses native ESM and would not
+    // exercise the CommonJS preload hook that this smoke test is for.
+    await execa(process.execPath, ["--require", "esm-sync", "cli.js"], {
+      cwd: consumerPath,
+      env,
+      extendEnv: false,
+      stdio: "inherit"
+    })
+  }
 }

@@ -7,6 +7,13 @@ assert.strictEqual(require("esm-sync/esm.js"), factory)
 assert.strictEqual(require("esm-sync/index.js"), factory)
 
 module.exports = async function checkConsumer(esmRequire, format) {
+  // The nested package remains CommonJS even in a type:module consumer.
+  const commonjs = esmRequire("./cjs/counter.js")
+  assert.equal(commonjs.read(), 41)
+  assert.equal(commonjs.increment(), 42)
+  assert.equal(commonjs.read(), 42)
+  assert.strictEqual(commonjs, esmRequire("./cjs/counter.js"))
+
   const namespace = esmRequire("./counter.mjs")
   assert.equal(namespace.counter, 41)
   assert.equal(namespace.increment(), 42)

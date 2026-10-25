@@ -1,7 +1,7 @@
 import path from "node:path"
 import { createRequire } from "node:module"
 import ts from "typescript"
-import { defineConfig, type TsdownPlugin, type UserConfig } from "tsdown"
+import { defineConfig, type ExportsOptions, type TsdownPlugin, type UserConfig } from "tsdown"
 import babelOptions from "./config/babel.ts"
 import packageInfo from "./package.json" with { type: "json" }
 
@@ -66,6 +66,36 @@ const base: UserConfig = {
   outExtensions: () => ({ js: ".js" }),
   outputOptions: { strict: true, codeSplitting: false }
 }
+
+// Let tsdown discover the canonical root output and legacy main/types fields.
+// The index bootstrap is a compatibility entry, not the package's main entry.
+// Its aliases (and the extension-preserving esm aliases) are part of our API.
+const packageExports = {
+  legacy: true,
+  bin: false,
+  inlinedDependencies: false,
+  customExports(generated: Record<string, unknown>) {
+    const root = generated["."]
+    if (typeof root !== "string" || !root.startsWith("./dist/") || !root.endsWith(".js")) {
+      throw new Error("tsdown did not generate the expected CommonJS root entry")
+    }
+
+    function withTypes(js: string) {
+      return { types: js.replace(/\.js$/, ".d.ts"), default: js }
+    }
+
+    const esm = withTypes(root)
+    const index = withTypes("./dist/index.js")
+    return {
+      ".": esm,
+      "./esm": esm,
+      "./esm.js": esm,
+      "./index": index,
+      "./index.js": index,
+      "./package.json": "./package.json"
+    }
+  }
+} satisfies ExportsOptions
 const externalGlobals = [
   "Array",
   "Buffer",
@@ -140,6 +170,9 @@ export default defineConfig([
       name: `bootstrap:${name}`,
       // Only the public CommonJS entry points publish declarations.
       dts: name === "esm" || name === "index" ? { generator: "tsc" } : false,
+      // One canonical entry owns package metadata; generating from the index
+      // compatibility entry would change the legacy main from esm to index.
+      exports: name === "esm" ? packageExports : false,
       entry: { [name]: entry },
       outDir: "dist",
       outputOptions: { ...base.outputOptions, strict: name !== "esm" },

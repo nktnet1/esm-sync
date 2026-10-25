@@ -35,8 +35,8 @@
     "verify:prod": "pnpm build:prod --test && pnpm test:run:prod",
     "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio"
   },
-  "main": "dist/esm.js",
-  "types": "dist/esm.d.ts",
+  "main": "./dist/esm.js",
+  "types": "./dist/esm.d.ts",
   "private": false,
   "runkitExample": "require = require(\"esm-sync\")(module)\nrequire(\"lodash-es\")",
   "esm": true,
