@@ -140,6 +140,7 @@
       "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
     },
+    "./package.json": "./package.json",
     "./esm": {
       "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
@@ -155,7 +156,6 @@
     "./index.js": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
+    }
   }
 }

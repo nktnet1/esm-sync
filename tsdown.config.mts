@@ -67,32 +67,31 @@ const base: UserConfig = {
   outputOptions: { strict: true, codeSplitting: false }
 }
 
-// Let tsdown discover the canonical root output and legacy main/types fields.
-// The index bootstrap is a compatibility entry, not the package's main entry.
-// Its aliases (and the extension-preserving esm aliases) are part of our API.
+// tsdown owns the canonical root export and legacy main/types fields. The
+// bootstrap entries must remain separate builds (their strict modes differ),
+// so only their compatibility aliases need to be added here. tsdown currently
+// emits a string for a single-format entry rather than a typed export object.
 const packageExports = {
   legacy: true,
   bin: false,
   inlinedDependencies: false,
   customExports(generated: Record<string, unknown>) {
     const root = generated["."]
-    if (typeof root !== "string" || !root.startsWith("./dist/") || !root.endsWith(".js")) {
+    if (typeof root !== "string" || !root.startsWith("./dist/") || !root.endsWith("/esm.js")) {
       throw new Error("tsdown did not generate the expected CommonJS root entry")
     }
 
-    function withTypes(js: string) {
-      return { types: js.replace(/\.js$/, ".d.ts"), default: js }
-    }
+    const withTypes = (js: string) => ({ types: js.replace(/\.js$/, ".d.ts"), default: js })
 
     const esm = withTypes(root)
-    const index = withTypes("./dist/index.js")
+    const index = withTypes(root.replace(/\/esm\.js$/, "/index.js"))
     return {
+      ...generated,
       ".": esm,
       "./esm": esm,
       "./esm.js": esm,
       "./index": index,
-      "./index.js": index,
-      "./package.json": "./package.json"
+      "./index.js": index
     }
   }
 } satisfies ExportsOptions

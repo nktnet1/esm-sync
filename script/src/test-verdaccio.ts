@@ -13,10 +13,29 @@ import { createPublishManifest } from "./package-manifest.js"
 
 const verdaccioVersion = "6.10.4"
 const root = path.resolve(__dirname, "../..")
-let activeStage = "setup"
-const stage = (message: string, value: string) => {
-  activeStage = `${message} ${value}`
-  console.log(`[verdaccio] ${message} ${styleText("cyan", value)}`)
+let activeStage = "initialisation"
+let stageNumber = 0
+let stageTotal = 0
+let failedStage: string | undefined
+
+async function stage<T>(label: string, description: string, action: () => Promise<T>): Promise<T> {
+  activeStage = `${label}: ${description}`
+  const number = `[${String(++stageNumber).padStart(2, "0")}/${stageTotal}]`
+  console.log(`\n[verdaccio] ${number} ${styleText("cyan", label.padEnd(8))} ${description}`)
+  const start = Date.now()
+  try {
+    const result = await action()
+    console.log(
+      `[verdaccio]         ${styleText("green", "PASS")} (${((Date.now() - start) / 1000).toFixed(1)}s)`
+    )
+    return result
+  } catch (error) {
+    failedStage ??= activeStage
+    console.error(
+      `[verdaccio]         ${styleText("red", "FAIL")} (${((Date.now() - start) / 1000).toFixed(1)}s)`
+    )
+    throw error
+  }
 }
 
 function registryReady(child: ChildProcess): Promise<string> {
@@ -66,7 +85,8 @@ async function stopRegistry(child: ChildProcess | undefined): Promise<void> {
   }
 }
 
-async function testRegistry(formats: readonly ConsumerFormat[]): Promise<void> {
+async function testRegistry(formats: readonly ConsumerFormat[], verbose: boolean): Promise<void> {
+  stageTotal = 9 + formats.length * 4
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "esm-sync-registry-"))
   const registryRoot = path.join(temporary, "registry")
   const npmrc = path.join(temporary, ".npmrc")
@@ -108,54 +128,65 @@ async function testRegistry(formats: readonly ConsumerFormat[]): Promise<void> {
       cwd: temporary,
       env,
       extendEnv: false,
-      stdio: "inherit" as const,
+      // Default to stage summaries. --verbose streams the child tools' output.
+      // execa includes captured stdout/stderr in errors when a command fails.
+      stdio: verbose ? ("inherit" as const) : ("pipe" as const),
       timeout: 180_000
     }
-    stage("Building production package", `${packageInfo.name}@${packageInfo.version}`)
-    await execa(process.execPath, [path.join(__dirname, "setup-fixtures.js"), "acorn"], {
-      ...command,
-      cwd: root
-    })
-    await execa(process.execPath, [path.join(__dirname, "build.js"), "--prod"], {
-      ...command,
-      cwd: root
-    })
-
-    stage("Preparing disposable registry", `Verdaccio ${verdaccioVersion}`)
-    await fs.writeFile(
-      path.join(registryRoot, "package.json"),
-      JSON.stringify({ name: "esm-sync-registry-harness", private: true })
-    )
-    await execa(
-      "pnpm",
-      [
-        "--dir",
-        registryRoot,
-        "add",
-        "--save-exact",
-        "--ignore-scripts",
-        `verdaccio@${verdaccioVersion}`,
-        "--registry=https://registry.npmjs.org"
-      ],
-      command
-    )
-    await fs.writeFile(
-      configPath,
-      JSON.stringify({
-        storage: path.join(registryRoot, "storage"),
-        auth: { htpasswd: { file: path.join(registryRoot, "htpasswd"), max_users: 10 } },
-        uplinks: { npmjs: { url: "https://registry.npmjs.org/" } },
-        packages: {
-          [packageInfo.name]: { access: "$all", publish: "$authenticated" },
-          "**": { access: "$all", proxy: "npmjs" }
-        },
-        log: { type: "stdout", format: "pretty", level: "warn" }
+    await stage("FIXTURES", "Prepare Acorn source", async () => {
+      await execa(process.execPath, [path.join(__dirname, "setup-fixtures.js"), "acorn"], {
+        ...command,
+        cwd: root
       })
+    })
+    await stage(
+      "BUILD",
+      `Compile ${packageInfo.name}@${packageInfo.version} for production`,
+      async () => {
+        await execa(process.execPath, [path.join(__dirname, "build.js"), "--prod"], {
+          ...command,
+          cwd: root
+        })
+      }
     )
-    const serverPath = path.join(registryRoot, "server.cjs")
-    await fs.writeFile(
-      serverPath,
-      `const { runServer } = require('verdaccio')
+
+    await stage("REGISTRY", `Install temporary Verdaccio ${verdaccioVersion}`, async () => {
+      await fs.writeFile(
+        path.join(registryRoot, "package.json"),
+        JSON.stringify({ name: "esm-sync-registry-harness", private: true })
+      )
+      await execa(
+        "pnpm",
+        [
+          "--dir",
+          registryRoot,
+          "add",
+          "--save-exact",
+          "--ignore-scripts",
+          `verdaccio@${verdaccioVersion}`,
+          "--registry=https://registry.npmjs.org"
+        ],
+        command
+      )
+    })
+    const registry = await stage("REGISTRY", "Start local registry", async () => {
+      await fs.writeFile(
+        configPath,
+        JSON.stringify({
+          storage: path.join(registryRoot, "storage"),
+          auth: { htpasswd: { file: path.join(registryRoot, "htpasswd"), max_users: 10 } },
+          uplinks: { npmjs: { url: "https://registry.npmjs.org/" } },
+          packages: {
+            [packageInfo.name]: { access: "$all", publish: "$authenticated" },
+            "**": { access: "$all", proxy: "npmjs" }
+          },
+          log: { type: "stdout", format: "pretty", level: "warn" }
+        })
+      )
+      const serverPath = path.join(registryRoot, "server.cjs")
+      await fs.writeFile(
+        serverPath,
+        `const { runServer } = require('verdaccio')
 runServer(process.argv[2]).then((app) => {
   const server = app.listen(0, '127.0.0.1', () => {
     process.send({ port: server.address().port })
@@ -165,143 +196,184 @@ runServer(process.argv[2]).then((app) => {
   process.once('disconnect', shutdown)
 }).catch((error) => { console.error(error); process.exit(1) })
 `
-    )
-    child = fork(serverPath, [configPath], {
-      cwd: registryRoot,
-      execPath: process.execPath,
-      execArgv: [],
-      env,
-      stdio: ["ignore", "pipe", "pipe", "ipc"]
-    })
-    for (const stream of [child.stdout, child.stderr]) {
-      stream?.setEncoding("utf8").on("data", (chunk: string) => {
-        registryLog = (registryLog + chunk).slice(-16_000)
+      )
+      child = fork(serverPath, [configPath], {
+        cwd: registryRoot,
+        execPath: process.execPath,
+        execArgv: [],
+        env,
+        stdio: ["ignore", "pipe", "pipe", "ipc"]
       })
-    }
-    const registry = await registryReady(child)
-    stage("Registry ready at", registry)
-
-    const username = "esm-sync-smoke"
-    const login = await fetch(`${registry}/-/user/org.couchdb.user:${username}`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name: username,
-        password: randomBytes(24).toString("base64url"),
-        email: "smoke@example.invalid",
-        type: "user",
-        roles: []
-      }),
-      signal: AbortSignal.timeout(10_000)
+      for (const stream of [child.stdout, child.stderr]) {
+        stream?.setEncoding("utf8").on("data", (chunk: string) => {
+          registryLog = (registryLog + chunk).slice(-16_000)
+          if (verbose) process.stderr.write(chunk)
+        })
+      }
+      return registryReady(child)
     })
-    const credentials: unknown = await login.json()
-    if (
-      !login.ok ||
-      typeof credentials !== "object" ||
-      credentials === null ||
-      !("token" in credentials) ||
-      typeof credentials.token !== "string"
-    )
-      throw new Error(`Unable to authenticate temporary Verdaccio user (${login.status})`)
-    await fs.writeFile(
-      npmrc,
-      `registry=${registry}/\n//${new URL(registry).host}/:_authToken=${credentials.token}\n`
-    )
-    env.NPM_CONFIG_REGISTRY = registry
+    console.log(`[verdaccio]         URL  ${styleText("cyan", registry)}`)
 
-    stage("Staging publish files", `${packageInfo.name}@${packageInfo.version}`)
+    await stage("AUTH", "Create temporary publisher credentials", async () => {
+      const username = "esm-sync-smoke"
+      const login = await fetch(`${registry}/-/user/org.couchdb.user:${username}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: username,
+          password: randomBytes(24).toString("base64url"),
+          email: "smoke@example.invalid",
+          type: "user",
+          roles: []
+        }),
+        signal: AbortSignal.timeout(10_000)
+      })
+      const credentials: unknown = await login.json()
+      if (
+        !login.ok ||
+        typeof credentials !== "object" ||
+        credentials === null ||
+        !("token" in credentials) ||
+        typeof credentials.token !== "string"
+      )
+        throw new Error(`Unable to authenticate temporary Verdaccio user (${login.status})`)
+      await fs.writeFile(
+        npmrc,
+        `registry=${registry}/\n//${new URL(registry).host}/:_authToken=${credentials.token}\n`
+      )
+      env.NPM_CONFIG_REGISTRY = registry
+    })
+
     const tarball = path.join(temporary, "esm-sync.tgz")
     const packageRoot = path.join(temporary, "package")
-    const filenames = new Set(["LICENSE", "README.md"])
-    for await (const filename of fs.glob(packageInfo.files, { cwd: root })) filenames.add(filename)
-    for (const filename of filenames) {
-      const target = path.join(packageRoot, filename)
-      await fs.mkdir(path.dirname(target), { recursive: true })
-      await fs.cp(path.join(root, filename), target, { recursive: true })
-    }
-    await fs.writeFile(
-      path.join(packageRoot, "package.json"),
-      JSON.stringify(createPublishManifest(packageInfo), null, 2) + "\n"
-    )
-    await execa("pnpm", ["pack", "--ignore-scripts", "--out", tarball], {
-      ...command,
-      cwd: packageRoot
+    await stage("PACK", "Stage publish files and create package tarball", async () => {
+      // The build lets tsdown update exports in package.json. Publish that
+      // result, not the JSON imported before the build started.
+      const builtPackageInfo: typeof packageInfo = JSON.parse(
+        await fs.readFile(path.join(root, "package.json"), "utf8")
+      )
+      const filenames = new Set(["LICENSE", "README.md"])
+      for await (const filename of fs.glob(builtPackageInfo.files, { cwd: root }))
+        filenames.add(filename)
+      for (const filename of filenames) {
+        const target = path.join(packageRoot, filename)
+        await fs.mkdir(path.dirname(target), { recursive: true })
+        await fs.cp(path.join(root, filename), target, { recursive: true })
+      }
+      await fs.writeFile(
+        path.join(packageRoot, "package.json"),
+        JSON.stringify(createPublishManifest(builtPackageInfo), null, 2) + "\n"
+      )
+      await execa("pnpm", ["pack", "--ignore-scripts", "--out", tarball], {
+        ...command,
+        cwd: packageRoot
+      })
     })
-    stage("Publishing locally", `${packageInfo.name}@${packageInfo.version}`)
-    await execa(
-      "npm",
-      ["publish", tarball, "--ignore-scripts", "--registry", registry, "--tag", "smoke"],
-      command
-    )
-    const response = await fetch(
-      `${registry}/${encodeURIComponent(packageInfo.name)}/${packageInfo.version}`,
-      {
-        signal: AbortSignal.timeout(10_000)
+    await stage(
+      "PUBLISH",
+      `Publish ${packageInfo.name}@${packageInfo.version} to Verdaccio`,
+      async () => {
+        await execa(
+          "npm",
+          ["publish", tarball, "--ignore-scripts", "--registry", registry, "--tag", "smoke"],
+          command
+        )
       }
     )
-    const metadata: unknown = await response.json()
-    if (
-      !response.ok ||
-      typeof metadata !== "object" ||
-      metadata === null ||
-      !("version" in metadata) ||
-      metadata.version !== packageInfo.version
-    )
-      throw new Error(`Published package metadata is incorrect (${response.status})`)
+    await stage("VERIFY", "Check published package metadata", async () => {
+      const response = await fetch(
+        `${registry}/${encodeURIComponent(packageInfo.name)}/${packageInfo.version}`,
+        { signal: AbortSignal.timeout(10_000) }
+      )
+      const metadata: unknown = await response.json()
+      if (
+        !response.ok ||
+        typeof metadata !== "object" ||
+        metadata === null ||
+        !("version" in metadata) ||
+        metadata.version !== packageInfo.version
+      )
+        throw new Error(`Published package metadata is incorrect (${response.status})`)
+    })
 
     for (const format of formats) {
+      const label = format.toUpperCase()
       const consumer = path.join(temporary, `consumer-${format}`)
-      await fs.cp(path.join(root, "test/packed"), consumer, { recursive: true })
-      await fs.writeFile(
-        path.join(consumer, "package.json"),
-        JSON.stringify({
-          name: `esm-sync-registry-consumer-${format}`,
-          private: true,
-          type: format === "cjs" ? "commonjs" : "module",
-          allowScripts: { [packageInfo.name]: true }
-        })
+      await stage(
+        label,
+        `Create ${format === "cjs" ? "type: commonjs" : "type: module"} consumer`,
+        async () => {
+          await fs.cp(path.join(root, "test/packed"), consumer, { recursive: true })
+          await fs.writeFile(
+            path.join(consumer, "package.json"),
+            JSON.stringify({
+              name: `esm-sync-registry-consumer-${format}`,
+              private: true,
+              type: format === "cjs" ? "commonjs" : "module",
+              allowScripts: { [packageInfo.name]: true }
+            })
+          )
+        }
       )
-      stage(`Installing into ${format.toUpperCase()} project from`, registry)
-      await execa(
-        "npm",
-        [
-          "install",
-          `${packageInfo.name}@${packageInfo.version}`,
-          "--registry",
-          registry,
-          "--ignore-scripts=false",
-          "--foreground-scripts",
-          "--package-lock=false",
-          "--no-audit",
-          "--no-fund"
-        ],
-        { ...command, cwd: consumer }
-      )
+      await stage(label, "Install published package with lifecycle scripts", async () => {
+        await execa(
+          "npm",
+          [
+            "install",
+            `${packageInfo.name}@${packageInfo.version}`,
+            "--registry",
+            registry,
+            "--ignore-scripts=false",
+            "--foreground-scripts",
+            "--package-lock=false",
+            "--no-audit",
+            "--no-fund"
+          ],
+          { ...command, cwd: consumer }
+        )
+      })
       const installed = path.join(consumer, "node_modules", packageInfo.name)
       const binary = `dist/native/${process.platform}-${process.arch}-${process.versions.modules}.node`
-      await fs.rm(path.join(installed, binary))
-      stage(`Rebuilding with the ${format.toUpperCase()} project's production installer`, binary)
-      await execa(process.execPath, ["dist/script/build-sync-await.js", "--required"], {
-        ...command,
-        cwd: installed
+      await stage(label, "Rebuild the installed native addon", async () => {
+        await fs.rm(path.join(installed, binary))
+        await execa(process.execPath, ["dist/script/build-sync-await.js", "--required"], {
+          ...command,
+          cwd: installed
+        })
       })
-      await verifyInstalledPackage(consumer, [format])
+      await stage(label, "Test CommonJS/ESM imports and preload (where applicable)", async () => {
+        await verifyInstalledPackage(consumer, [format])
+      })
     }
   } catch (error) {
-    if (registryLog) console.error(`[verdaccio] Registry log:\n${registryLog}`)
+    if (registryLog) console.error(`[verdaccio] Registry log (last 16 KB):\n${registryLog}`)
     throw error
   } finally {
-    await stopRegistry(child)
-    await fs.rm(temporary, { recursive: true, force: true })
+    await stage("CLEANUP", "Stop Verdaccio and remove temporary workspace", async () => {
+      try {
+        await stopRegistry(child)
+      } finally {
+        await fs.rm(temporary, { recursive: true, force: true })
+      }
+    })
   }
 }
 
 export async function runRegistryTest(args = process.argv.slice(2)): Promise<void> {
   const { values } = parseArgs({
     args,
-    options: { format: { type: "string", default: "both" } }
+    options: {
+      format: { type: "string", default: "both" },
+      verbose: { type: "boolean", default: false }
+    }
   })
   const formats = consumerFormats(values.format ?? "both")
+  activeStage = "initialisation"
+  failedStage = undefined
+  stageNumber = 0
+  console.log(
+    `\n[verdaccio] ${styleText("cyan", "TEST")} ${packageInfo.name}@${packageInfo.version}  |  ${formats.map((format) => format.toUpperCase()).join(" + ")}${values.verbose ? "  |  verbose" : ""}`
+  )
   let complete = false
   process.once("exit", (code) => {
     if (!complete) {
@@ -309,9 +381,17 @@ export async function runRegistryTest(args = process.argv.slice(2)): Promise<voi
       if (code === 0) process.exitCode = 1
     }
   })
-  await testRegistry(formats)
-  complete = true
-  console.log(`[verdaccio] ${styleText("green", "PASS")} publish, install, ${formats.join(" + ")}`)
+  try {
+    await testRegistry(formats, values.verbose ?? false)
+    complete = true
+    console.log(
+      `\n[verdaccio] ${styleText("green", "PASS")} Published and verified in ${formats.map((format) => format.toUpperCase()).join(" + ")} projects\n`
+    )
+  } catch (error) {
+    complete = true
+    console.error(`\n[verdaccio] ${styleText("red", "FAIL")} ${failedStage ?? activeStage}\n`)
+    throw error
+  }
 }
 
 if (require.main === module) {
