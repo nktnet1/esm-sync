@@ -1,4 +1,4 @@
-import type { ModuleConstructor, ModuleRecord } from "../../src/types/runtime.js"
+import type { ModuleConstructor, ModuleRecord } from "../../../src/types/runtime.js"
 import type { VariableDeclaration } from "acorn"
 import protocol = require("./protocol.cjs")
 import tracking = require("./import-promise-tracking.cjs")
@@ -11,7 +11,7 @@ const { Parser } = require("acorn") as typeof import("acorn")
 
 // The compiler bundle normally receives this binding from esm-sync's loader.
 // The standalone Test262 phase checker needs the same compiler configuration.
-type TestCompiler = Pick<typeof import("../../src/compiler.js").default, "compile">
+type TestCompiler = Pick<typeof import("../../../src/compiler.js").default, "compile">
 let compiler: TestCompiler | undefined
 
 function getCompiler() {
@@ -127,8 +127,10 @@ function getScriptRuntime(filename: string) {
   // Reuse esm-sync's private, existing internal-protocol objects rather than
   // reimplementing deferred import or adding an application-facing API.
   const { ownRequire, shared } = loadOwnProtocol()
-  const Entry = ownRequire(shared.symbol.entry) as typeof import("../../src/entry.js").default
-  const Runtime = ownRequire(shared.symbol.runtime) as typeof import("../../src/runtime.js").default
+  const Entry = ownRequire(shared.symbol.entry) as typeof import("../../../src/entry.js").default
+  const Runtime = ownRequire(
+    shared.symbol.runtime
+  ) as typeof import("../../../src/runtime.js").default
   if (typeof Entry?.get !== "function" || typeof Runtime?.enable !== "function") {
     throw new Error("Test262: esm-sync script runtime is unavailable")
   }

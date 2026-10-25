@@ -113,5 +113,9 @@ contexts, optional native bridge, deadline, validation, and benchmark procedure.
       each pass 1,125 tests. Validate packed entry points on all three runtimes
       and benchmark against v1.0.2. See
       [TypeScript migration](docs/typescript-migration.md) for results and limits.
+- [x] Consolidate bootstrap, tooling, native harness and diagnostic TypeScript
+      under existing source trees, retaining narrow generated-output ignores.
+- [x] Emit and minimize public CommonJS entry points and the standalone installer
+      through Rspack/SWC, preserving native module context and package paths.
 - [ ] Replace Rspack/Babel with tsdown/Oxc only after verifying equivalent loader
       output, custom transformations, module semantics, and package contents.

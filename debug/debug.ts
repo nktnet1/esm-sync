@@ -1,4 +1,4 @@
-const esm = require("../esm") as typeof import("../bootstrap/esm.js")
+const esm = require("../esm") as typeof import("../src/bootstrap/esm.js")
 
 const myRequire = esm(module)
 

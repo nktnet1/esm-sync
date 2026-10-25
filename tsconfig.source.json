@@ -12,6 +12,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "tooling/semver.d.ts"],
-  "exclude": ["src/vendor"]
+  "include": ["src/**/*.ts", "script/src/semver.d.ts"],
+  "exclude": ["src/vendor", "src/bootstrap"]
 }

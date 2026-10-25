@@ -75,10 +75,10 @@
     {
       "includes": [
         "src/**/*.ts",
-        "bootstrap/**",
-        "tooling/**",
-        "harness/**",
-        "diagnostics/**",
+        "src/bootstrap/**",
+        "script/src/**",
+        "test/harness/**",
+        "debug/**",
         "test/**/*.ts"
       ],
       "linter": {
@@ -93,7 +93,7 @@
       }
     },
     {
-      "includes": ["src/**", "bootstrap/esm.ts"],
+      "includes": ["src/**", "src/bootstrap/esm.ts"],
       "linter": {
         "rules": {
           "suspicious": {
@@ -103,7 +103,7 @@
       }
     },
     {
-      "includes": ["src/own/proxy.ts", "harness/dynamic-import-tests.ts"],
+      "includes": ["src/own/proxy.ts", "test/harness/dynamic-import-tests.ts"],
       "linter": {
         "rules": {
           "correctness": {
@@ -113,7 +113,11 @@
       }
     },
     {
-      "includes": ["tooling/babel-config.ts", "harness/misc-tests.ts", "test/misc/import-meta.mjs"],
+      "includes": [
+        "script/src/babel-config.ts",
+        "test/harness/misc-tests.ts",
+        "test/misc/import-meta.mjs"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
@@ -149,7 +153,7 @@
       }
     },
     {
-      "includes": ["harness/**"],
+      "includes": ["test/harness/**"],
       "linter": {
         "rules": {
           "security": {
@@ -163,6 +167,12 @@
             "noArguments": "off"
           }
         }
+      }
+    },
+    {
+      "includes": ["test/harness/**"],
+      "formatter": {
+        "enabled": true
       }
     }
   ]

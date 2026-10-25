@@ -1,4 +1,4 @@
-import type { ModuleConstructor, ModuleRecord, SharedState } from "../src/types/runtime.js"
+import type { ModuleConstructor, ModuleRecord, SharedState } from "../types/runtime.js"
 import type { ScriptOptions } from "node:vm"
 
 const NativeModule = require("module") as ModuleConstructor
@@ -79,10 +79,10 @@ function loadESM(): unknown {
 
 function makeRequireFunction(
   mod: NodeJS.Module,
-  options?: Parameters<typeof import("../index.js")>[1]
+  options?: Parameters<typeof import("../../index.js")>[1]
 ): NodeJS.Require {
   // The private bootstrap exports shared state once, then the public factory.
-  return (loadESM() as typeof import("../index.js"))(mod, options)
+  return (loadESM() as typeof import("../../index.js"))(mod, options)
 }
 
 function readFile(filename: string): Buffer | null

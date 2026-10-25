@@ -6,6 +6,11 @@
     "esModuleInterop": true,
     "resolveJsonModule": true
   },
-  "include": ["harness/**/*.ts", "harness/**/*.cts", "src/types/**/*.d.ts", "tooling/**/*.d.ts"],
+  "include": [
+    "test/harness/**/*.ts",
+    "test/harness/**/*.cts",
+    "src/types/**/*.d.ts",
+    "script/src/**/*.d.ts"
+  ],
   "exclude": ["src/vendor"]
 }

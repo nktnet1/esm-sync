@@ -42,7 +42,7 @@ assert.ok(
 )
 
 function measure(directory: string, loader: string): Measurement {
-  const load: (filename: string) => unknown = (require(loader) as typeof import("../index.js"))(
+  const load: (filename: string) => unknown = (require(loader) as typeof import("../../index.js"))(
     module,
     { cache: false, cjs: false }
   )

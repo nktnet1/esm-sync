@@ -49,11 +49,11 @@ export interface SelfFixture {
   getDeferredValue(): number
 }
 export interface RequireFixture {
-  default: import("../src/types/runtime.js").RuntimeRequire
+  default: import("../../src/types/runtime.js").RuntimeRequire
 }
 export interface ParentFixture {
-  child: import("../src/types/runtime.js").ModuleRecord
-  parent: import("../src/types/runtime.js").ModuleRecord
+  child: import("../../src/types/runtime.js").ModuleRecord
+  parent: import("../../src/types/runtime.js").ModuleRecord
 }
 export type FixtureGlobals = typeof globalThis & {
   esmSyncDeferredWasEvaluated?: boolean

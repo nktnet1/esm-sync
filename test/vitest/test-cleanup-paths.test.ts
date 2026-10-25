@@ -4,7 +4,7 @@ import { describe, it } from "vitest"
 import { createRequire } from "node:module"
 const createTestCleanupFilter = createRequire(import.meta.url)(
   "../../script/test-cleanup-paths.js"
-) as typeof import("../../tooling/test-cleanup-paths.js")
+) as typeof import("../../script/src/test-cleanup-paths.js")
 
 function filterFor(root: string, paths: typeof path) {
   const keptPaths = ["build", "esm", "node_modules", "src/vendor", "test/vendor"].map((part) =>

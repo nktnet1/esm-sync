@@ -4,7 +4,7 @@ const { describe, it } = globalThis.__esmSyncNativeTest
 import { Console } from "console"
 import JSON6 from "json-6"
 import NativeModule from "module"
-import type { ModuleConstructor } from "../src/types/runtime.js"
+import type { ModuleConstructor } from "../../src/types/runtime.js"
 const Module = NativeModule as unknown as ModuleConstructor
 import SemVer from "semver"
 import assert from "assert"
@@ -16,7 +16,7 @@ import path from "path"
 import require2 from "./require.cjs"
 import resetState from "./reset-state.js"
 import stream from "stream"
-import trash from "../tooling/trash.js"
+import trash from "../../script/src/trash.js"
 import util from "util"
 const ESM_OPTIONS = JSON6.parse(process.env.ESM_OPTIONS || "{}") as { debug?: unknown }
 const isDebug = !!ESM_OPTIONS.debug

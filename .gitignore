@@ -36,8 +36,14 @@
 *.patch
 *.tar.gz
 
-# Generated JavaScript commands from tooling/
-/script/
+# Generated JavaScript commands from script/src/
+/script/*.js
+/script/*.mjs
+/script/*.cjs
+/script/*.d.ts
+/script/*.d.mts
+/script/*.d.cts
+/script/esm/
 
 # Generated entry points, maintenance config and diagnostics
 /esm.js
@@ -46,7 +52,7 @@
 /debug/debug.js
 /debug/module.js
 
-# Generated native test files from tooling/esm/outputs.ts
+# Generated native test files from script/src/esm/outputs.ts
 /test/cache-tests.js
 /test/create-meta.js
 /test/create-namespace.js

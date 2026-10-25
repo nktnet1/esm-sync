@@ -26,7 +26,7 @@ export function checkTypeSafety(program: ts.Program, root: string): void {
     if (
       relative.startsWith("..") ||
       path.isAbsolute(relative) ||
-      /(?:^|[/\\])(?:node_modules|vendor|script)(?:[/\\])/.test(relative)
+      /(?:^|[/\\])(?:node_modules|vendor)(?:[/\\])/.test(relative)
     )
       continue
     function fail(node: ts.Node): void {

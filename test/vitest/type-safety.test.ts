@@ -2,12 +2,13 @@ import assert from "node:assert/strict"
 import path from "node:path"
 import { describe, it } from "vitest"
 import ts from "typescript"
-import { checkTypeSafety } from "../../tooling/esm/check-type-safety.ts"
+import { checkTypeSafety } from "../../script/src/esm/check-type-safety.ts"
 
 const root = path.resolve("test/env/type-safety")
 const validRoot = path.join(root, "valid")
 const invalidRoot = path.join(root, "invalid")
 const sources = new Map([
+  [path.join(invalidRoot, "script/src/probe.ts"), 'export const parsed = JSON.parse("null");'],
   [
     path.join(validRoot, "probe.ts"),
     'export const parsed: unknown = JSON.parse("null"); export const cache = new Map<string, unknown>();'
@@ -42,7 +43,7 @@ describe("type safety gate", () => {
       (error: unknown) => {
         assert.ok(error instanceof Error)
         assert.match(error.message, /Type safety check failed/)
-        assert.equal(error.message.match(/unchecked any/g)?.length, 2)
+        assert.equal(error.message.match(/unchecked any/g)?.length, 3)
         return true
       }
     )

@@ -6,7 +6,6 @@ import ignorePaths from "./ignore-paths.js"
 import setupNativeAddon from "./setup-native-addon.js"
 import path from "path"
 import createTestCleanupFilter from "./test-cleanup-paths.js"
-import { minify as terser } from "terser"
 import trash from "./trash.js"
 import { harnessOutputs } from "./esm/outputs.js"
 
@@ -41,13 +40,9 @@ const keptPaths = [
   path.resolve(rootPath, "test/vendor"),
   ...Object.values(harnessOutputs).map((filename) => path.resolve(rootPath, filename))
 ]
-const jsPaths = [path.resolve(rootPath, "esm.js"), path.resolve(rootPath, "index.js")]
 const trashPaths = ignorePaths.filter(
   createTestCleanupFilter({ keptPaths, nodeModulesPath, sharedCachePath })
 )
-const terserOptions = fs.readJSONSync(
-  path.resolve(rootPath, ".terserrc")
-) as import("terser").MinifyOptions
 
 function assertFixturesReady() {
   if (
@@ -69,21 +64,6 @@ async function dispose(paths: string[]) {
   }
 
   await trash(paths)
-}
-
-async function cleanJS() {
-  for (const filename of jsPaths) {
-    const content = fs.readFileSync(filename, "utf8")
-    const { code } = await terser(content, terserOptions)
-
-    if (typeof code !== "string") {
-      throw new Error("Terser did not produce JavaScript output")
-    }
-
-    // Production runs exercise minified public entry points without altering git files.
-    process.once("exit", () => fs.outputFileSync(filename, content))
-    fs.outputFileSync(filename, code)
-  }
 }
 
 async function setupRepo() {
@@ -124,7 +104,7 @@ function runTests() {
 
 Promise.resolve()
   .then(assertFixturesReady)
-  .then(() => Promise.all([argv.prod && cleanJS(), setupRepo()]))
+  .then(setupRepo)
   .then(setupNode)
   .then(setupNativeAddon)
   .then(runTests)

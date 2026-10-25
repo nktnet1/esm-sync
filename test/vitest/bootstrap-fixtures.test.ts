@@ -16,7 +16,7 @@ it("prepares Acorn from a checkout without vendor or generated files and still r
   const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-clean-fixtures-"))
   try {
     const excluded = path.join(root, "src/vendor")
-    for (const name of ["src", "tooling", "bootstrap", "diagnostics", "harness"])
+    for (const name of ["src", "script/src", "debug", "test/harness"])
       await cp(path.join(root, name), path.join(directory, name), {
         recursive: true,
         filter: (source) => source !== excluded
@@ -35,7 +35,7 @@ it("prepares Acorn from a checkout without vendor or generated files and still r
       path.join(directory, "node_modules"),
       "junction"
     )
-    assert.ok(!(await readdir(directory)).includes("script"))
+    assert.deepEqual(await readdir(path.join(directory, "script")), ["src"])
     assert.ok(!(await readdir(path.join(directory, "src"))).includes("vendor"))
 
     const archive = new AdmZip()
@@ -56,7 +56,7 @@ globalThis.fetch = async (url) => {
 }
 `
     )
-    const args = ["tooling/esm/cli.ts", "setup-fixtures", "acorn"]
+    const args = ["script/src/esm/cli.ts", "setup-fixtures", "acorn"]
     const options = {
       cwd: directory,
       timeout: 60_000,
@@ -74,13 +74,17 @@ globalThis.fetch = async (url) => {
       "export class Parser {}\n"
     )
     assert.ok(
-      !(await readdir(path.join(directory, "script"), { recursive: true })).some((name) =>
-        /\.d\.[cm]?ts$/.test(name)
+      !(await readdir(path.join(directory, "script"), { recursive: true })).some(
+        (name) => !name.startsWith("src" + path.sep) && /\.d\.[cm]?ts$/.test(name)
       )
     )
 
+    assert.ok((await readdir(path.join(directory, "script"))).includes("build-sync-await-dev.js"))
+    for (const name of ["esm.js", "index.js", "script/build-sync-await.js"])
+      await assert.rejects(readFile(path.join(directory, name)), { code: "ENOENT" })
+
     await writeFile(
-      path.join(directory, "tooling/missing-side-effect.ts"),
+      path.join(directory, "script/src/missing-side-effect.ts"),
       'import "./missing-owned-module.js"\n'
     )
     await assert.rejects(run(process.execPath, args, options), (error: unknown) => {

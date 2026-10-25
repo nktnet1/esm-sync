@@ -10,9 +10,9 @@ import test262Parser from "test262-parser"
 
 const require = createRequire(import.meta.url)
 const setupTest262 =
-  require("../script/setup-test262.js") as typeof import("../tooling/setup-test262.js")
+  require("../script/setup-test262.js") as typeof import("../../script/src/setup-test262.js")
 const { assertTest262Outcome } =
-  require("../script/test262-outcome.js") as typeof import("../tooling/test262-outcome.js")
+  require("../script/test262-outcome.js") as typeof import("../../script/src/test262-outcome.js")
 const {
   createReport,
   detectHostFeatures,
@@ -21,7 +21,8 @@ const {
   getUnsupportedLoaderFeatures,
   isGeneratedGrammarCase,
   selectCases
-} = require("../script/test262-selection.js") as typeof import("../tooling/test262-selection.js")
+} =
+  require("../script/test262-selection.js") as typeof import("../../script/src/test262-selection.js")
 const testPath = fileURLToPath(new URL("./", import.meta.url))
 const fixturePath = path.join(testPath, "test262")
 const corpusPath = path.join(testPath, "vendor/test262")

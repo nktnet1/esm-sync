@@ -10,6 +10,6 @@
     "resolveJsonModule": true,
     "rewriteRelativeImportExtensions": true
   },
-  "include": ["tooling/**/*.ts"],
+  "include": ["script/src/**/*.ts"],
   "exclude": []
 }

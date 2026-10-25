@@ -7,7 +7,7 @@ import { checkTypeSafety } from "./check-type-safety.ts"
 import { checkTypeScriptVersion } from "./check-typescript-version.ts"
 import { harnessOutputs } from "./outputs.ts"
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 const host: ts.FormatDiagnosticsHost = {
   getCanonicalFileName: (name) => name,
   getCurrentDirectory: () => root,
@@ -35,12 +35,11 @@ function checkConfig(filename: string, audit = false): void {
 function outputPath(filename: string): string | undefined {
   const relative = path.relative(root, filename).split(path.sep).join("/")
   if (relative in harnessOutputs) return path.resolve(root, harnessOutputs[relative]!)
-  if (relative.startsWith("tooling/"))
-    return path.resolve(root, "script", relative.slice(8).replace(/\.ts$/, ".js"))
-  if (relative.startsWith("bootstrap/"))
-    return path.resolve(root, relative.slice(10).replace(/\.ts$/, ".js"))
-  if (relative.startsWith("diagnostics/"))
-    return path.resolve(root, "debug", relative.slice(12).replace(/\.ts$/, ".js"))
+  if (relative === "script/src/build-sync-await.ts")
+    return path.resolve(root, "script/build-sync-await-dev.js")
+  if (relative.startsWith("script/src/"))
+    return path.resolve(root, "script", relative.slice(11).replace(/\.ts$/, ".js"))
+  if (relative.startsWith("debug/")) return path.resolve(root, relative.replace(/\.ts$/, ".js"))
   return undefined
 }
 
@@ -49,9 +48,10 @@ function outputPath(filename: string): string | undefined {
 function rewriteSpecifier(filename: string, specifier: string): string {
   if (!specifier.startsWith(".")) return specifier
   const resolved = path.resolve(path.dirname(filename), specifier)
-  const base = resolved.replace(/\.[cm]?js$/, "")
+  const base = resolved.replace(/\.[cm]?[jt]s$/, "")
   const source = [base + ".ts", base + ".cts"].find((candidate) => fs.existsSync(candidate))
-  const importedOutput = source === undefined ? undefined : outputPath(source)
+  const importedOutput =
+    source === undefined ? (specifier.endsWith(".json") ? resolved : undefined) : outputPath(source)
   const currentOutput = outputPath(filename)
   if (importedOutput === undefined || currentOutput === undefined) return specifier
   const relative = path
@@ -97,17 +97,12 @@ function importPaths(filename: string): ts.TransformerFactory<ts.SourceFile> {
 
 function emitFile(filename: string, target: string): void {
   const relative = path.relative(root, filename).split(path.sep).join("/")
-  const bootstrap = relative.startsWith("bootstrap/")
-  const esmTooling = relative.startsWith("tooling/esm/")
-  const commonjs =
-    bootstrap || (relative.startsWith("tooling/") && !esmTooling) || filename.endsWith(".cts")
+  const esmTooling = relative.startsWith("script/src/esm/")
+  const commonjs = (relative.startsWith("script/src/") && !esmTooling) || filename.endsWith(".cts")
   const result = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
     fileName: filename,
     compilerOptions: {
-      target:
-        bootstrap || relative.startsWith("tooling/")
-          ? ts.ScriptTarget.ES2015
-          : ts.ScriptTarget.ESNext,
+      target: relative.startsWith("script/src/") ? ts.ScriptTarget.ES2015 : ts.ScriptTarget.ESNext,
       module: commonjs ? ts.ModuleKind.NodeNext : ts.ModuleKind.Preserve,
       esModuleInterop: true,
       rewriteRelativeImportExtensions: esmTooling
@@ -117,10 +112,8 @@ function emitFile(filename: string, target: string): void {
   })
   if (result.diagnostics?.length)
     throw new Error(ts.formatDiagnosticsWithColorAndContext(result.diagnostics, host))
-  let code = result.outputText
-  if (relative === "bootstrap/esm.ts") code = code.replace(/^"use strict";\r?\n/, "")
   fs.mkdirSync(path.dirname(target), { recursive: true })
-  fs.writeFileSync(target, code)
+  fs.writeFileSync(target, result.outputText)
 }
 
 function emitTree(directory: string): void {
@@ -128,6 +121,7 @@ function emitTree(directory: string): void {
     const filename = path.join(directory, entry.name)
     if (entry.isDirectory()) emitTree(filename)
     else if (/\.[cm]?ts$/.test(filename) && !/\.d\.[cm]?ts$/.test(filename)) {
+      if (filename === fileURLToPath(import.meta.url)) continue
       const target = outputPath(filename)
       if (target === undefined) throw new Error("Missing generated output mapping: " + filename)
       emitFile(filename, target)
@@ -145,25 +139,33 @@ try {
     if (
       task === undefined ||
       !/^[a-z][\w-]*$/.test(task) ||
-      !fs.existsSync(path.join(root, "tooling", task + ".ts"))
+      !fs.existsSync(path.join(root, "script/src", task + ".ts"))
     )
       throw new Error("Unknown tooling task: " + task)
     checkConfig("tsconfig.tooling.json")
     checkConfig("tsconfig.bootstrap.json")
     checkConfig("tsconfig.harness.json")
-    // This directory contains only generated commands. Clear the previous
-    // declaration-emitting layout and stale commands before writing JavaScript.
-    fs.rmSync(path.join(root, "script"), { recursive: true, force: true })
-    for (const directory of ["tooling", "bootstrap", "diagnostics", "harness"])
+    // Preserve maintained sources and Rspack's public installer while replacing
+    // generated development commands and removing old declaration output.
+    for (const entry of fs.readdirSync(path.join(root, "script"), { withFileTypes: true })) {
+      if (
+        entry.name === "esm" ||
+        (entry.isFile() &&
+          /\.(?:[cm]?js|d\.[cm]?ts)$/.test(entry.name) &&
+          entry.name !== "build-sync-await.js")
+      )
+        fs.rmSync(path.join(root, "script", entry.name), { recursive: true, force: true })
+    }
+    for (const directory of ["script/src", "debug", "test/harness"])
       emitTree(path.join(root, directory))
     fs.copyFileSync(
-      path.join(root, "tooling/esm/package.json"),
+      path.join(root, "script/src/esm/package.json"),
       path.join(root, "script/esm/package.json")
     )
     fs.copyFileSync(path.join(root, "script/esm/ncurc.js"), path.join(root, ".ncurc.mjs"))
     const result = spawnSync(
       process.execPath,
-      [path.join(root, "script", task + ".js"), ...process.argv.slice(3)],
+      [outputPath(path.join(root, "script/src", task + ".ts"))!, ...process.argv.slice(3)],
       { cwd: root, stdio: "inherit", env: process.env }
     )
     if (result.error) throw result.error

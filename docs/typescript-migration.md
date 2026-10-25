@@ -8,8 +8,8 @@ plain JavaScript through the existing CommonJS API and package paths.
 
 `.mts` is an explicit ESM marker, rather than a TypeScript requirement. Plain
 `.ts` files use the nearest `package.json` to determine their module system.
-Private development package scopes set `"type": "module"` in `tooling/esm/`,
-`test/vitest/`, and `harness/`. Their ESM sources and imports now use `.ts`.
+Private development package scopes set `"type": "module"` in `script/src/esm/`,
+`test/vitest/`, and `test/harness/`. Their ESM sources and imports now use `.ts`.
 
 The root package keeps its existing module format. Adding `"type": "module"`
 there would reinterpret published `esm.js` and `index.js` as ESM and change
@@ -25,20 +25,44 @@ filenames independently of the TypeScript source layout.
 | Source | Generated output / purpose |
 | --- | --- |
 | `src/**/*.ts` | Rspack/Babel loader and test bundles |
-| `bootstrap/esm.ts`, `bootstrap/index.ts` | Public `esm.js`, `index.js` |
-| `tooling/esm/cli.ts` | Native TypeScript development entry point |
-| `tooling/esm/ncurc.ts` | Maintenance configuration `.ncurc.mjs` |
-| `tooling/**/*.ts` | JavaScript commands in `script/` |
-| `harness/**/*.ts`, `harness/**/*.cts` | Native suites, helpers, reporters, and Test262 entry points in `test/` |
-| `diagnostics/**/*.ts` | `debug/*.js` |
+| `src/bootstrap/esm.ts`, `src/bootstrap/index.ts` | Public `esm.js`, `index.js` |
+| `script/src/esm/cli.ts` | Native TypeScript development entry point |
+| `script/src/esm/ncurc.ts` | Maintenance configuration `.ncurc.mjs` |
+| `script/src/build-sync-await.ts` | Rspack public installer and separate development bridge helper |
+| `script/src/**/*.ts` | JavaScript commands in `script/` |
+| `test/harness/**/*.ts`, `test/harness/**/*.cts` | Native suites, helpers, reporters, and Test262 entry points in `test/` |
+| `debug/**/*.ts` | `debug/*.js` |
 | `test/vitest/**/*.ts` | Vitest tests and helpers |
 
 The remaining JavaScript under compatibility fixture directories is deliberate
 loader input, including syntax errors, extension/goal checks, historical hosts,
 and compiler-output snapshots. Native C/C++ and vendor sources retain their
 original languages. The maintained native suites themselves now live in
-`harness/`, including PM2 setup and process-list validation. The output snapshot
+`test/harness/`, including PM2 setup and process-list validation. The output snapshot
 suite also migrated to TypeScript and is included in Vitest again.
+
+## Repository layout and public entry points
+
+The maintained source trees are `src/` (loader and public bootstrap), `script/src/`
+(build and maintenance commands), `test/` (native harness, Vitest, compatibility
+fixtures and consumer checks), `debug/`, `native/`, and `docs/`. The separate
+root `bootstrap/`, `tooling/`, `harness/`, and `diagnostics/` directories are no
+longer needed. `build/`, `esm/`, and `node_modules/` contain generated output or
+installed dependencies.
+
+Rspack now owns emission of `esm.js`, `index.js`, and the standalone
+`script/build-sync-await.js` from maintained TypeScript. A second compiler runs
+after the loader compiler, using built-in SWC to produce ES2015 CommonJS
+resource assets. These execute as native modules: a bundle wrapper would change
+`module.filename`, `module.parent`, and the bootstrap's sloppy global-`this`
+fallback used when unsafe eval is unavailable. No custom bootstrap transpiler
+or post-emission removal of strict mode is needed.
+
+Production builds minimize these assets with the existing Terser options.
+Auxiliary entry chunks stay in `build/bootstrap/` and are excluded from the
+published package. Tests exercise the actual public build output without
+rewriting or restoring it. Public filenames, CommonJS entry points, and deep
+requires remain compatible.
 
 ## Checking and generation
 
@@ -46,21 +70,24 @@ suite also migrated to TypeScript and is included in Vitest again.
 bootstrap, harness, unit tests, public declarations and consumers, ts-node input,
 and separately configured AVA/NYC/tsc fixture. The installed TypeScript version is
 checked directly from the native entry point. Checking neither creates nor
-cleans `script/` and works when that directory is absent.
+cleans generated commands and works before any JavaScript output exists.
 
 Build/test commands first run no-emit checks, then generate JavaScript separately.
-They clear the disposable `script/` output directory before generation, removing
-stale commands and declarations produced by the earlier emitter. They do not
-emit `.d.ts` files. Tests obtain helper types directly from maintained TypeScript
-sources. `index.d.ts`, source boundary declarations, and fixture contracts are
+They replace generated commands directly under `script/` and in `script/esm/`,
+removing stale commands and declarations while preserving maintained `script/src/`
+and the public installer. They do not emit `.d.ts` files. Tests obtain helper
+types directly from maintained TypeScript sources. `index.d.ts`, source boundary declarations, and fixture contracts are
 maintained declarations, rather than generated command output.
 
 Use the existing pnpm commands. Build before invoking generated `script/*.js`
 commands directly or packing with lifecycle scripts disabled. Consumers do not
-need TypeScript. The standalone native bridge installer still emits CommonJS
-JavaScript and has no dependency on development ESM scopes.
+need TypeScript. Rspack emits the public native bridge installer as CommonJS
+JavaScript with no dependency on development ESM scopes. Preparation emits a separate
+`script/build-sync-await-dev.js` so the bridge can be compiled before bundling.
+It never creates, deletes, or overwrites the published `esm.js`, `index.js`,
+or `script/build-sync-await.js`.
 
-`tooling/esm/outputs.ts` lists native test output filenames. The emitter rewrites
+`script/src/esm/outputs.ts` lists native test output filenames. The emitter rewrites
 owned helper imports to those destinations while leaving compatibility fixture
 requests unchanged. Keeping `.mjs` output for helpers imported by strict `.mjs`
 suites preserves the loader's extension checks. Rspack still strips source types
@@ -68,9 +95,9 @@ with its built-in SWC loader before applying the existing Babel transforms.
 
 ## Ignore rules
 
-The additional rules cover generated output only: `script/`, public entry-point
-files, maintenance configuration, diagnostic JavaScript, and the native test
-files listed in the output manifest. Native test filenames are listed explicitly
+The additional rules cover generated output only: JavaScript and old declarations
+directly under `script/`, `script/esm/`, public entry-point files, maintenance
+configuration, diagnostic JavaScript, and the native test files listed in the output manifest. Native test filenames are listed explicitly
 rather than ignoring the whole test tree. Previously tracked generated copies
 are removed from Git's index so the rules actually take effect. Maintained
 TypeScript directories are not ignored.
@@ -84,7 +111,7 @@ it from being included by the package's explicit `files` manifest after a build.
 
 All owned projects enable `strict`, `noUncheckedIndexedAccess`,
 `exactOptionalPropertyTypes`, and unknown catch variables, with library checking
-enabled. The inferred-`any` audit in `tooling/esm/check-type-safety.ts` also checks
+enabled. The inferred-`any` audit in `script/src/esm/check-type-safety.ts` also checks
 owned declarations, returns, unions, and collection arguments. There are no
 `@ts-ignore` or `@ts-nocheck` escapes. Native/import/eval and JSON boundaries expose
 `unknown` or concrete fixture contracts. Negative-input tests use explicit erased
@@ -99,6 +126,24 @@ and indexed-access checks still enabled.
 
 ## Validation
 
+### Consolidated layout and bundler emission
+
+This follow-up passes supplied Biome checks, strict no-emit checking and the
+inferred-`any` audit. All 28 Vitest files and 1,140 tests pass against the
+production build on Node 24.21.0. Preparation and the production test runner
+leave all three public generated assets byte-identical. Deleting those files
+and rebuilding also regenerates all three byte-identically.
+The 21 focused clean-checkout, type-safety and CLI-hook tests also pass on
+Node 22/26, including checks that preparation emits the development bridge
+helper without creating public entry files or generated declarations.
+
+Packed CommonJS consumers, CLI preloads, direct entry-point requires and the
+standalone installer export pass on Node 22.23.4/24.21.0/26.12.0. The Rspack
+installer compiles the native bridge using supplied Node 22/26 headers. The
+package contains the same 12 public/license/metadata/native files, without
+maintained development sources, private ESM scopes or auxiliary entry chunks.
+These checks ran on Linux; no new cross-platform CI result is claimed.
+
 ### Clean-checkout and resolution follow-up
 
 Strict checking can run before vendor preparation. The Acorn boundary now
@@ -107,7 +152,7 @@ the existing typed value imports. No wildcard catch-all or compiler-check
 suppression is needed. Builds still require the real downloaded sources.
 
 The clean-checkout regression copies maintained sources without `src/vendor`,
-`script`, or bundles and runs the real fixture CLI against a local ZIP response.
+generated commands, or bundles and runs the real fixture CLI against a local ZIP response.
 It checks extraction and JavaScript-only generation, then verifies that a
 missing owned side-effect import still fails with TS2882. A separate source-only
 snapshot also passes aggregate checking before fixture preparation and builds
@@ -130,7 +175,7 @@ Dedicated resolution tests cover these cases and long multiline suffixes with
 200,000 delimiters in bounded native Node processes. This follow-up passes
 Biome, strict no-emit checking, and the inferred-`any` audit. All 28 Vitest files
 and 1,140 tests pass on Node 24.21.0 in development and production. The 15 focused
-bootstrap/resolution tests pass on Node 22.23.4/24.21.0/26.12.0, and the 14
+src/bootstrap/resolution tests pass on Node 22.23.4/24.21.0/26.12.0, and the 14
 resolution tests also pass against production bundles on Node 22/26. These new
 checks ran on Linux. The offline bootstrap test gives its child processes a
 separate bounded budget for checking several TypeScript projects on busy runners.
@@ -141,7 +186,7 @@ The CodeQL CLI is unavailable locally, so a fresh CodeQL scan is not claimed.
 The v1.0.4 module-scope and no-emit follow-up passes:
 
 - Supplied Biome formatting/lint checks, strict no-emit checking, and the
-  inferred-`any` audit. Checking also succeeds with `script/` absent and leaves it
+  inferred-`any` audit. Checking also succeeds before generated commands exist and leaves them
   absent; generated commands contain no declaration files after a build.
 - All 26 Vitest files and 1,125 tests on Linux: Node 24.21.0 in development and
   Node 22.23.4/24.21.0/26.12.0 in production. These include the 20 restored compiler-output

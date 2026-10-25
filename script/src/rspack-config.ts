@@ -15,7 +15,7 @@ const { ESM_ENV } = process.env
 const isProd = /production/.test(ESM_ENV ?? "")
 const isTest = /test/.test(ESM_ENV ?? "")
 
-import packageInfo from "../package.json"
+import packageInfo from "../../package.json"
 const { files: PACKAGE_FILENAMES, version: PACKAGE_VERSION } = packageInfo
 
 const externals = [
@@ -42,6 +42,7 @@ import babelOptions from "./babel-config.js"
 const terserOptions = fs.readJSONSync("./.terserrc") as import("terser").MinifyOptions
 
 const config = defineConfig({
+  name: "loader",
   devtool: false,
   entry: {
     esm: "./src/index.ts"
@@ -121,7 +122,7 @@ const config = defineConfig({
     ),
     new UnusedPlugin({
       directories: [path.resolve("src")],
-      exclude: [".*", "*.json", "**/vendor/*", "**/types/*"],
+      exclude: [".*", "*.json", "**/vendor/*", "**/types/*", "**/bootstrap/**"],
       root: path.resolve(__dirname, "..")
     })
   ],
@@ -144,4 +145,49 @@ if (isTest) {
   })
 }
 
-export = config
+// These files must execute as native CommonJS modules. A bundle wrapper changes
+// module.filename/parent and the bootstrap's CSP-compatible global discovery.
+// SWC compiles their TypeScript, then resource assets preserve that context.
+const entrypoints = defineConfig({
+  name: "entrypoints",
+  dependencies: ["loader"],
+  mode: isProd ? "production" : "development",
+  devtool: false,
+  entry: {
+    esm: "./src/bootstrap/esm.ts",
+    index: "./src/bootstrap/index.ts",
+    installer: "./script/src/build-sync-await.ts"
+  },
+  module: {
+    rules: [
+      ...[
+        { test: /bootstrap[\\/]esm\.ts$/, filename: "esm.js" },
+        { test: /bootstrap[\\/]index\.ts$/, filename: "index.js" },
+        { test: /build-sync-await\.ts$/, filename: "script/build-sync-await.js" }
+      ].map(({ test, filename }) => ({
+        test,
+        type: "asset/resource",
+        generator: { filename },
+        use: {
+          loader: "builtin:swc-loader",
+          options: {
+            jsc: { parser: { syntax: "typescript" }, target: "es2015" },
+            module: { type: "commonjs", strictMode: false }
+          }
+        }
+      }))
+    ]
+  },
+  output: {
+    path: path.resolve("."),
+    clean: false,
+    filename: "build/bootstrap/[name].js"
+  },
+  optimization: {
+    minimizer: [new TerserPlugin({ extractComments: false, terserOptions })]
+  },
+  stats: isTest ? "summary" : "normal",
+  target: "node"
+})
+
+export = [config, entrypoints]

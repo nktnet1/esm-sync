@@ -5,10 +5,10 @@
     "lib": ["ESNext", "DOM"]
   },
   "include": [
-    "bootstrap/**/*.ts",
-    "diagnostics/**/*.ts",
+    "src/bootstrap/**/*.ts",
+    "debug/**/*.ts",
     "src/types/**/*.d.ts",
-    "tooling/semver.d.ts"
+    "script/src/semver.d.ts"
   ],
   "exclude": ["src/vendor"]
 }
