@@ -11,7 +11,7 @@ const contexts = [
   ["next tick", "process.nextTick(run)", false],
   [
     "I/O callback",
-    "require('node:fs').readFile('../package.json', error => {assert.ifError(error); run()})",
+    "require('node:fs').readFile('../index.js', error => {assert.ifError(error); run()})",
     false
   ],
   ["Promise reaction", "Promise.resolve().then(run)", true],

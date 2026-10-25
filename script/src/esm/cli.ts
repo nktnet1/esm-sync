@@ -2,6 +2,7 @@ import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnSync } from "node:child_process"
+import { createRequire } from "node:module"
 import ts from "typescript"
 import { checkTypeSafety } from "./check-type-safety.ts"
 import { checkTypeScriptVersion } from "./check-typescript-version.ts"
@@ -34,14 +35,50 @@ function checkConfig(filename: string, audit = false): void {
 
 function outputPath(filename: string): string | undefined {
   const relative = path.relative(root, filename).split(path.sep).join("/")
-  if (relative === "config/ncurc.ts") return path.join(root, ".ncurc.mjs")
   if (relative in harnessOutputs) return path.resolve(root, harnessOutputs[relative]!)
   if (relative === "script/src/build-sync-await.ts")
-    return path.resolve(root, "script/build-sync-await-dev.js")
+    return path.resolve(root, "dist/script/build-sync-await-dev.js")
   if (relative.startsWith("script/src/"))
-    return path.resolve(root, "script", relative.slice(11).replace(/\.ts$/, ".js"))
-  if (relative.startsWith("debug/")) return path.resolve(root, relative.replace(/\.ts$/, ".js"))
+    return path.resolve(root, "dist/script", relative.slice(11).replace(/\.ts$/, ".js"))
+  if (relative.startsWith("debug/"))
+    return path.resolve(root, "dist", relative.replace(/\.ts$/, ".js"))
   return undefined
+}
+
+function prepareTestWorkspace(): void {
+  const source = path.join(root, "test")
+  const target = path.join(root, "dist/test")
+  const generated = new Set(
+    Object.values(harnessOutputs).map((filename) => filename.slice("dist/test/".length))
+  )
+  fs.rmSync(target, { recursive: true, force: true })
+  fs.cpSync(source, target, {
+    recursive: true,
+    verbatimSymlinks: true,
+    filter(filename) {
+      const relative = path.relative(source, filename).split(path.sep).join("/")
+      return (
+        !/^(?:harness|vitest)(?:\/|$)/.test(relative) &&
+        !generated.has(relative) &&
+        !/(?:^|\/)(?:\.cache|\.nyc_output|\.pm2|\.node-spawn-wrap-[^/]*)(?:\/|$)/.test(relative) &&
+        !/^env\/(?:native-cache|prefix\/(?:bin|node(?:\.exe)?))(?:\/|$)/.test(relative) &&
+        !relative.includes("/.local/share/Trash") &&
+        !/^fixture\/find-path\/created(?:\/|$)/.test(relative) &&
+        !/^fixture\/unsafe-characters\[/.test(relative) &&
+        !/^fixture\/main-hook\/symlink\/file\/symlink\./.test(relative) &&
+        !/^fixture\/scenario\/(?:ava-nyc-tsc\/.*\.js|webpack\/output\.js)$/.test(relative) &&
+        !/\.(?:node|obj|lib|exp)$/.test(relative) &&
+        relative !== "node_modules/symlink"
+      )
+    }
+  })
+  // Native scenario executables use ../node_modules. The junction also works
+  // on Windows without the privileges needed for file symlinks.
+  const dependencies = path.join(root, "dist/node_modules")
+  if (!fs.lstatSync(dependencies, { throwIfNoEntry: false })?.isSymbolicLink()) {
+    fs.rmSync(dependencies, { recursive: true, force: true })
+    fs.symlinkSync(path.join(root, "node_modules"), dependencies, "junction")
+  }
 }
 
 // Resolve source helpers to their generated compatibility filenames. Fixture
@@ -120,6 +157,9 @@ function emitFile(filename: string, target: string): void {
 function emitTree(directory: string): void {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const filename = path.join(directory, entry.name)
+    // The native TypeScript CLI and its checker helpers run from source.
+    // They have no generated consumers and need no copied ESM package config.
+    if (filename === path.join(root, "script/src/esm")) continue
     if (entry.isDirectory()) emitTree(filename)
     else if (/\.[cm]?ts$/.test(filename) && !/\.d\.[cm]?ts$/.test(filename)) {
       if (filename === fileURLToPath(import.meta.url)) continue
@@ -146,33 +186,41 @@ try {
     checkConfig("config/tsconfig.tooling.json")
     checkConfig("config/tsconfig.bootstrap.json")
     checkConfig("config/tsconfig.harness.json")
-    // Preserve maintained sources and the public installer while replacing
-    // generated development commands and removing old declaration output.
-    for (const entry of fs.readdirSync(path.join(root, "script"), { withFileTypes: true })) {
+    if (["build", "test", "run-test262", "setup-native-addon"].includes(task))
+      prepareTestWorkspace()
+    // Keep the public installer while replacing generated development commands.
+    const scriptDirectory = path.join(root, "dist/script")
+    fs.mkdirSync(scriptDirectory, { recursive: true })
+    for (const entry of fs.readdirSync(scriptDirectory, { withFileTypes: true })) {
       if (
         entry.name === "esm" ||
         (entry.isFile() &&
           /\.(?:[cm]?js|d\.[cm]?ts)$/.test(entry.name) &&
           entry.name !== "build-sync-await.js")
       )
-        fs.rmSync(path.join(root, "script", entry.name), { recursive: true, force: true })
+        fs.rmSync(path.join(scriptDirectory, entry.name), { recursive: true, force: true })
     }
     for (const directory of ["script/src", "debug", "test/harness"])
       emitTree(path.join(root, directory))
-    fs.copyFileSync(
-      path.join(root, "script/src/esm/package.json"),
-      path.join(root, "script/esm/package.json")
-    )
-    emitFile(path.join(root, "config/ncurc.ts"), path.join(root, ".ncurc.mjs"))
-    const result = spawnSync(
-      process.execPath,
-      [outputPath(path.join(root, "script/src", task + ".ts"))!, ...process.argv.slice(3)],
-      { cwd: root, stdio: "inherit", env: process.env }
-    )
-    if (result.error) throw result.error
-    process.exitCode = result.status ?? 1
+    const command = outputPath(path.join(root, "script/src", task + ".ts"))!
+    if (task === "test-verdaccio") {
+      // Await the complete registry lifecycle, including teardown. A pending
+      // task cannot silently succeed because its CommonJS entry ran out of handles.
+      const registry = createRequire(import.meta.url)(
+        command
+      ) as typeof import("../test-verdaccio.js")
+      await registry.runRegistryTest(process.argv.slice(3))
+    } else {
+      const result = spawnSync(process.execPath, [command, ...process.argv.slice(3)], {
+        cwd: root,
+        stdio: "inherit",
+        env: process.env
+      })
+      if (result.error) throw result.error
+      process.exitCode = result.status ?? 1
+    }
   }
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error)
+  console.error(task === "test-verdaccio" ? error : error instanceof Error ? error.message : error)
   process.exitCode = 1
 }

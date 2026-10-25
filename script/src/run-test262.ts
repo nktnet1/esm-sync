@@ -51,9 +51,9 @@ if (options.excludeFeature.some((feature) => feature.trim() === "")) {
   program.error("--exclude-feature must not be empty")
 }
 
-const rootPath = path.resolve(__dirname, "..")
-const testPath = path.join(rootPath, "test/test262.mjs")
-const missingBundles = ["build/compiler.js", "esm/loader.js"].filter(
+const rootPath = path.resolve(__dirname, "../..")
+const testPath = path.join(rootPath, "dist/test/test262.mjs")
+const missingBundles = ["dist/build/compiler.js", "dist/esm/loader.js"].filter(
   (filename) => !existsSync(path.join(rootPath, filename))
 )
 if (missingBundles.length)

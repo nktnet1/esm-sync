@@ -92,15 +92,15 @@ const banner = [
     " };",
   "var console = global.console;"
 ].join("\n")
-const entries: Record<string, string> = { esm: "src/index.ts" }
+const entries: Record<string, string> = { "esm/loader": "src/index.ts" }
 if (isTest)
   Object.assign(entries, {
-    compiler: "src/compiler.ts",
-    entry: "src/entry.ts",
-    "resolve-exports": "src/module/internal/resolve-exports.ts",
-    "get-file-path-from-url": "src/util/get-file-path-from-url.ts",
-    "get-url-from-file-path": "src/util/get-url-from-file-path.ts",
-    runtime: "src/runtime.ts"
+    "build/compiler": "src/compiler.ts",
+    "build/entry": "src/entry.ts",
+    "build/resolve-exports": "src/module/internal/resolve-exports.ts",
+    "build/get-file-path-from-url": "src/util/get-file-path-from-url.ts",
+    "build/get-url-from-file-path": "src/util/get-url-from-file-path.ts",
+    "build/runtime": "src/runtime.ts"
   })
 
 export default defineConfig([
@@ -109,12 +109,14 @@ export default defineConfig([
       ...base,
       name,
       entry: { [name]: entry },
-      outDir: "build",
+      outDir: "dist",
       treeshake: false,
       deps: { onlyBundle: ["json-6", "semver"] },
       outputOptions: { ...base.outputOptions, intro: banner },
       define: {
-        __ESM_PACKAGE_FILENAMES__: JSON.stringify(packageInfo.files),
+        __ESM_PACKAGE_FILENAMES__: JSON.stringify(
+          packageInfo.files.map((filename) => path.posix.relative("dist", filename))
+        ),
         __ESM_PACKAGE_VERSION__: JSON.stringify(packageInfo.version),
         "process.env.ESM_SYNC_TEST_BUILD": JSON.stringify(
           process.env.ESM_SYNC_TEST_BUILD ?? isTest
@@ -137,7 +139,7 @@ export default defineConfig([
       ...base,
       name: `bootstrap:${name}`,
       entry: { [name]: entry },
-      outDir: ".",
+      outDir: "dist",
       outputOptions: { ...base.outputOptions, strict: name !== "esm" },
       deps: { neverBundle: ["./esm.js"] }
     })

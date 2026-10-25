@@ -10,7 +10,6 @@ const root = fileURLToPath(new URL("../../", import.meta.url))
 const bundles = [
   "compiler.js",
   "entry.js",
-  "esm.js",
   "get-file-path-from-url.js",
   "get-url-from-file-path.js",
   "resolve-exports.js",
@@ -19,16 +18,17 @@ const bundles = [
 
 describe("build output contract", () => {
   it("emits standalone test bundles without additional shared chunks", async () => {
-    const files = await readdir(path.join(root, "build"), { recursive: true })
+    const files = await readdir(path.join(root, "dist/build"), { recursive: true })
     assert.deepEqual(files.filter((name) => name.endsWith(".js")).sort(), bundles)
   })
 
   it("keeps published JavaScript and test bundles compatible with ES2015 syntax", async () => {
     for (const filename of [
-      "esm.js",
-      "index.js",
-      "script/build-sync-await.js",
-      ...bundles.map((name) => "build/" + name)
+      "dist/esm/loader.js",
+      "dist/esm.js",
+      "dist/index.js",
+      "dist/script/build-sync-await.js",
+      ...bundles.map((name) => "dist/build/" + name)
     ]) {
       const source = await readFile(path.join(root, filename), "utf8")
       assert.doesNotThrow(
@@ -40,9 +40,10 @@ describe("build output contract", () => {
 
   it("preserves effective strict directives in loader, index, and installer output", async () => {
     for (const filename of [
-      "index.js",
-      "script/build-sync-await.js",
-      ...bundles.map((name) => "build/" + name)
+      "dist/esm/loader.js",
+      "dist/index.js",
+      "dist/script/build-sync-await.js",
+      ...bundles.map((name) => "dist/build/" + name)
     ]) {
       const source = await readFile(path.join(root, filename), "utf8")
       const first = parse(source, { ecmaVersion: 2015, sourceType: "script" }).body[0]

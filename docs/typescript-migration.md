@@ -25,13 +25,13 @@ filenames independently of the TypeScript source layout.
 | Source | Generated output / purpose |
 | --- | --- |
 | `src/**/*.ts` | tsdown loader and standalone test bundles, retaining the legacy Babel transforms |
-| `src/bootstrap/esm.ts`, `src/bootstrap/index.ts` | tsdown CommonJS `esm.js`, `index.js` |
+| `src/bootstrap/esm.ts`, `src/bootstrap/index.ts` | tsdown CommonJS `dist/esm.js`, `dist/index.js` |
 | `script/src/esm/cli.ts` | Native TypeScript development entry point |
-| `config/ncurc.ts` | Maintenance configuration `.ncurc.mjs` |
+| `.ncurc.mjs` | Maintained configuration; no generation |
 | `script/src/build-sync-await.ts` | tsdown public installer and separate development bridge helper |
-| `script/src/**/*.ts` | JavaScript commands in `script/` |
-| `test/harness/**/*.ts`, `test/harness/**/*.cts` | Native suites, helpers, reporters, and Test262 entry points in `test/` |
-| `debug/**/*.ts` | `debug/*.js` |
+| `script/src/*.ts` commands | JavaScript commands in `dist/script/` |
+| `test/harness/**/*.ts`, `test/harness/**/*.cts` | Native suites, helpers, reporters, and Test262 entry points in `dist/test/` |
+| `debug/**/*.ts` | `dist/debug/*.js` |
 | `test/vitest/**/*.ts` | Vitest tests and helpers |
 
 The remaining JavaScript under compatibility fixture directories is deliberate
@@ -47,11 +47,12 @@ The maintained source trees are `src/` (loader and public bootstrap), `script/sr
 (build and maintenance commands), `test/` (native harness, Vitest, compatibility
 fixtures and consumer checks), `debug/`, `native/`, and `docs/`. The separate
 root `bootstrap/`, `tooling/`, `harness/`, and `diagnostics/` directories are no
-longer needed. `build/`, `esm/`, and `node_modules/` contain generated output or
-installed dependencies.
+longer needed. All generated code, native binaries, diagnostics, and test workspaces
+live under `dist/`; installed dependencies remain under `node_modules/`. See
+[build layout](build-layout.md) for the maintained-input/output mapping.
 
-tsdown owns emission of `esm.js`, `index.js`, and the standalone
-`script/build-sync-await.js` from maintained TypeScript. The main configuration is
+tsdown owns emission of `dist/esm.js`, `dist/index.js`, and the standalone
+`dist/script/build-sync-await.js` from maintained TypeScript. The main configuration is
 `tsdown.config.mts` at the root. Secondary TypeScript configurations and build
 helpers live in `config/`, with a private ESM scope for native TypeScript loading.
 Each entry is built independently with code splitting disabled. The public
@@ -79,8 +80,8 @@ minifying its entry points a second time.
 
 The build task owns cleanup; tsdown never cleans the repository root. Declaration
 generation is disabled. Tests exercise the actual public output without
-rewriting or restoring it. Public filenames, CommonJS entry points, and deep
-requires remain compatible.
+rewriting or restoring it. Package entry points and the historical `esm`/`index`
+subpath aliases remain compatible through the explicit package exports.
 
 ## Checking and generation
 
@@ -91,19 +92,21 @@ checked directly from the native entry point. Checking neither creates nor
 cleans generated commands and works before any JavaScript output exists.
 
 Build/test commands first run no-emit checks, then generate JavaScript separately.
-They replace generated commands directly under `script/` and in `script/esm/`,
+They replace generated commands under `dist/script/`,
 removing stale commands and declarations while preserving maintained `script/src/`
 and the public installer. They do not emit `.d.ts` files. Tests obtain helper
-types directly from maintained TypeScript sources. `index.d.ts`, source boundary declarations, and fixture contracts are
+types directly from maintained TypeScript sources. The native TypeScript CLI and
+its checking helpers remain source-only and require no generated ESM package config.
+`index.d.ts`, source boundary declarations, and fixture contracts are
 maintained declarations, rather than generated command output.
 
-Use the existing pnpm commands. Build before invoking generated `script/*.js`
+Use the existing pnpm commands. Build before invoking generated `dist/script/*.js`
 commands directly or packing with lifecycle scripts disabled. Consumers do not
 need TypeScript. tsdown emits the public native bridge installer as CommonJS
 JavaScript with no dependency on development ESM scopes. Preparation emits a separate
-`script/build-sync-await-dev.js` so the bridge can be compiled before bundling.
-It never creates, deletes, or overwrites the published `esm.js`, `index.js`,
-or `script/build-sync-await.js`.
+`dist/script/build-sync-await-dev.js` so the bridge can be compiled before bundling.
+It never creates, deletes, or overwrites the published `dist/esm.js`, `dist/index.js`,
+or `dist/script/build-sync-await.js`.
 
 `script/src/esm/outputs.ts` lists native test output filenames. The emitter rewrites
 owned helper imports to those destinations while leaving compatibility fixture
@@ -113,17 +116,10 @@ loader source types before applying the existing Babel transforms.
 
 ## Ignore rules
 
-The additional rules cover generated output only: JavaScript and old declarations
-directly under `script/`, `script/esm/`, public entry-point files, maintenance
-configuration, diagnostic JavaScript, and the native test files listed in the output manifest. Native test filenames are listed explicitly
-rather than ignoring the whole test tree. Previously tracked generated copies
-are removed from Git's index so the rules actually take effect. Maintained
-TypeScript directories are not ignored.
-
-Existing rules for bundles, native binaries, vendor downloads, and test caches
-are independent of this change. They keep reproducible build products and
-runtime state out of source patches. Ignoring generated JavaScript does not stop
-it from being included by the package's explicit `files` manifest after a build.
+The `/dist/` rule covers generated JavaScript, native binaries, diagnostics, and
+test workspaces. Source fixtures and all maintained configuration are tracked.
+Downloaded corpus inputs and ordinary dependency/runtime caches retain their
+existing ignores. The CLI no longer emits configuration files.
 
 ## Type safety
 

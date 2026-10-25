@@ -9,8 +9,7 @@
     "ignoreUnknown": true,
     "includes": [
       "**",
-      "!!build",
-      "!!esm",
+      "!!dist",
       "!!src/vendor",
       "!!test/vendor",
       "!!test/node_modules",

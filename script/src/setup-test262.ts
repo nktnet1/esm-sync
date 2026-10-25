@@ -8,7 +8,7 @@ import test262Parser from "test262-parser"
 
 const YAML_END = "---*/"
 
-const rootPath = path.resolve(__dirname, "..")
+const rootPath = path.resolve(__dirname, "../..")
 const vendorPath = path.resolve(rootPath, "test/vendor")
 const test262Path = path.resolve(vendorPath, "test262")
 const stagingPath = path.resolve(vendorPath, ".test262-staging")

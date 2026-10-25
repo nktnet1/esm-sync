@@ -32,7 +32,7 @@ const { values } = parseArgs({
     loader: { type: "string" }
   }
 })
-const root = path.resolve(__dirname, "..")
+const root = path.resolve(__dirname, "../..")
 const samples = Number(values.samples)
 const iterations = Number(values.iterations)
 assert.ok(Number.isSafeInteger(samples) && samples > 0, "samples must be a positive integer")

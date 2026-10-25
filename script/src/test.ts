@@ -7,7 +7,6 @@ import setupNativeAddon from "./setup-native-addon.js"
 import path from "path"
 import createTestCleanupFilter from "./test-cleanup-paths.js"
 import trash from "./trash.js"
-import { harnessOutputs } from "./esm/outputs.js"
 
 import { program } from "commander"
 
@@ -16,8 +15,8 @@ program.parse()
 
 const argv = program.opts<{ prod?: boolean }>()
 const isWin = process.platform === "win32"
-const rootPath = path.resolve(__dirname, "..")
-const testPath = path.resolve(rootPath, "test")
+const rootPath = path.resolve(__dirname, "../..")
+const testPath = path.resolve(rootPath, "dist/test")
 const envPath = path.resolve(testPath, "env")
 const fixturePath = path.resolve(testPath, "fixture")
 const nodePath = path.resolve(envPath, "prefix", isWin ? "node.exe" : "bin/node")
@@ -26,19 +25,10 @@ const sharedCachePath = path.resolve(nodeModulesPath, ".cache")
 const NODE_ENV = argv.prod ? "production" : "development"
 
 const keptPaths = [
-  path.resolve(rootPath, "build"),
-  path.resolve(rootPath, "esm"),
-  path.resolve(rootPath, "native"),
-  path.resolve(rootPath, "script"),
-  path.resolve(rootPath, "esm.js"),
-  path.resolve(rootPath, "index.js"),
-  path.resolve(rootPath, ".ncurc.mjs"),
-  path.resolve(rootPath, "debug/debug.js"),
-  path.resolve(rootPath, "debug/module.js"),
+  path.resolve(rootPath, "dist"),
   nodeModulesPath,
   path.resolve(rootPath, "src/vendor"),
-  path.resolve(rootPath, "test/vendor"),
-  ...Object.values(harnessOutputs).map((filename) => path.resolve(rootPath, filename))
+  path.resolve(rootPath, "test/vendor")
 ]
 const trashPaths = ignorePaths.filter(
   createTestCleanupFilter({ keptPaths, nodeModulesPath, sharedCachePath })
@@ -46,8 +36,8 @@ const trashPaths = ignorePaths.filter(
 
 function assertFixturesReady() {
   if (
-    !fs.existsSync(path.resolve(rootPath, "build/compiler.js")) ||
-    !fs.existsSync(path.resolve(rootPath, "esm/loader.js"))
+    !fs.existsSync(path.resolve(rootPath, "dist/build/compiler.js")) ||
+    !fs.existsSync(path.resolve(rootPath, "dist/esm/loader.js"))
   ) {
     throw new Error("Test bundles are missing. Run `pnpm build --test` before testing.")
   }

@@ -26,13 +26,13 @@ export async function verifyInstalledPackage(
   ])
     delete env[key]
   for (const filename of [
-    "index.js",
+    "dist/index.js",
     "index.d.ts",
-    "esm.js",
-    "esm/loader.js",
+    "dist/esm.js",
+    "dist/esm/loader.js",
     "native/sync-await.cc",
-    `native/${process.platform}-${process.arch}-${process.versions.modules}.node`,
-    "script/build-sync-await.js"
+    `dist/native/${process.platform}-${process.arch}-${process.versions.modules}.node`,
+    "dist/script/build-sync-await.js"
   ]) {
     await fs.access(path.join(installedPath, filename))
   }

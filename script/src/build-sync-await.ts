@@ -10,10 +10,11 @@ function buildSyncAwait(options: { required?: boolean | undefined } = {}): strin
   if (Number(process.versions.node.split(".")[0]) < 22) return null
 
   const { styleText } = require("util") as typeof import("node:util")
-  const root = path.resolve(__dirname, "..")
+  const root = path.resolve(__dirname, "../..")
   const name = `${process.platform}-${process.arch}-${process.versions.modules}.node`
-  const output = path.join(root, "native", name)
+  const output = path.join(root, "dist/native", name)
   const source = path.join(root, "native/sync-await.cc")
+  fs.mkdirSync(path.dirname(output), { recursive: true })
   const executableDirectory = path.dirname(fs.realpathSync(process.execPath))
   const candidates = [
     process.env.ESM_SYNC_NODE_HEADERS,
@@ -48,7 +49,7 @@ function buildSyncAwait(options: { required?: boolean | undefined } = {}): strin
           "/DNODE_GYP_MODULE_NAME=esm_sync_await",
           `/I${headers}`,
           `/Fe:${output}`,
-          `/Fo:${path.join(root, "native/sync-await.obj")}`,
+          `/Fo:${path.join(root, "dist/native/sync-await.obj")}`,
           source,
           "/link",
           `/LIBPATH:${process.env.ESM_SYNC_NODE_LIB || executableDirectory}`,

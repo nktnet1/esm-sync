@@ -14,7 +14,9 @@ interoperability scenarios. The tsdown migration removes `@rspack/cli`,
 `@rspack/core`, `babel-loader`, `terser-webpack-plugin`, `unused-webpack-plugin`,
 and `webpack-bundle-analyzer`. Native tsdown minification also replaces the direct
 `terser` dependency and its custom plugin. `golden-fleece` is removed because
-the temporary publish manifest can use the built-in JSON serializer. In particular:
+the temporary publish manifest can use the built-in JSON serializer.
+`html-minifier-next` is also removed: it only compressed README tables during
+publishing, and is unnecessary for the runtime or tests. In particular:
 
 - tsdown bundles the loader and emits the public CommonJS entry points. Babel
   plugins retain the loader's custom strict/sloppy transformations and legacy

@@ -13,7 +13,7 @@
     "build:prod": "pnpm build --prod",
     "build:await": "node script/src/esm/cli.ts build-sync-await --required",
     "benchmark:await": "node script/src/esm/cli.ts benchmark-async",
-    "install": "node -e \"if(require('fs').existsSync('script/build-sync-await.js'))require('./script/build-sync-await.js')()\"",
+    "install": "node -e \"if(require('fs').existsSync('dist/script/build-sync-await.js'))require('./dist/script/build-sync-await.js')()\"",
     "clean": "node script/src/esm/cli.ts clean",
     "fixtures:acorn": "node script/src/esm/cli.ts setup-fixtures acorn",
     "fixtures:prepare": "node script/src/esm/cli.ts setup-fixtures",
@@ -35,7 +35,7 @@
     "verify:prod": "pnpm build:prod --test && pnpm test:run:prod",
     "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio"
   },
-  "main": "esm.js",
+  "main": "dist/esm.js",
   "types": "index.d.ts",
   "private": false,
   "runkitExample": "require = require(\"esm-sync\")(module)\nrequire(\"lodash-es\")",
@@ -57,13 +57,13 @@
     "url": "https://github.com/nktnet1/esm-sync"
   },
   "files": [
-    "index.js",
     "index.d.ts",
-    "esm.js",
-    "esm/loader.js",
-    "native/*.node",
-    "native/sync-await.cc",
-    "script/build-sync-await.js"
+    "dist/esm.js",
+    "dist/index.js",
+    "dist/esm/loader.js",
+    "dist/native/*.node",
+    "dist/script/build-sync-await.js",
+    "native/sync-await.cc"
   ],
   "dependencies": {
     "punycode": "^2.3.1"
@@ -101,7 +101,6 @@
     "fs-extra": "^11.4.1",
     "global-prefix": "^4.0.0",
     "globby": "^11.1.0",
-    "html-minifier-next": "^7.6.0",
     "jasmine": "^6.3.0",
     "jest": "^26.6.3",
     "json-6": "^1.1.7",
@@ -134,5 +133,28 @@
     "webpack": "^4.47.0",
     "webpack-cli": "^3.3.12"
   },
-  "packageManager": "pnpm@12.15.0"
+  "packageManager": "pnpm@12.15.0",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./dist/esm.js"
+    },
+    "./esm": {
+      "types": "./index.d.ts",
+      "default": "./dist/esm.js"
+    },
+    "./esm.js": {
+      "types": "./index.d.ts",
+      "default": "./dist/esm.js"
+    },
+    "./index": {
+      "types": "./index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./index.js": {
+      "types": "./index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  }
 }

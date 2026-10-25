@@ -23,5 +23,5 @@ const minorOnlyPackages = new Set([
 ])
 
 export default {
-  target: (packageName: string) => (minorOnlyPackages.has(packageName) ? "minor" : "latest")
+  target: (packageName) => (minorOnlyPackages.has(packageName) ? "minor" : "latest")
 }

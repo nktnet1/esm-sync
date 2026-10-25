@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, it } from "vitest"
-import resolveExports from "../../build/resolve-exports.js"
+import resolveExports from "../../dist/build/resolve-exports.js"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const directories: string[] = []

@@ -8,14 +8,11 @@ import path from "node:path"
 import { parseArgs, styleText } from "node:util"
 import execa from "execa"
 import packageInfo from "../../package.json"
-import { consumerFormats, verifyInstalledPackage } from "./package-smoke.js"
+import { consumerFormats, verifyInstalledPackage, type ConsumerFormat } from "./package-smoke.js"
 import { createPublishManifest } from "./package-manifest.js"
 
 const verdaccioVersion = "6.10.4"
-const root = path.resolve(__dirname, "..")
-const { values } = parseArgs({ options: { format: { type: "string", default: "both" } } })
-const formats = consumerFormats(values.format ?? "both")
-let verified = false
+const root = path.resolve(__dirname, "../..")
 let activeStage = "setup"
 const stage = (message: string, value: string) => {
   activeStage = `${message} ${value}`
@@ -69,7 +66,7 @@ async function stopRegistry(child: ChildProcess | undefined): Promise<void> {
   }
 }
 
-async function testRegistry(): Promise<void> {
+async function testRegistry(formats: readonly ConsumerFormat[]): Promise<void> {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "esm-sync-registry-"))
   const registryRoot = path.join(temporary, "registry")
   const consumer = path.join(temporary, "consumer")
@@ -116,11 +113,11 @@ async function testRegistry(): Promise<void> {
       timeout: 180_000
     }
     stage("Building production package", `${packageInfo.name}@${packageInfo.version}`)
-    await execa(process.execPath, ["script/src/esm/cli.ts", "setup-fixtures", "acorn"], {
+    await execa(process.execPath, [path.join(__dirname, "setup-fixtures.js"), "acorn"], {
       ...command,
       cwd: root
     })
-    await execa(process.execPath, ["script/src/esm/cli.ts", "build", "--prod"], {
+    await execa(process.execPath, [path.join(__dirname, "build.js"), "--prod"], {
       ...command,
       cwd: root
     })
@@ -280,18 +277,14 @@ runServer(process.argv[2]).then((app) => {
       { ...command, cwd: consumer }
     )
     const installed = path.join(consumer, "node_modules", packageInfo.name)
-    const binary = `native/${process.platform}-${process.arch}-${process.versions.modules}.node`
+    const binary = `dist/native/${process.platform}-${process.arch}-${process.versions.modules}.node`
     await fs.rm(path.join(installed, binary))
     stage("Rebuilding with the installed production installer", binary)
-    await execa(process.execPath, ["script/build-sync-await.js", "--required"], {
+    await execa(process.execPath, ["dist/script/build-sync-await.js", "--required"], {
       ...command,
       cwd: installed
     })
     await verifyInstalledPackage(consumer, formats)
-    verified = true
-    console.log(
-      `[verdaccio] ${styleText("green", "PASS")} publish, install, ${formats.join(" + ")}`
-    )
   } catch (error) {
     if (registryLog) console.error(`[verdaccio] Registry log:\n${registryLog}`)
     throw error
@@ -301,14 +294,27 @@ runServer(process.argv[2]).then((app) => {
   }
 }
 
-process.once("beforeExit", (code) => {
-  if (code === 0 && !verified) {
-    console.error(`[verdaccio] ${styleText("red", "FAIL")} incomplete run after ${activeStage}`)
-    process.exitCode = 1
-  }
-})
+export async function runRegistryTest(args = process.argv.slice(2)): Promise<void> {
+  const { values } = parseArgs({
+    args,
+    options: { format: { type: "string", default: "both" } }
+  })
+  const formats = consumerFormats(values.format ?? "both")
+  let complete = false
+  process.once("exit", (code) => {
+    if (!complete) {
+      console.error(`[verdaccio] ${styleText("red", "FAIL")} incomplete run after ${activeStage}`)
+      if (code === 0) process.exitCode = 1
+    }
+  })
+  await testRegistry(formats)
+  complete = true
+  console.log(`[verdaccio] ${styleText("green", "PASS")} publish, install, ${formats.join(" + ")}`)
+}
 
-testRegistry().catch((error: unknown) => {
-  console.error(error)
-  process.exitCode = 1
-})
+if (require.main === module) {
+  runRegistryTest().catch((error: unknown) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

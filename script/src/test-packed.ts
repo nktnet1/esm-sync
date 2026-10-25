@@ -7,8 +7,8 @@ import { parseArgs } from "node:util"
 import execa from "execa"
 import { consumerFormats, verifyInstalledPackage } from "./package-smoke.js"
 
-const rootPath = path.resolve(__dirname, "..")
-const loaderPath = path.resolve(rootPath, "esm/loader.js")
+const rootPath = path.resolve(__dirname, "../..")
+const loaderPath = path.resolve(rootPath, "dist/esm/loader.js")
 const fixturePath = path.resolve(rootPath, "test/packed")
 const { values } = parseArgs({ options: { format: { type: "string", default: "cjs" } } })
 const formats = consumerFormats(values.format ?? "cjs")

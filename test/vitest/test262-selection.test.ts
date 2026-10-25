@@ -12,7 +12,7 @@ const {
   getUnsupportedHostFeatures,
   getUnsupportedLoaderFeatures,
   isGeneratedGrammarCase
-} = require("../../script/test262-selection.js") as {
+} = require("../../dist/script/test262-selection.js") as {
   isGeneratedGrammarCase: (options: {
     relativePath: string
     flags?: { generated?: boolean; async?: boolean; module?: boolean }

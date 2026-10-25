@@ -6,7 +6,7 @@ import ignorePaths from "./ignore-paths.js"
 import path from "path"
 import trash from "./trash.js"
 
-const rootPath = path.resolve(__dirname, "..")
+const rootPath = path.resolve(__dirname, "../..")
 const nodeModulesPath = path.resolve(rootPath, "node_modules")
 
 const keptPaths = [nodeModulesPath]

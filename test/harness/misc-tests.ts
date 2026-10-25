@@ -29,7 +29,7 @@ const canTestWorker = SemVer.satisfies(process.version, ">=10.5")
 const fileProtocol = "file://" + (isWin ? "/" : "")
 const slashRegExp = /[\\/]/g
 const indexPath = path.resolve("../index.js")
-const pkgJSON = fs.readJSONSync("../package.json")
+const pkgJSON = fs.readJSONSync("../../package.json")
 const abcPath = path.resolve("fixture/export/abc.mjs")
 const abcURL = getURLFromFilePath(abcPath)
 const abcNs = createNamespace({
@@ -667,7 +667,7 @@ describe("miscellaneous tests", () => {
       assert.throws(() => require2(abcPath), SyntaxError)
     })
     it("should not support modified `require.extensions` in ESM", () => {
-      const filename = path.resolve("../package.json")
+      const filename = path.resolve("../../package.json")
       require2.extensions[".json"] = () => ({})
       Reflect.deleteProperty(require2.cache, filename)
       return (import(filename as string) as Promise<Namespace>).then((ns) =>
@@ -926,7 +926,7 @@ describe("miscellaneous tests", () => {
         )
       ]))
     it("should not cache `Module._findPath()` misses", () => {
-      const dirPath = fs.mkdtempSync(path.join(os.tmpdir(), "esm-sync-find-path-"))
+      const dirPath = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "esm-sync-find-path-")))
       try {
         const jsonPath = path.join(dirPath, "package.json")
         const mainPath = path.join(dirPath, "main.js")

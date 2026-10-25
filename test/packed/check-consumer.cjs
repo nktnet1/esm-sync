@@ -1,6 +1,10 @@
 "use strict"
 
 const assert = require("node:assert/strict")
+const factory = require("esm-sync")
+// Published aliases keep working after generated entry points move to dist/.
+assert.strictEqual(require("esm-sync/esm.js"), factory)
+assert.strictEqual(require("esm-sync/index.js"), factory)
 
 module.exports = async function checkConsumer(esmRequire, format) {
   const namespace = esmRequire("./counter.mjs")

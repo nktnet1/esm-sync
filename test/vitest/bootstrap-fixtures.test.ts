@@ -72,8 +72,10 @@ globalThis.fetch = async (url) => {
         )
       )
 
-      assert.ok((await readdir(path.join(directory, "script"))).includes("build-sync-await-dev.js"))
-      for (const name of ["esm.js", "index.js", "script/build-sync-await.js"])
+      assert.ok(
+        (await readdir(path.join(directory, "dist/script"))).includes("build-sync-await-dev.js")
+      )
+      for (const name of ["dist/esm.js", "dist/index.js", "dist/script/build-sync-await.js"])
         await assert.rejects(readFile(path.join(directory, name)), { code: "ENOENT" })
 
       await writeFile(
