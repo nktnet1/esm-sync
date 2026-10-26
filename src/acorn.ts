@@ -23,7 +23,7 @@ import { getLineInfo } from "./vendor/acorn/acorn/src/locutil.js"
 import { types as tokTypes } from "./vendor/acorn/acorn/src/tokentype.js"
 import { wordsRegexp as createWordsRegExp } from "./vendor/acorn/acorn/src/util.js"
 
-const literalRegExp = /^(?:'((?:\\.|[^'])*?)'|"((?:\\.|[^"])*?)"|;)/
+const literalRegExp = /^(?:'((?:\\[\s\S]|[^'\\])*)'|"((?:\\[\s\S]|[^"\\])*)"|;)/
 
 export {
   Parser,

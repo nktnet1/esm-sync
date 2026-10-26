@@ -11,7 +11,7 @@ Set up a trusted publisher for **esm-sync** at npmjs.com:
 
 - GitHub owner: `nktnet1`
 - Repository: `esm-sync`
-- Workflow filename: `publish.yml`
+- Workflow filename: `publish.yaml`
 - Environment: `Production`
 - Allow `npm publish` (direct publishing).
 
