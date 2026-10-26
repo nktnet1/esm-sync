@@ -4,11 +4,6 @@
     "module": "Preserve",
     "lib": ["ESNext", "DOM"]
   },
-  "include": [
-    "../src/bootstrap/**/*.ts",
-    "../debug/**/*.ts",
-    "../src/types/**/*.d.ts",
-    "../script/src/semver.d.ts"
-  ],
+  "include": ["../src/bootstrap/**/*.ts", "../src/types/**/*.d.ts", "../script/src/semver.d.ts"],
   "exclude": ["../src/vendor"]
 }

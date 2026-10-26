@@ -42,10 +42,9 @@ assert.ok(
 )
 
 function measure(directory: string, loader: string): Measurement {
-  const load: (filename: string) => unknown = (require(loader) as typeof import("../../index.js"))(
-    module,
-    { cache: false, cjs: false }
-  )
+  const load: (filename: string) => unknown = (
+    require(loader) as import("../../src/types/public.js").EsmFactory
+  )(module, { cache: false, cjs: false })
   const filename = path.join(directory, values.child + ".mjs")
   const start = process.hrtime.bigint()
   let namespace: unknown

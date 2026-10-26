@@ -3,19 +3,69 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { spawnSync } from "node:child_process"
 import { createRequire } from "node:module"
-import ts from "typescript"
-import { checkTypeSafety } from "./check-type-safety.ts"
-import { checkTypeScriptVersion } from "./check-typescript-version.ts"
+import { performance } from "node:perf_hooks"
+import { styleText } from "node:util"
+import type {
+  FormatDiagnosticsHost,
+  Node,
+  SourceFile,
+  TransformerFactory,
+  VisitResult
+} from "typescript"
 import { harnessOutputs } from "./outputs.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
-const host: ts.FormatDiagnosticsHost = {
+const task = process.argv[2]
+const started = performance.now()
+let ts: typeof import("typescript")
+
+function duration(start: number): string {
+  return `${((performance.now() - start) / 1000).toFixed(1)}s`
+}
+
+// Wait for stdout to accept each line before entering a synchronous check.
+// Otherwise the progress message can remain buffered until the check finishes.
+async function announce(category: string, description: string): Promise<void> {
+  const color =
+    category === "RUN" || category === "CLEAN"
+      ? "yellow"
+      : category === "CHECK" || category === "AUDIT"
+        ? "magenta"
+        : "cyan"
+  const line = `  ${styleText("dim", "[cli]")} ${styleText(color, category)}${" ".repeat(Math.max(2, 10 - category.length))}${description}\n`
+  await new Promise<void>((resolve) => {
+    process.stdout.write(line, () => resolve())
+  })
+}
+
+async function stage<T>(
+  category: string,
+  description: string,
+  action: () => T | Promise<T>
+): Promise<T> {
+  await announce(category, description)
+  const start = performance.now()
+  try {
+    const result = await action()
+    console.log(
+      `  ${styleText("dim", "[cli]")}       ${styleText(["bold", "green"], "PASS")}  ${styleText("dim", duration(start))}`
+    )
+    return result
+  } catch (error) {
+    console.log(
+      `  ${styleText("dim", "[cli]")}       ${styleText(["bold", "red"], "FAIL")}  ${styleText("dim", duration(start))}`
+    )
+    throw error
+  }
+}
+
+const host: FormatDiagnosticsHost = {
   getCanonicalFileName: (name) => name,
   getCurrentDirectory: () => root,
   getNewLine: () => "\n"
 }
 
-function checkConfig(filename: string, audit = false): void {
+function checkConfig(filename: string): import("typescript").Program {
   const configPath = path.resolve(root, filename)
   const source = ts.readConfigFile(configPath, ts.sys.readFile)
   if (source.error) throw new Error(ts.formatDiagnosticsWithColorAndContext([source.error], host))
@@ -30,7 +80,7 @@ function checkConfig(filename: string, audit = false): void {
   const diagnostics = [...config.errors, ...ts.getPreEmitDiagnostics(program)]
   if (diagnostics.length)
     throw new Error(ts.formatDiagnosticsWithColorAndContext(diagnostics, host))
-  if (audit) checkTypeSafety(program, root)
+  return program
 }
 
 function outputPath(filename: string): string | undefined {
@@ -40,8 +90,6 @@ function outputPath(filename: string): string | undefined {
     return path.resolve(root, "dist/script/build-sync-await-dev.js")
   if (relative.startsWith("script/src/"))
     return path.resolve(root, "dist/script", relative.slice(11).replace(/\.ts$/, ".js"))
-  if (relative.startsWith("debug/"))
-    return path.resolve(root, "dist", relative.replace(/\.ts$/, ".js"))
   return undefined
 }
 
@@ -99,9 +147,9 @@ function rewriteSpecifier(filename: string, specifier: string): string {
   return relative.startsWith(".") ? relative : "./" + relative
 }
 
-function importPaths(filename: string): ts.TransformerFactory<ts.SourceFile> {
+function importPaths(filename: string): TransformerFactory<SourceFile> {
   return (context) => {
-    function visit(node: ts.Node): ts.VisitResult<ts.Node> {
+    function visit(node: Node): VisitResult<Node> {
       if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
         return ts.factory.updateImportDeclaration(
           node,
@@ -170,57 +218,104 @@ function emitTree(directory: string): void {
   }
 }
 
-const task = process.argv[2]
+console.log(
+  `\n  ${styleText("dim", "[cli]")} ${styleText(["bold", "blue"], "START")}  ${styleText("cyan", task ?? "(no task)")}  ${styleText("dim", `Node ${process.version}`)}`
+)
 try {
-  checkTypeScriptVersion(root)
-  if (task === "typecheck") {
-    checkConfig("tsconfig.json", true)
-    checkConfig("test/fixture/scenario/ava-nyc-tsc/tsconfig.json")
-  } else {
-    if (
-      task === undefined ||
+  // Validate the task before loading TypeScript, so unknown commands fail fast.
+  if (
+    task !== "typecheck" &&
+    (task === undefined ||
       !/^[a-z][\w-]*$/.test(task) ||
-      !fs.existsSync(path.join(root, "script/src", task + ".ts"))
+      !fs.existsSync(path.join(root, "script/src", task + ".ts")))
+  )
+    throw new Error("Unknown tooling task: " + task)
+
+  await stage("LOAD", "TypeScript compiler", async () => {
+    ts = (await import("typescript")).default
+  })
+  await stage("VERIFY", "Installed TypeScript version", async () => {
+    const { checkTypeScriptVersion } = await import("./check-typescript-version.ts")
+    checkTypeScriptVersion(root)
+  })
+
+  if (task === "typecheck") {
+    const program = await stage("CHECK", "tsconfig.json", () => checkConfig("tsconfig.json"))
+    await stage("AUDIT", "Owned TypeScript types", async () => {
+      const { checkTypeSafety } = await import("./check-type-safety.ts")
+      checkTypeSafety(program, root)
+    })
+    await stage("CHECK", "AVA fixture TypeScript configuration", () =>
+      checkConfig("test/fixture/scenario/ava-nyc-tsc/tsconfig.json")
     )
-      throw new Error("Unknown tooling task: " + task)
-    checkConfig("config/tsconfig.tooling.json")
-    checkConfig("config/tsconfig.bootstrap.json")
-    checkConfig("config/tsconfig.harness.json")
+  } else {
+    for (const config of [
+      "config/tsconfig.tooling.json",
+      "config/tsconfig.bootstrap.json",
+      "config/tsconfig.harness.json"
+    ])
+      await stage("CHECK", config, () => checkConfig(config))
+
     if (["build", "test", "run-test262", "setup-native-addon"].includes(task))
-      prepareTestWorkspace()
+      await stage("PREPARE", "Copy runtime test fixtures into dist/test", prepareTestWorkspace)
+
     // Keep the public installer while replacing generated development commands.
-    const scriptDirectory = path.join(root, "dist/script")
-    fs.mkdirSync(scriptDirectory, { recursive: true })
-    for (const entry of fs.readdirSync(scriptDirectory, { withFileTypes: true })) {
-      if (
-        entry.name === "esm" ||
-        (entry.isFile() &&
-          /\.(?:[cm]?js|d\.[cm]?ts)$/.test(entry.name) &&
-          entry.name !== "build-sync-await.js")
+    await stage("CLEAN", "Remove old generated tooling files", () => {
+      const scriptDirectory = path.join(root, "dist/script")
+      fs.mkdirSync(scriptDirectory, { recursive: true })
+      for (const entry of fs.readdirSync(scriptDirectory, { withFileTypes: true })) {
+        if (
+          entry.name === "esm" ||
+          (entry.isFile() &&
+            /\.(?:[cm]?js|d\.[cm]?ts)$/.test(entry.name) &&
+            entry.name !== "build-sync-await.js")
+        )
+          fs.rmSync(path.join(scriptDirectory, entry.name), { recursive: true, force: true })
+      }
+    })
+    for (const directory of ["script/src", "test/harness"])
+      await stage("EMIT", `Generate tooling from ${directory}`, () =>
+        emitTree(path.join(root, directory))
       )
-        fs.rmSync(path.join(scriptDirectory, entry.name), { recursive: true, force: true })
-    }
-    for (const directory of ["script/src", "debug", "test/harness"])
-      emitTree(path.join(root, directory))
+
     const command = outputPath(path.join(root, "script/src", task + ".ts"))!
     if (task === "test-verdaccio") {
       // Await the complete registry lifecycle, including teardown. A pending
       // task cannot silently succeed because its CommonJS entry ran out of handles.
-      const registry = createRequire(import.meta.url)(
-        command
-      ) as typeof import("../test-verdaccio.js")
-      await registry.runRegistryTest(process.argv.slice(3))
+      await stage("RUN", "Verdaccio publish/install integration test", async () => {
+        const registry = createRequire(import.meta.url)(
+          command
+        ) as typeof import("../test-verdaccio.js")
+        await registry.runRegistryTest(process.argv.slice(3))
+      })
     } else {
+      await announce("RUN", `${task} ${process.argv.slice(3).join(" ")}`.trim())
+      const runStarted = performance.now()
       const result = spawnSync(process.execPath, [command, ...process.argv.slice(3)], {
         cwd: root,
         stdio: "inherit",
         env: process.env
       })
-      if (result.error) throw result.error
       process.exitCode = result.status ?? 1
+      console.log(
+        `  ${styleText("dim", "[cli]")}       ${styleText(["bold", process.exitCode === 0 ? "green" : "red"], process.exitCode === 0 ? "PASS" : "FAIL")}  ${styleText("dim", duration(runStarted))}`
+      )
+      if (result.error) throw result.error
     }
   }
+  if (!process.exitCode)
+    console.log(
+      `  ${styleText("dim", "[cli]")} ${styleText(["bold", "green"], "DONE")}  ${styleText("cyan", task)}  ${styleText("dim", `total ${duration(started)}`)}\n`
+    )
 } catch (error) {
-  console.error(task === "test-verdaccio" ? error : error instanceof Error ? error.message : error)
+  // The Verdaccio runner has already printed the failed stage and its summary.
+  // Avoid repeating the full execa stack unless detailed logging was requested.
+  console.error(
+    task === "test-verdaccio" && process.argv.includes("--verbose")
+      ? error
+      : error instanceof Error
+        ? error.message
+        : error
+  )
   process.exitCode = 1
 }

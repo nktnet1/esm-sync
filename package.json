@@ -19,6 +19,7 @@
     "fixtures:prepare": "node script/src/esm/cli.ts setup-fixtures",
     "fixtures:test262": "node script/src/esm/cli.ts setup-fixtures test262",
     "lint": "biome check .",
+    "lint:unused": "knip",
     "lint:fix": "biome check --write .",
     "pub": "node script/src/esm/cli.ts publish",
     "test": "pnpm fixtures:prepare && pnpm build --test && pnpm test:run",
@@ -35,8 +36,8 @@
     "verify:prod": "pnpm build:prod --test && pnpm test:run:prod",
     "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio"
   },
-  "main": "dist/esm.js",
-  "types": "index.d.ts",
+  "main": "./dist/esm.js",
+  "types": "./dist/esm.d.ts",
   "private": false,
   "runkitExample": "require = require(\"esm-sync\")(module)\nrequire(\"lodash-es\")",
   "esm": true,
@@ -57,7 +58,8 @@
     "url": "https://github.com/nktnet1/esm-sync"
   },
   "files": [
-    "index.d.ts",
+    "dist/esm.d.ts",
+    "dist/index.d.ts",
     "dist/esm.js",
     "dist/index.js",
     "dist/esm/loader.js",
@@ -104,6 +106,7 @@
     "jasmine": "^6.3.0",
     "jest": "^26.6.3",
     "json-6": "^1.1.7",
+    "knip": "6.42.1",
     "lefthook": "^2.2.2",
     "lit-node": "^0.1.1",
     "mocha": "^8.4.0",
@@ -136,25 +139,25 @@
   "packageManager": "pnpm@12.15.0",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
+      "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
     },
+    "./package.json": "./package.json",
     "./esm": {
-      "types": "./index.d.ts",
+      "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
     },
     "./esm.js": {
-      "types": "./index.d.ts",
+      "types": "./dist/esm.d.ts",
       "default": "./dist/esm.js"
     },
     "./index": {
-      "types": "./index.d.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./index.js": {
-      "types": "./index.d.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./package.json": "./package.json"
+    }
   }
 }

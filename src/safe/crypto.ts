@@ -13,8 +13,6 @@ function init() {
 
 const safeCrypto = shared.inited ? shared.module.safeCrypto : (shared.module.safeCrypto = init())
 
-export const { createHash, timingSafeEqual } = safeCrypto
-
-export default safeCrypto
+export const { createHash } = safeCrypto
 
 export type CachedModule = ReturnType<typeof init>

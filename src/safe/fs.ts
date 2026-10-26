@@ -28,11 +28,7 @@ function init() {
 const safeFs = shared.inited ? shared.module.safeFs : (shared.module.safeFs = init())
 
 export const {
-  closeSync,
-  constants,
-  futimesSync,
   mkdirSync,
-  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -42,7 +38,5 @@ export const {
   writeFileSync,
   existsSync
 } = safeFs
-
-export default safeFs
 
 export type CachedModule = ReturnType<typeof init>

@@ -1,7 +1,7 @@
 import path from "node:path"
 import { createRequire } from "node:module"
 import ts from "typescript"
-import { defineConfig, type TsdownPlugin, type UserConfig } from "tsdown"
+import { defineConfig, type ExportsOptions, type TsdownPlugin, type UserConfig } from "tsdown"
 import babelOptions from "./config/babel.ts"
 import packageInfo from "./package.json" with { type: "json" }
 
@@ -66,6 +66,35 @@ const base: UserConfig = {
   outExtensions: () => ({ js: ".js" }),
   outputOptions: { strict: true, codeSplitting: false }
 }
+
+// tsdown owns the canonical root export and legacy main/types fields. The
+// bootstrap entries must remain separate builds (their strict modes differ),
+// so only their compatibility aliases need to be added here. tsdown currently
+// emits a string for a single-format entry rather than a typed export object.
+const packageExports = {
+  legacy: true,
+  bin: false,
+  inlinedDependencies: false,
+  customExports(generated: Record<string, unknown>) {
+    const root = generated["."]
+    if (typeof root !== "string" || !root.startsWith("./dist/") || !root.endsWith("/esm.js")) {
+      throw new Error("tsdown did not generate the expected CommonJS root entry")
+    }
+
+    const withTypes = (js: string) => ({ types: js.replace(/\.js$/, ".d.ts"), default: js })
+
+    const esm = withTypes(root)
+    const index = withTypes(root.replace(/\/esm\.js$/, "/index.js"))
+    return {
+      ...generated,
+      ".": esm,
+      "./esm": esm,
+      "./esm.js": esm,
+      "./index": index,
+      "./index.js": index
+    }
+  }
+} satisfies ExportsOptions
 const externalGlobals = [
   "Array",
   "Buffer",
@@ -138,10 +167,16 @@ export default defineConfig([
     ([name, entry]): UserConfig => ({
       ...base,
       name: `bootstrap:${name}`,
+      // Only the public CommonJS entry points publish declarations.
+      dts: name === "esm" || name === "index" ? { generator: "tsc" } : false,
+      // One canonical entry owns package metadata; generating from the index
+      // compatibility entry would change the legacy main from esm to index.
+      exports: name === "esm" ? packageExports : false,
       entry: { [name]: entry },
       outDir: "dist",
       outputOptions: { ...base.outputOptions, strict: name !== "esm" },
-      deps: { neverBundle: ["./esm.js"] }
+      // Keep private loader types out of the public declaration graph.
+      deps: { neverBundle: ["./esm.js"], dts: { neverBundle: ["../types/runtime.js"] } }
     })
   )
 ])

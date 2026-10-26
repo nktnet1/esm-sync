@@ -1567,29 +1567,27 @@ describe("miscellaneous tests", () => {
         ? (require2("worker_threads") as typeof import("node:worker_threads")).Worker
         : null
     )!
-    const createOnExit = (reject: (error: Error) => void) => {
-      return (code: number) => {
-        if (code !== 0) {
-          reject(new Error("Worker stopped with exit code " + code))
-        }
-      }
+    function runWorker(filename: string, options?: import("node:worker_threads").WorkerOptions) {
+      return new Promise<void>((resolve, reject) => {
+        let receivedMessage = false
+        new Worker(filename, options)
+          .on("message", (message: unknown) => {
+            if (message === "worker:true") receivedMessage = true
+            else reject(new Error("Unexpected worker message: " + String(message)))
+          })
+          .on("error", reject)
+          .on("exit", (code: number) => {
+            // A message can arrive before the thread has finished writing its
+            // module cache. Do not start the next worker until it has exited.
+            if (code !== 0) reject(new Error("Worker stopped with exit code " + code))
+            else if (!receivedMessage) reject(new Error("Worker exited without a message"))
+            else resolve()
+          })
+      })
     }
     it("should work with inlined workers", () =>
-      new Promise((resolve, reject) =>
-        new Worker('require("./fixture/worker")', {
-          eval: true
-        })
-          .on("message", resolve)
-          .on("error", reject)
-          .on("exit", createOnExit(reject))
-      ))
-    it("should work with external workers", () =>
-      new Promise((resolve, reject) =>
-        new Worker("./fixture/worker/index.js")
-          .on("message", resolve)
-          .on("error", reject)
-          .on("exit", createOnExit(reject))
-      ))
+      runWorker('require("./fixture/worker")', { eval: true }))
+    it("should work with external workers", () => runWorker("./fixture/worker/index.js"))
   })
   describe("transforms", () => {
     const zeroWidthJoinerRegExp = /\u200D/

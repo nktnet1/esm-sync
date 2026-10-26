@@ -1,4 +1,4 @@
 "use strict"
 
-const esm = require("./esm.js") as typeof import("../../index.js")
+const esm = require("./esm.js") as typeof import("./esm.js").default
 export default esm
