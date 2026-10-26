@@ -2,8 +2,35 @@ const { configDefaults, defineConfig } = require("vitest/config") as typeof impo
 
 const bootstrapTests = ["test/vitest/bootstrap-fixtures.test.ts"]
 
-// Pure assertions run in Vitest. Loader-interception tests execute through
-// test/vitest/native-suites.test.ts in real Node subprocesses.
+// Only library behaviour and platform-dependent integration checks run on
+// the OS/Node matrix. Other tests (including new, unclassified tests) default
+// to the Ubuntu/Node 24 tooling job, so adding a build test cannot silently
+// multiply its CI cost ninefold.
+const runtimeTests = [
+  "async-contexts",
+  "async-syntax",
+  "builtin-modules",
+  "cache-isolation",
+  "check-hook",
+  "cli-hook",
+  "deferred-import",
+  "eval-hook",
+  "export-binding-identity",
+  "main-hook",
+  "native-suites",
+  "repl-hook",
+  "require-bindings",
+  "resolution-safety",
+  "test262-async-evaluation",
+  "test262-async-followup",
+  "test262-deferred-errors",
+  "test262-fixture-loading",
+  "test262-instantiation",
+  "top-level-await"
+].map((name) => `test/vitest/${name}.test.ts`)
+
+// Loader-interception tests execute through native-suites.test.ts in real
+// Node subprocesses, not Vite's module transformer.
 module.exports = defineConfig(({ mode }) => ({
   test: {
     environment: "node",
@@ -30,9 +57,17 @@ module.exports = defineConfig(({ mode }) => ({
       {
         extends: true,
         test: {
-          name: "main",
+          name: "runtime",
+          include: runtimeTests,
+          sequence: { groupOrder: 2 }
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: "tooling",
           include: ["test/vitest/**/*.test.ts"],
-          exclude: [...configDefaults.exclude, ...bootstrapTests],
+          exclude: [...configDefaults.exclude, ...bootstrapTests, ...runtimeTests],
           sequence: { groupOrder: 2 }
         }
       }

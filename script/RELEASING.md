@@ -57,8 +57,11 @@ Never tag a different commit or reuse an already-published npm version.
 
 ## Tagged build, package and publish
 
-A tag push runs **Release**, which invokes the complete `Pipeline` test matrix
-(Linux/macOS/Windows on Node 22/24/26). Only after every job succeeds does it
+A tag push runs **Release**, which invokes `Pipeline`. Library behaviour and
+native Node integration run on Linux/macOS/Windows with Node 22/24/26. Native
+installed-package checks run once per OS on Node 24; build, packaging, release,
+fixture tooling, typechecks, lint, audit, and production/registry verification
+run once on Ubuntu/Node 24. Only after every job succeeds does it
 build the package on Linux/Node 24 with the native bridge required, stage the
 same published manifest used by local Verdaccio smoke tests, and pack one
 `.tgz` without executing lifecycle scripts. It validates the tarball before
