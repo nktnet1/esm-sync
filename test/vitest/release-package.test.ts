@@ -76,8 +76,12 @@ function archiveEntry(name: string, data: Buffer): Buffer {
   return Buffer.concat([header, data, Buffer.alloc((512 - (data.length % 512)) % 512)])
 }
 
-function pack(root: string, files = [...required, "README.md", "LICENSE", "package.json"]): string {
-  const output = path.join(root, "release-packages")
+function pack(
+  root: string,
+  files = [...required, "README.md", "LICENSE", "package.json"],
+  outputDirectory = "release-packages"
+): string {
+  const output = path.join(root, outputDirectory)
   mkdirSync(output)
   const archive = path.join(output, "esm-sync-3.3.8-beta.2.tgz")
   const entries = files.map((filename) =>
@@ -119,6 +123,38 @@ describe("release artifact packaging", () => {
         }),
         /Expected esm-sync@3\.3\.8-beta\.3/
       )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it("validates the beta tarball in the directory produced by the release workflow", async () => {
+    const root = tempRoot()
+    try {
+      const release = readFileSync(
+        new URL("../../.github/workflows/release.yaml", import.meta.url),
+        "utf8"
+      )
+      const packedDirectory = /npm pack \.release\/package --pack-destination (\S+)/.exec(release)
+      assert.ok(packedDirectory, "Release workflow must specify its npm pack destination")
+      const outputDirectory = packedDirectory[1]!
+
+      createSource(root, "3.4.0-beta.1")
+      prepareReleasePackage({ root, tag: "v3.4.0-beta.1" })
+      pack(root, undefined, outputDirectory)
+
+      await publishReleasePackage({
+        root,
+        tag: "v3.4.0-beta.1",
+        registry: "https://registry.npmjs.org",
+        dryRun: true
+      })
+      assert.ok(release.includes(`path: ${outputDirectory}/*.tgz`))
+      const publish = readFileSync(
+        new URL("../../.github/workflows/publish.yaml", import.meta.url),
+        "utf8"
+      )
+      assert.ok(publish.includes(`path: ${outputDirectory}\n`))
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

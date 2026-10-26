@@ -92,16 +92,40 @@ if (Module._cache !== RealModule._cache) {
     cache = externalCache
 
     if (!writable) {
+      // The host reloads our manifest after a registry reset, even when an
+      // application retains this loader factory. Use that identity to expire
+      // our private CJS entries along with the host's module state.
+      let generation = __non_webpack_require__("../package.json")
+
+      function refresh(cache: Record<string, ModuleRecord>) {
+        const current = __non_webpack_require__("../package.json")
+
+        if (current !== generation) {
+          for (const name of Reflect.ownKeys(cache)) {
+            Reflect.deleteProperty(cache, name)
+          }
+
+          generation = current
+        }
+      }
+
       // Jest's require.cache proxy accepts writes without retaining them. Keep
       // loader-created modules in a writable cache so repeated CJS imports share
       // their constructors, while still seeing modules loaded later by Jest.
       cache = new OwnProxy(emptyRecord<Record<string, ModuleRecord>>(), {
+        defineProperty(cache, name, descriptor) {
+          refresh(cache)
+          SafeObject.defineProperty(cache, name, descriptor)
+          return true
+        },
         get(cache, name, receiver) {
+          refresh(cache)
           return has(cache, name)
             ? Reflect.get(cache, name, receiver)
             : Reflect.get(externalCache, name)
         },
         getOwnPropertyDescriptor(cache, name) {
+          refresh(cache)
           const descriptor = Reflect.getOwnPropertyDescriptor(cache, name)
 
           if (descriptor !== void 0) {
@@ -115,9 +139,11 @@ if (Module._cache !== RealModule._cache) {
             : { configurable: true, enumerable: true, value, writable: true }
         },
         has(cache, name) {
+          refresh(cache)
           return has(cache, name) || Reflect.get(externalCache, name) !== void 0
         },
         ownKeys(cache) {
+          refresh(cache)
           return Array.from(new Set([...Reflect.ownKeys(externalCache), ...Reflect.ownKeys(cache)]))
         }
       })

@@ -24,4 +24,4 @@ interface Reflection
   ): object
   getOwnPropertyDescriptor(target: object, key: PropertyKey): Descriptor | undefined
 }
-export default globalThis.Reflect as Reflection
+export default Reflect as Reflection

@@ -16,6 +16,7 @@ const runtimeTests = [
   "deferred-import",
   "eval-hook",
   "export-binding-identity",
+  "legacy-runtime",
   "main-hook",
   "native-suites",
   "repl-hook",

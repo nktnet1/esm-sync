@@ -48,9 +48,9 @@ jobs:
 
       - name: Pack without running lifecycle scripts
         run: |
-          mkdir -p release-tarballs
-          npm pack .release/package --pack-destination release-tarballs --ignore-scripts
-          test "$(find release-tarballs -maxdepth 1 -name '*.tgz' -type f | wc -l)" -eq 1
+          mkdir -p release-packages
+          npm pack .release/package --pack-destination release-packages --ignore-scripts
+          test "$(find release-packages -maxdepth 1 -name '*.tgz' -type f | wc -l)" -eq 1
 
       - name: Validate the tarball and its version
         run: node script/src/esm/publish-release-package.ts --tag="$GITHUB_REF_NAME" --registry=https://registry.npmjs.org --dry-run
@@ -61,7 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-packages
-          path: release-tarballs/*.tgz
+          path: release-packages/*.tgz
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

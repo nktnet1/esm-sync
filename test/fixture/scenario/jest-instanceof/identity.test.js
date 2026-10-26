@@ -84,6 +84,62 @@ test("a new loader gets fresh constructors after jest.resetModules", () => {
   expect(first.value instanceof second.Type).toBe(false)
 })
 
+test("a retained factory respects repeated jest.resetModules calls", () => {
+  const factory = require("../../../../index.js")
+  let previous
+
+  for (let index = 0; index < 3; index++) {
+    const load = factory(module)
+    const Type = load("./type.js")
+    expect(new Type().number).toBe(1)
+    expect(Type).not.toBe(previous)
+    previous = Type
+    jest.resetModules()
+  }
+})
+
+test("a retained require discards CommonJS state after a registry reset", () => {
+  const load = createRequire()
+  const Type = load("./type.js")
+  const filename = load.resolve("./type.js")
+  expect(new Type().number).toBe(1)
+  jest.resetModules()
+
+  expect(Object.prototype.hasOwnProperty.call(load.cache, filename)).toBe(false)
+  expect(filename in load.cache).toBe(false)
+  expect(Object.keys(load.cache)).not.toContain(filename)
+  const nextType = load("./type.js")
+  expect(nextType).not.toBe(Type)
+  expect(new nextType().number).toBe(1)
+  expect(load("./value.js") instanceof nextType).toBe(true)
+})
+
+test("a retained require sees modules reloaded by Jest after a reset", () => {
+  const load = createRequire()
+  const Type = load("./type.js")
+  jest.resetModules()
+  const nextType = require("./type.js")
+
+  expect(nextType).not.toBe(Type)
+  expect(load("./type.js")).toBe(nextType)
+})
+
+test("cache entries can be explicitly restored after a registry reset", () => {
+  const load = createRequire()
+  const Type = load("./type.js")
+  const filename = load.resolve("./type.js")
+  const cached = load.cache[filename]
+  jest.resetModules()
+
+  Object.defineProperty(load.cache, filename, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: cached
+  })
+  expect(load("./type.js")).toBe(Type)
+})
+
 test("failed CommonJS evaluations are evicted so a subsequent load can retry", () => {
   const load = createRequire()
   const filename = load.resolve("./retry.js")
