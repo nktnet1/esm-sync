@@ -1,0 +1,14 @@
+{
+  "name": "esm-sync-conditional-fixture",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./import.mjs",
+      "require": "./require.cjs"
+    },
+    "./feature": {
+      "import": "./import.mjs",
+      "require": "./require.cjs"
+    }
+  }
+}

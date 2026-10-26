@@ -24,17 +24,17 @@ it("keeps generated CJS package exports and legacy entry points compatible", () 
   })
 })
 
-it("resolves generated CommonJS declarations through every published subpath", () => {
-  const filename = path.resolve("test/fixture/typecheck/published.cts")
+function checkPublishedTypes(filename: string, esModuleInterop = false): void {
   const options: ts.CompilerOptions = {
     strict: true,
+    ...(esModuleInterop ? { esModuleInterop: true } : {}),
     noEmit: true,
     module: ts.ModuleKind.NodeNext,
     moduleResolution: ts.ModuleResolutionKind.NodeNext,
     target: ts.ScriptTarget.ES2022,
     types: ["node"]
   }
-  const program = ts.createProgram([filename], options)
+  const program = ts.createProgram([path.resolve(filename)], options)
   const diagnostics = ts.getPreEmitDiagnostics(program)
   assert.equal(
     diagnostics.length,
@@ -45,4 +45,12 @@ it("resolves generated CommonJS declarations through every published subpath", (
       getNewLine: () => "\n"
     })
   )
+}
+
+it("resolves generated CommonJS declarations through every published subpath", () => {
+  checkPublishedTypes("test/fixture/typecheck/published.cts")
+})
+
+it("resolves generated ESM declarations through every published subpath", () => {
+  checkPublishedTypes("test/fixture/typecheck/published.mts", true)
 })

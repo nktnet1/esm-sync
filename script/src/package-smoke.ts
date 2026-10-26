@@ -3,7 +3,18 @@ import path from "node:path"
 import execa from "execa"
 
 export type ConsumerFormat = "cjs" | "esm"
-export type SmokeCheck = ConsumerFormat | "preload"
+export const compatibilityChecks = [
+  { id: "native", label: "Native import(), require(), and createRequire()" },
+  { id: "graphs", label: "Mixed CJS -> ESM -> CJS / ESM -> CJS -> ESM graphs" },
+  { id: "boundaries", label: "Package type and .js/.cjs/.mjs boundaries" },
+  { id: "conditions", label: "Node-native conditional import/require exports" },
+  { id: "exports", label: "Published entry aliases via require() and import()" },
+  { id: "cache", label: "Module identity, live bindings, and caches" },
+  { id: "workers", label: "CommonJS and ESM worker threads" }
+] as const
+
+export type CompatibilityCheck = (typeof compatibilityChecks)[number]["id"]
+export type SmokeCheck = ConsumerFormat | CompatibilityCheck | "preload"
 
 export function consumerFormats(value: string): ConsumerFormat[] {
   if (value === "both") return ["cjs", "esm"]
@@ -31,7 +42,8 @@ export async function runInstalledPackageCheck(
   consumerPath: string,
   format: ConsumerFormat,
   check: SmokeCheck,
-  verbose = false
+  verbose = false,
+  workerRounds = 1
 ): Promise<void> {
   const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "production" }
   for (const key of [
@@ -44,10 +56,14 @@ export async function runInstalledPackageCheck(
   ])
     delete env[key]
 
+  if (check === "workers") env.ESM_SYNC_SMOKE_WORKER_ROUNDS = String(workerRounds)
+
   const args =
     check === "preload"
       ? ["--require", "esm-sync", "cli.js"]
-      : [format === "cjs" ? "consumer.cjs" : "consumer.mjs", check]
+      : check === "cjs" || check === "esm"
+        ? [format === "cjs" ? "consumer.cjs" : "consumer.mjs", check]
+        : [format === "cjs" ? "compat.cjs" : "compat.mjs", check]
   if (check === "preload" && format !== "cjs")
     throw new Error("The CommonJS preload check requires a CommonJS project")
 

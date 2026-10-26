@@ -9,11 +9,11 @@ import { parseArgs, stripVTControlCharacters, styleText } from "node:util"
 import execa from "execa"
 import packageInfo from "../../package.json"
 import {
+  compatibilityChecks,
   consumerFormats,
   runInstalledPackageCheck,
   verifyInstalledFiles,
-  type ConsumerFormat,
-  type SmokeCheck
+  type ConsumerFormat
 } from "./package-smoke.js"
 import { createPublishManifest } from "./package-manifest.js"
 
@@ -47,7 +47,7 @@ async function stage<T>(label: string, description: string, action: () => Promis
       ? formatName(label.toLowerCase() as ConsumerFormat)
       : styleText(label === "CLEANUP" ? "yellow" : "cyan", label)
   const prefix = `    ${styleText("dim", number)}  ${category}${" ".repeat(Math.max(2, 11 - label.length))}${description}`
-  const line = `${prefix}${" ".repeat(Math.max(2, 50 - stripVTControlCharacters(description).length))}`
+  const line = `${prefix}${" ".repeat(Math.max(2, 87 - stripVTControlCharacters(prefix).length))}`
   if (verboseStages) console.log(prefix)
   else process.stdout.write(line)
   const start = Date.now()
@@ -67,13 +67,16 @@ async function stage<T>(label: string, description: string, action: () => Promis
 function displayResults(
   formats: readonly ConsumerFormat[],
   results: CheckResults,
-  success: boolean
+  success: boolean,
+  workerRounds: number
 ) {
   section(styleText(["bold", "cyan"], "RESULTS"))
   let importsPassed = 0
   let importsTotal = 0
   for (const format of formats) {
-    for (const target of ["cjs", "esm", ...(format === "cjs" ? ["preload"] : [])] as SmokeCheck[]) {
+    for (const target of ["cjs", "esm", ...(format === "cjs" ? ["preload"] : [])] as Array<
+      ConsumerFormat | "preload"
+    >) {
       const name =
         target === "preload"
           ? `${formatName(format)} project: CLI preload`
@@ -93,6 +96,25 @@ function displayResults(
       console.log(`    ${name}${gap}${label}`)
     }
   }
+  console.log(`\n    ${styleText(["bold", "blue"], "ADDITIONAL COMPATIBILITY")}`)
+  let advancedPassed = 0
+  let advancedTotal = 0
+  for (const format of formats) {
+    for (const check of compatibilityChecks) {
+      const name = `${formatName(format)}  ${check.label}`
+      const status = results.get(`${format}:${check.id}`)
+      advancedTotal++
+      if (status === true) advancedPassed++
+      const label =
+        status === true
+          ? styleText(["bold", "green"], "PASS")
+          : status === false
+            ? styleText(["bold", "red"], "FAIL")
+            : styleText("yellow", "NOT RUN")
+      const gap = " ".repeat(Math.max(2, 75 - stripVTControlCharacters(name).length))
+      console.log(`    ${name}${gap}${label}`)
+    }
+  }
   const preload = formats.includes("cjs") ? results.get("cjs:preload") : undefined
   const preloadLabel =
     preload === true
@@ -101,8 +123,10 @@ function displayResults(
         ? styleText(["bold", "red"], "FAIL")
         : styleText("yellow", "NOT RUN")
   console.log(
-    `\n  ${styleText(["bold", success ? "green" : "red"], success ? "PASS" : "FAIL")}  ${styleText("cyan", `${importsPassed}/${importsTotal}`)} import combinations passed${formats.includes("cjs") ? `  |  CJS preload ${preloadLabel}` : ""}`
+    `\n  ${styleText(["bold", success ? "green" : "red"], success ? "PASS" : "FAIL")}  ${styleText("cyan", `${importsPassed}/${importsTotal}`)} import pairs  |  ${styleText("cyan", `${advancedPassed}/${advancedTotal}`)} compatibility checks${formats.includes("cjs") ? `  |  CJS preload ${preloadLabel}` : ""}`
   )
+  if (workerRounds > 1)
+    console.log(`  ${styleText("yellow", "WORKER STRESS")}  ${workerRounds} rounds per project`)
   console.log(
     `  ${success ? "Published package verified in isolated projects" : `Stopped at ${failedStage ?? activeStage}`}.\n`
   )
@@ -158,9 +182,15 @@ async function stopRegistry(child: ChildProcess | undefined): Promise<void> {
 async function testRegistry(
   formats: readonly ConsumerFormat[],
   verbose: boolean,
-  results: CheckResults
+  results: CheckResults,
+  workerRounds: number
 ): Promise<void> {
-  stageTotal = 9 + formats.reduce((total, format) => total + (format === "cjs" ? 7 : 6), 0)
+  stageTotal =
+    9 +
+    formats.reduce(
+      (total, format) => total + compatibilityChecks.length + (format === "cjs" ? 7 : 6),
+      0
+    )
   verboseStages = verbose
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "esm-sync-registry-"))
   const registryRoot = path.join(temporary, "registry")
@@ -385,6 +415,12 @@ runServer(process.argv[2]).then((app) => {
         async () => {
           await fs.cp(path.join(root, "test/packed"), consumer, { recursive: true })
           await fs.writeFile(
+            path.join(consumer, "project.js"),
+            format === "cjs"
+              ? '"use strict"; module.exports = { format: "commonjs" }\n'
+              : 'export default { format: "module" }\n'
+          )
+          await fs.writeFile(
             path.join(consumer, "package.json"),
             JSON.stringify({
               name: `esm-sync-registry-consumer-${format}`,
@@ -440,6 +476,25 @@ runServer(process.argv[2]).then((app) => {
           throw error
         }
       }
+      console.log(
+        `\n    ${styleText(["bold", "blue"], "ADDITIONAL COMPATIBILITY")}  ${styleText("dim", "Separate Node processes")}`
+      )
+      for (const check of compatibilityChecks) {
+        const key = `${format}:${check.id}`
+        try {
+          await stage(
+            "CHECK",
+            check.id === "workers" && workerRounds > 1
+              ? `${check.label} (${workerRounds} rounds)`
+              : check.label,
+            () => runInstalledPackageCheck(consumer, format, check.id, verbose, workerRounds)
+          )
+          results.set(key, true)
+        } catch (error) {
+          results.set(key, false)
+          throw error
+        }
+      }
       if (format === "cjs") {
         try {
           await stage("PRELOAD", `${formatName(format)} project: CLI preload`, () =>
@@ -473,10 +528,14 @@ export async function runRegistryTest(args = process.argv.slice(2)): Promise<voi
     args,
     options: {
       format: { type: "string", default: "both" },
-      verbose: { type: "boolean", default: false }
+      verbose: { type: "boolean", default: false },
+      "worker-rounds": { type: "string", default: "1" }
     }
   })
   const formats = consumerFormats(values.format ?? "both")
+  const workerRounds = Number(values["worker-rounds"])
+  if (!Number.isSafeInteger(workerRounds) || workerRounds < 1 || workerRounds > 50)
+    throw new Error("--worker-rounds must be an integer between 1 and 50")
   activeStage = "initialisation"
   failedStage = undefined
   stageNumber = 0
@@ -486,7 +545,7 @@ export async function runRegistryTest(args = process.argv.slice(2)): Promise<voi
     `\n  ${styleText(["bold", "cyan"], "VERDACCIO")}  ${styleText(["bold", "magenta"], `${packageInfo.name}@${packageInfo.version}`)}`
   )
   console.log(
-    `  Publish and install smoke tests  ${styleText("dim", `Node ${process.version}  |  ${scope}${values.verbose ? "  |  verbose" : ""}`)}`
+    `  Publish and install smoke tests  ${styleText("dim", `Node ${process.version}  |  ${scope}${workerRounds > 1 ? `  |  ${workerRounds} worker rounds` : ""}${values.verbose ? "  |  verbose" : ""}`)}`
   )
   const results: CheckResults = new Map()
   let complete = false
@@ -497,12 +556,12 @@ export async function runRegistryTest(args = process.argv.slice(2)): Promise<voi
     }
   })
   try {
-    await testRegistry(formats, values.verbose ?? false, results)
+    await testRegistry(formats, values.verbose ?? false, results, workerRounds)
     complete = true
-    displayResults(formats, results, true)
+    displayResults(formats, results, true, workerRounds)
   } catch (error) {
     complete = true
-    displayResults(formats, results, false)
+    displayResults(formats, results, false, workerRounds)
     throw error
   }
 }
