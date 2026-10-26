@@ -139,6 +139,7 @@ export interface SharedState {
   inited: boolean
   loader: Map<unknown, LoaderState>
   memoize: {
+    moduleCache: WeakMap<object, Record<string, ModuleRecord>>
     builtinEntries: Map<string, Entry>
     builtinModules: Map<string, ModuleRecord>
     fsRealpath: Map<string, string>

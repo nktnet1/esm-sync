@@ -13,6 +13,7 @@ import SafeObject from "./safe/object.js"
 import assign from "./util/assign.js"
 import builtinIds from "./builtin-ids.js"
 import getModuleDirname from "./util/get-module-dirname.js"
+import has from "./util/has.js"
 import isExtNode from "./path/is-ext-node.js"
 import isObjectLike from "./util/is-object-like.js"
 import maskFunction from "./util/mask-function.js"
@@ -20,6 +21,7 @@ import protoCompile from "./module/proto/compile.js"
 import protoLoad from "./module/proto/load.js"
 import protoReq from "./module/proto/require.js"
 import safeDefaultProperties from "./util/safe-default-properties.js"
+import shared from "./shared.js"
 import staticCreateRequireFromPath from "./module/static/create-require-from-path.js"
 import staticFindPath from "./module/static/find-path.js"
 import staticInitPaths from "./module/static/init-paths.js"
@@ -75,6 +77,57 @@ if (!isObjectLike(Module._cache)) {
 }
 
 if (Module._cache !== RealModule._cache) {
+  const externalCache = Module._cache
+  // Require factories rebuild Module, but must reuse the same writable view.
+  const { moduleCache } = shared.memoize
+  let cache = moduleCache.get(externalCache)
+
+  if (cache === void 0) {
+    const probe = Symbol()
+
+    Reflect.set(externalCache, probe, probe)
+    const writable = Reflect.get(externalCache, probe) === probe
+    Reflect.deleteProperty(externalCache, probe)
+
+    cache = externalCache
+
+    if (!writable) {
+      // Jest's require.cache proxy accepts writes without retaining them. Keep
+      // loader-created modules in a writable cache so repeated CJS imports share
+      // their constructors, while still seeing modules loaded later by Jest.
+      cache = new OwnProxy(emptyRecord<Record<string, ModuleRecord>>(), {
+        get(cache, name, receiver) {
+          return has(cache, name)
+            ? Reflect.get(cache, name, receiver)
+            : Reflect.get(externalCache, name)
+        },
+        getOwnPropertyDescriptor(cache, name) {
+          const descriptor = Reflect.getOwnPropertyDescriptor(cache, name)
+
+          if (descriptor !== void 0) {
+            return descriptor
+          }
+
+          const value = Reflect.get(externalCache, name)
+
+          return value === void 0
+            ? void 0
+            : { configurable: true, enumerable: true, value, writable: true }
+        },
+        has(cache, name) {
+          return has(cache, name) || Reflect.get(externalCache, name) !== void 0
+        },
+        ownKeys(cache) {
+          return Array.from(new Set([...Reflect.ownKeys(externalCache), ...Reflect.ownKeys(cache)]))
+        }
+      })
+    }
+
+    moduleCache.set(externalCache, cache)
+  }
+
+  Module._cache = cache
+
   // Ensure `.node` files are cached in the real `Module._cache`
   // when `require.cache` is different than `Module._cache`.
   Module._cache = new OwnProxy(Module._cache, {

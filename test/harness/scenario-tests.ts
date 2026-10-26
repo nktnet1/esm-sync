@@ -344,6 +344,11 @@ describe("scenario tests", { concurrency: 3 }, () => {
       const configPath = path.resolve(dirPath, "jest.config.json")
       return node([jestPath, "--config", configPath, "--rootDir", dirPath])
     })
+    it("should preserve CJS constructor identity and instanceof with jest", function () {
+      const dirPath = path.resolve("fixture/scenario/jest-instanceof")
+      const configPath = path.resolve(dirPath, "jest.config.json")
+      return node([jestPath, "--config", configPath, "--rootDir", dirPath, "--runInBand"], envAuto)
+    })
     it("should work with jest subclassed console", function () {
       const dirPath = path.resolve("fixture/scenario/jest-console")
       const configPath = path.resolve(dirPath, "jest.config.json")
