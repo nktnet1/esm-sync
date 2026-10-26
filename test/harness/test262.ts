@@ -225,7 +225,7 @@ describe(`Test262 conformance (${setupTest262.revision})`, { concurrency: 4 }, (
         unsupportedFeatures: [...unsupportedHostFeatures, ...unsupportedLoaderFeatures],
         unsupportedFeatureSources
       })
-      it.skip(title, { skip: reasons.join("; ") }, () => {})
+      it(title, { skip: reasons.join("; ") }, () => {})
       continue
     }
 
