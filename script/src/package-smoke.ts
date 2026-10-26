@@ -3,6 +3,7 @@ import path from "node:path"
 import execa from "execa"
 
 export type ConsumerFormat = "cjs" | "esm"
+export type SmokeCheck = ConsumerFormat | "preload"
 
 export function consumerFormats(value: string): ConsumerFormat[] {
   if (value === "both") return ["cjs", "esm"]
@@ -10,21 +11,8 @@ export function consumerFormats(value: string): ConsumerFormat[] {
   throw new Error("--format must be cjs, esm, or both")
 }
 
-export async function verifyInstalledPackage(
-  consumerPath: string,
-  formats: readonly ConsumerFormat[]
-): Promise<void> {
+export async function verifyInstalledFiles(consumerPath: string): Promise<void> {
   const installedPath = path.join(consumerPath, "node_modules/esm-sync")
-  const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "production" }
-  for (const key of [
-    "ESM_ENV",
-    "ESM_OPTIONS",
-    "ESM_DISABLE_CACHE",
-    "ESM_SYNC_TEST_BUILD",
-    "NODE_PATH",
-    "NODE_OPTIONS"
-  ])
-    delete env[key]
   for (const filename of [
     "dist/index.js",
     "dist/esm.d.ts",
@@ -37,24 +25,55 @@ export async function verifyInstalledPackage(
   ]) {
     await fs.access(path.join(installedPath, filename))
   }
+}
 
+export async function runInstalledPackageCheck(
+  consumerPath: string,
+  format: ConsumerFormat,
+  check: SmokeCheck,
+  verbose = false
+): Promise<void> {
+  const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "production" }
+  for (const key of [
+    "ESM_ENV",
+    "ESM_OPTIONS",
+    "ESM_DISABLE_CACHE",
+    "ESM_SYNC_TEST_BUILD",
+    "NODE_PATH",
+    "NODE_OPTIONS"
+  ])
+    delete env[key]
+
+  const args =
+    check === "preload"
+      ? ["--require", "esm-sync", "cli.js"]
+      : [format === "cjs" ? "consumer.cjs" : "consumer.mjs", check]
+  if (check === "preload" && format !== "cjs")
+    throw new Error("The CommonJS preload check requires a CommonJS project")
+
+  // ESM consumers run native ESM, so the CommonJS preload hook is only
+  // meaningful for a .js CLI inside the CommonJS consumer project.
+  await execa(process.execPath, args, {
+    cwd: consumerPath,
+    env,
+    extendEnv: false,
+    stdio: verbose ? "inherit" : "pipe"
+  })
+}
+
+export async function verifyInstalledPackage(
+  consumerPath: string,
+  formats: readonly ConsumerFormat[]
+): Promise<void> {
+  await verifyInstalledFiles(consumerPath)
   for (const format of formats) {
-    await execa(process.execPath, [format === "cjs" ? "consumer.cjs" : "consumer.mjs"], {
-      cwd: consumerPath,
-      env,
-      extendEnv: false,
-      stdio: "inherit"
-    })
-  }
-
-  if (formats.includes("cjs")) {
-    // A .js CLI in a type:module consumer uses native ESM and would not
-    // exercise the CommonJS preload hook that this smoke test is for.
-    await execa(process.execPath, ["--require", "esm-sync", "cli.js"], {
-      cwd: consumerPath,
-      env,
-      extendEnv: false,
-      stdio: "inherit"
-    })
+    for (const target of ["cjs", "esm"] as const) {
+      await runInstalledPackageCheck(consumerPath, format, target)
+      console.log(`${format.toUpperCase()} entry importing ${target.toUpperCase()} module: PASS`)
+    }
+    if (format === "cjs") {
+      await runInstalledPackageCheck(consumerPath, format, "preload")
+      console.log("CommonJS CLI preload: PASS")
+    }
   }
 }

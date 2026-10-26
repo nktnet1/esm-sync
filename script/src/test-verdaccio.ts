@@ -5,10 +5,16 @@ import { randomBytes } from "node:crypto"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { parseArgs, styleText } from "node:util"
+import { parseArgs, stripVTControlCharacters, styleText } from "node:util"
 import execa from "execa"
 import packageInfo from "../../package.json"
-import { consumerFormats, verifyInstalledPackage, type ConsumerFormat } from "./package-smoke.js"
+import {
+  consumerFormats,
+  runInstalledPackageCheck,
+  verifyInstalledFiles,
+  type ConsumerFormat,
+  type SmokeCheck
+} from "./package-smoke.js"
 import { createPublishManifest } from "./package-manifest.js"
 
 const verdaccioVersion = "6.10.4"
@@ -16,26 +22,90 @@ const root = path.resolve(__dirname, "../..")
 let activeStage = "initialisation"
 let stageNumber = 0
 let stageTotal = 0
+let sectionNumber = 0
+let verboseStages = false
 let failedStage: string | undefined
 
+type CheckResults = Map<string, boolean>
+
+function formatName(format: ConsumerFormat): string {
+  return styleText(format === "cjs" ? "magenta" : "yellow", format.toUpperCase())
+}
+
+function section(title: string, detail?: string): void {
+  console.log(
+    `\n  ${styleText("blue", String(++sectionNumber).padStart(2, "0"))}  ${title}${detail ? `  ${styleText("dim", detail)}` : ""}`
+  )
+  console.log(`  ${"-".repeat(73)}`)
+}
+
 async function stage<T>(label: string, description: string, action: () => Promise<T>): Promise<T> {
-  activeStage = `${label}: ${description}`
+  activeStage = `${label}: ${stripVTControlCharacters(description)}`
   const number = `[${String(++stageNumber).padStart(2, "0")}/${stageTotal}]`
-  console.log(`\n[verdaccio] ${number} ${styleText("cyan", label.padEnd(8))} ${description}`)
+  const category =
+    label === "CJS" || label === "ESM"
+      ? formatName(label.toLowerCase() as ConsumerFormat)
+      : styleText(label === "CLEANUP" ? "yellow" : "cyan", label)
+  const prefix = `    ${styleText("dim", number)}  ${category}${" ".repeat(Math.max(2, 11 - label.length))}${description}`
+  const line = `${prefix}${" ".repeat(Math.max(2, 50 - stripVTControlCharacters(description).length))}`
+  if (verboseStages) console.log(prefix)
+  else process.stdout.write(line)
   const start = Date.now()
   try {
     const result = await action()
-    console.log(
-      `[verdaccio]         ${styleText("green", "PASS")} (${((Date.now() - start) / 1000).toFixed(1)}s)`
-    )
+    const status = `${styleText(["bold", "green"], "PASS")}  ${styleText("dim", `${((Date.now() - start) / 1000).toFixed(1)}s`)}`
+    console.log(verboseStages ? `            ${status}` : status)
     return result
   } catch (error) {
     failedStage ??= activeStage
-    console.error(
-      `[verdaccio]         ${styleText("red", "FAIL")} (${((Date.now() - start) / 1000).toFixed(1)}s)`
-    )
+    const status = `${styleText(["bold", "red"], "FAIL")}  ${styleText("dim", `${((Date.now() - start) / 1000).toFixed(1)}s`)}`
+    console.log(verboseStages ? `            ${status}` : status)
     throw error
   }
+}
+
+function displayResults(
+  formats: readonly ConsumerFormat[],
+  results: CheckResults,
+  success: boolean
+) {
+  section(styleText(["bold", "cyan"], "RESULTS"))
+  let importsPassed = 0
+  let importsTotal = 0
+  for (const format of formats) {
+    for (const target of ["cjs", "esm", ...(format === "cjs" ? ["preload"] : [])] as SmokeCheck[]) {
+      const name =
+        target === "preload"
+          ? `${formatName(format)} project: CLI preload`
+          : `${formatName(format)} project importing ${formatName(target)} module`
+      const status = results.get(`${format}:${target}`)
+      if (target !== "preload") {
+        if (status === true) importsPassed++
+        importsTotal++
+      }
+      const label =
+        status === true
+          ? styleText(["bold", "green"], "PASS")
+          : status === false
+            ? styleText(["bold", "red"], "FAIL")
+            : styleText("yellow", "NOT RUN")
+      const gap = " ".repeat(Math.max(2, 50 - stripVTControlCharacters(name).length))
+      console.log(`    ${name}${gap}${label}`)
+    }
+  }
+  const preload = formats.includes("cjs") ? results.get("cjs:preload") : undefined
+  const preloadLabel =
+    preload === true
+      ? styleText(["bold", "green"], "PASS")
+      : preload === false
+        ? styleText(["bold", "red"], "FAIL")
+        : styleText("yellow", "NOT RUN")
+  console.log(
+    `\n  ${styleText(["bold", success ? "green" : "red"], success ? "PASS" : "FAIL")}  ${styleText("cyan", `${importsPassed}/${importsTotal}`)} import combinations passed${formats.includes("cjs") ? `  |  CJS preload ${preloadLabel}` : ""}`
+  )
+  console.log(
+    `  ${success ? "Published package verified in isolated projects" : `Stopped at ${failedStage ?? activeStage}`}.\n`
+  )
 }
 
 function registryReady(child: ChildProcess): Promise<string> {
@@ -85,8 +155,13 @@ async function stopRegistry(child: ChildProcess | undefined): Promise<void> {
   }
 }
 
-async function testRegistry(formats: readonly ConsumerFormat[], verbose: boolean): Promise<void> {
-  stageTotal = 9 + formats.length * 4
+async function testRegistry(
+  formats: readonly ConsumerFormat[],
+  verbose: boolean,
+  results: CheckResults
+): Promise<void> {
+  stageTotal = 9 + formats.reduce((total, format) => total + (format === "cjs" ? 7 : 6), 0)
+  verboseStages = verbose
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "esm-sync-registry-"))
   const registryRoot = path.join(temporary, "registry")
   const npmrc = path.join(temporary, ".npmrc")
@@ -133,6 +208,7 @@ async function testRegistry(formats: readonly ConsumerFormat[], verbose: boolean
       stdio: verbose ? ("inherit" as const) : ("pipe" as const),
       timeout: 180_000
     }
+    section(styleText(["bold", "cyan"], "PACKAGE & REGISTRY"), "Prepare, pack, and publish")
     await stage("FIXTURES", "Prepare Acorn source", async () => {
       await execa(process.execPath, [path.join(__dirname, "setup-fixtures.js"), "acorn"], {
         ...command,
@@ -212,7 +288,7 @@ runServer(process.argv[2]).then((app) => {
       }
       return registryReady(child)
     })
-    console.log(`[verdaccio]         URL  ${styleText("cyan", registry)}`)
+    console.log(`    ${styleText("blue", "REGISTRY")}  ${styleText("cyan", registry)}`)
 
     await stage("AUTH", "Create temporary publisher credentials", async () => {
       const username = "esm-sync-smoke"
@@ -299,9 +375,13 @@ runServer(process.argv[2]).then((app) => {
     for (const format of formats) {
       const label = format.toUpperCase()
       const consumer = path.join(temporary, `consumer-${format}`)
+      section(
+        `${formatName(format)} ${styleText("bold", "PROJECT")}`,
+        `type: "${format === "cjs" ? "commonjs" : "module"}"`
+      )
       await stage(
         label,
-        `Create ${format === "cjs" ? "type: commonjs" : "type: module"} consumer`,
+        `Create ${format === "cjs" ? "CommonJS" : "ESM"} consumer project`,
         async () => {
           await fs.cp(path.join(root, "test/packed"), consumer, { recursive: true })
           await fs.writeFile(
@@ -315,7 +395,7 @@ runServer(process.argv[2]).then((app) => {
           )
         }
       )
-      await stage(label, "Install published package with lifecycle scripts", async () => {
+      await stage(label, "Install published package and run lifecycle scripts", async () => {
         await execa(
           "npm",
           [
@@ -341,14 +421,43 @@ runServer(process.argv[2]).then((app) => {
           cwd: installed
         })
       })
-      await stage(label, "Test CommonJS/ESM imports and preload (where applicable)", async () => {
-        await verifyInstalledPackage(consumer, [format])
+      await stage("VERIFY", "Check installed package files", async () => {
+        await verifyInstalledFiles(consumer)
       })
+      console.log(
+        `\n    ${styleText(["bold", "blue"], "IMPORT TESTS")}  ${styleText("dim", "Separate Node processes")}`
+      )
+      for (const target of ["cjs", "esm"] as const) {
+        const name = `${formatName(format)} project importing ${formatName(target)} module`
+        const key = `${format}:${target}`
+        try {
+          await stage("TEST", name, () =>
+            runInstalledPackageCheck(consumer, format, target, verbose)
+          )
+          results.set(key, true)
+        } catch (error) {
+          results.set(key, false)
+          throw error
+        }
+      }
+      if (format === "cjs") {
+        try {
+          await stage("PRELOAD", `${formatName(format)} project: CLI preload`, () =>
+            runInstalledPackageCheck(consumer, format, "preload", verbose)
+          )
+          results.set("cjs:preload", true)
+        } catch (error) {
+          results.set("cjs:preload", false)
+          throw error
+        }
+      }
     }
   } catch (error) {
-    if (registryLog) console.error(`[verdaccio] Registry log (last 16 KB):\n${registryLog}`)
+    if (registryLog)
+      console.error(`\n${styleText("yellow", "Registry log")} (last 16 KB):\n${registryLog}`)
     throw error
   } finally {
+    section(styleText(["bold", "cyan"], "CLEANUP"), "Remove temporary registry and consumers")
     await stage("CLEANUP", "Stop Verdaccio and remove temporary workspace", async () => {
       try {
         await stopRegistry(child)
@@ -371,25 +480,29 @@ export async function runRegistryTest(args = process.argv.slice(2)): Promise<voi
   activeStage = "initialisation"
   failedStage = undefined
   stageNumber = 0
+  sectionNumber = 0
+  const scope = formats.map((format) => format.toUpperCase()).join(" + ")
   console.log(
-    `\n[verdaccio] ${styleText("cyan", "TEST")} ${packageInfo.name}@${packageInfo.version}  |  ${formats.map((format) => format.toUpperCase()).join(" + ")}${values.verbose ? "  |  verbose" : ""}`
+    `\n  ${styleText(["bold", "cyan"], "VERDACCIO")}  ${styleText(["bold", "magenta"], `${packageInfo.name}@${packageInfo.version}`)}`
   )
+  console.log(
+    `  Publish and install smoke tests  ${styleText("dim", `Node ${process.version}  |  ${scope}${values.verbose ? "  |  verbose" : ""}`)}`
+  )
+  const results: CheckResults = new Map()
   let complete = false
   process.once("exit", (code) => {
     if (!complete) {
-      console.error(`[verdaccio] ${styleText("red", "FAIL")} incomplete run after ${activeStage}`)
+      console.error(`${styleText("red", "FAIL")} incomplete run after ${activeStage}`)
       if (code === 0) process.exitCode = 1
     }
   })
   try {
-    await testRegistry(formats, values.verbose ?? false)
+    await testRegistry(formats, values.verbose ?? false, results)
     complete = true
-    console.log(
-      `\n[verdaccio] ${styleText("green", "PASS")} Published and verified in ${formats.map((format) => format.toUpperCase()).join(" + ")} projects\n`
-    )
+    displayResults(formats, results, true)
   } catch (error) {
     complete = true
-    console.error(`\n[verdaccio] ${styleText("red", "FAIL")} ${failedStage ?? activeStage}\n`)
+    displayResults(formats, results, false)
     throw error
   }
 }

@@ -221,6 +221,14 @@ try {
     }
   }
 } catch (error) {
-  console.error(task === "test-verdaccio" ? error : error instanceof Error ? error.message : error)
+  // The Verdaccio runner has already printed the failed stage and its summary.
+  // Avoid repeating the full execa stack unless detailed logging was requested.
+  console.error(
+    task === "test-verdaccio" && process.argv.includes("--verbose")
+      ? error
+      : error instanceof Error
+        ? error.message
+        : error
+  )
   process.exitCode = 1
 }
