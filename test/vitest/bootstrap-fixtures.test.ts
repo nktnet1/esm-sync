@@ -60,6 +60,22 @@ globalThis.fetch = async (url) => {
         }
       }
       const result = await runNodeCommand(args, options)
+      for (const [category, description] of [
+        ["LOAD", "TypeScript compiler"],
+        ["VERIFY", "Installed TypeScript version"],
+        ["CHECK", "config/tsconfig.tooling.json"],
+        ["CHECK", "config/tsconfig.bootstrap.json"],
+        ["CHECK", "config/tsconfig.harness.json"],
+        ["CLEAN", "Remove old generated tooling files"],
+        ["EMIT", "Generate tooling from script/src"],
+        ["EMIT", "Generate tooling from debug"],
+        ["EMIT", "Generate tooling from test/harness"],
+        ["RUN", "setup-fixtures acorn"]
+      ] as const) {
+        const stage = new RegExp(`\\[cli\\] ${category}\\s+${description.replaceAll(".", "\\.")}`)
+        assert.match(result.stdout, stage, result.diagnostic)
+      }
+      assert.match(result.stdout, /\[cli\] DONE {2}setup-fixtures/, result.diagnostic)
       assert.match(result.stdout, /\[acorn\] setup complete\./, result.diagnostic)
       assert.equal(result.stderr, "", result.diagnostic)
       assert.equal(
@@ -86,6 +102,8 @@ globalThis.fetch = async (url) => {
         ...options,
         expectedExitCode: 1
       })
+      assert.match(failure.stdout, /CHECK\s+config\/tsconfig\.tooling\.json/, failure.diagnostic)
+      assert.match(failure.stdout, /FAIL/, failure.diagnostic)
       assert.match(failure.stderr, /TS2882/, failure.diagnostic)
       assert.match(failure.stderr, /missing-owned-module\.js/, failure.diagnostic)
     } finally {
