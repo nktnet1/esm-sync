@@ -1,0 +1,76 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    ".ncurc.mjs",
+    "src/index.ts",
+    "src/bootstrap/{esm,index}.ts",
+    "src/acorn/replacement/regexp.ts",
+    "src/types/registry.ts",
+    "script/src/{benchmark-async,build,build-sync-await,clean,publish,run-test262,setup-acorn,setup-fixtures,setup-native-addon,setup-test262,test,test-packed,test-verdaccio}.ts",
+    "test/harness/**/*.{ts,cts}",
+    "test/packed/{check-consumer,check-compat,consumer,compat,cli}.{cjs,mjs,js}",
+    "test/fixture/scenario/**/{index,cwd,main,webpack.config}.{js,cjs,mjs,ts}"
+  ],
+  "project": [
+    "config/**/*.{js,mjs,cjs,ts,mts,cts}",
+    "script/src/**/*.{js,mjs,cjs,ts,mts,cts}",
+    "src/**/*.{js,mjs,cjs,ts,mts,cts}",
+    "test/vitest/**/*.{js,mjs,cjs,ts,mts,cts}",
+    "test/harness/**/*.{js,mjs,cjs,ts,mts,cts}",
+    "test/packed/**/*.{js,mjs,cjs,ts,mts,cts}",
+    "test/fixture/scenario/**/*.{js,mjs,cjs,ts,mts,cts}"
+  ],
+  "ignoreFiles": ["test/fixture/scenario/**"],
+  "ignoreIssues": {
+    "src/bootstrap/esm.ts": ["unlisted"],
+    "test/{cjs,export,import,misc,output,require-hook,wasm}/**": ["unresolved"],
+    "src/**": ["types"],
+    "src/module/internal/async-graph.ts": ["exports"],
+    "src/util/prepare-context.ts": ["exports"],
+    "src/safe/{punycode,repl,url}.ts": ["exports"],
+    "test/fixture/scenario/**": ["exports", "types", "unresolved"],
+    "test/packed/check-compat.cjs": ["unresolved"],
+    "test/harness/dynamic-import-tests.ts": ["unresolved"],
+    "test/harness/test262.ts": ["unresolved"],
+    "test/harness/url-tests.ts": ["unresolved"],
+    "script/src/{setup-test262,test262-outcome,test262-selection}.ts": ["exports"]
+  },
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  },
+  "ignoreDependencies": [
+    "@babel/helper-plugin-utils",
+    "@babel/plugin-proposal-class-properties",
+    "@babel/plugin-proposal-optional-catch-binding",
+    "@babel/plugin-transform-arrow-functions",
+    "@babel/plugin-transform-block-scoping",
+    "@babel/plugin-transform-flow-strip-types",
+    "@babel/plugin-transform-runtime",
+    "@babel/polyfill",
+    "@babel/preset-env",
+    "@babel/runtime",
+    "@std/esm",
+    "babel-plugin-transform-for-of-as-array",
+    "babel-plugin-transform-remove-console",
+    "babel-plugin-transform-remove-debugger",
+    "jasmine",
+    "jest",
+    "lit-node",
+    "main-fields",
+    "main-fields-mjs",
+    "mocha",
+    "newrelic",
+    "npm-check-updates",
+    "nyc",
+    "pm2",
+    "punycode",
+    "ts-node",
+    "webpack-cli"
+  ],
+  "paths": {
+    "@alias": ["./test/fixture/scenario/module-alias/alias.js"],
+    "main-fields": ["./test/node_modules/main-fields/main.js"],
+    "main-fields-mjs": ["./test/node_modules/main-fields-mjs/main.mjs"]
+  }
+}

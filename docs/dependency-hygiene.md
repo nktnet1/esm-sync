@@ -27,3 +27,12 @@ The first checks published dependencies; the second includes development and
 test tooling. Review findings before applying major updates. The lockfile is
 maintained locally when changing dependencies but excluded from incremental
 patches. Registry-backed audit results depend on current registry access.
+
+## Unused-code checks
+
+`pnpm lint:unused` runs Knip. Its entry points include generated CLI tasks,
+compiled native-test harnesses, and third-party scenario drivers. Test fixtures
+loaded by filename are excluded from unused-file reporting. Exceptions cover
+runtime-resolved Babel plugins, externally launched test tools, and types
+indexed through the loader's module registry. Review those exceptions when
+changing the build or test integrations.
