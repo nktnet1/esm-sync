@@ -7,17 +7,18 @@ on:
     branches:
       - main
     paths-ignore:
-      - '**/README.md'
+      - "**/README.md"
   pull_request:
     branches:
       - "*"
     paths-ignore:
-      - '**/README.md'
+      - "**/README.md"
   workflow_dispatch:
+  workflow_call:
 
 jobs:
-  test:
-    name: ${{ matrix.os }} / Node ${{ matrix.node-version }}
+  library:
+    name: Library / ${{ matrix.os }} / Node ${{ matrix.node-version }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -50,19 +51,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      # Audit production dependencies once (Linux / Node 26), rather than in
-      # every OS job. Review development-only advisories separately.
-      - name: Audit production dependencies
-        if: runner.os == 'Linux' && matrix.node-version == 26
-        run: pnpm audit:prod
-
-      - name: Check formatting and lint (Linux / Node 26)
-        if: runner.os == 'Linux' && matrix.node-version == 26
-        run: pnpm lint
-
-      - name: Type-check implementation, tooling, harness, declarations and fixtures
-        run: pnpm typecheck
-
       - name: Prepare vendor fixtures
         run: pnpm fixtures:prepare
 
@@ -88,17 +76,53 @@ jobs:
       - name: Build test bundles and native await bridge
         run: pnpm build --test
 
-      - name: Run Vitest (unit and isolated native-Node integration tests)
-        run: pnpm test:vitest
+      - name: Test library behaviour and native Node integration
+        run: pnpm test:vitest --suite=runtime
 
-      - name: Verify production build and tests on Node 26
-        if: matrix.node-version == 26
+      # The installed package's native bridge is platform-specific, but there
+      # is no reason to repeat package smoke tests on every Node version.
+      - name: Test installed CJS and ESM consumers (Node 24)
+        if: matrix.node-version == 24
+        run: pnpm test:packed --format=both
+
+  tooling:
+    name: Tooling, build and release / Ubuntu / Node 24
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@v3
+        with:
+          runtime: node@24
+          install: false
+          cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Audit production dependencies
+        run: pnpm audit:prod
+
+      - name: Check formatting and lint
+        run: pnpm lint
+
+      - name: Type-check implementation, tooling, harness, declarations and fixtures
+        run: pnpm typecheck
+
+      - name: Prepare vendor fixtures
+        run: pnpm fixtures:prepare
+
+      - name: Build test bundles and native await bridge
+        run: pnpm build --test
+
+      - name: Test tooling, fixtures, build and release logic
+        run: pnpm test:vitest --suite=tooling
+
+      - name: Verify production build and tests
         run: pnpm verify:prod
 
-      # Keep CJS coverage on the existing matrix; add an ESM consumer only once.
-      - name: Test installed package from tarball
-        run: pnpm test:packed --format=${{ runner.os == 'Linux' && matrix.node-version == 24 && 'both' || 'cjs' }}
-
-      - name: Test registry publish/install with CJS and ESM consumers (Linux / Node 24)
-        if: runner.os == 'Linux' && matrix.node-version == 24
+      - name: Test registry publish/install with CJS and ESM consumers
         run: pnpm test:verdaccio

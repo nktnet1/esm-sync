@@ -29,7 +29,7 @@ program
   )
   .option("--limit <count>", "run at most this many matching cases", positiveInteger)
   .option("--report <file>", "write a machine-readable JSON result report")
-  .option("--reporter <name>", "Node test reporter: spec, dot, or tap", "spec")
+  .option("--reporter <name>", "Test262 reporter: grouped spec, dot, or tap", "spec")
   .parse(process.argv)
 
 const options = program.opts<{
@@ -77,7 +77,15 @@ if (options.excludeFeature.length > 0) {
 if (options.limit) console.info(`Test262 case limit: ${styleText("cyan", String(options.limit))}`)
 if (options.report) console.info(`Test262 JSON report: ${styleText("cyan", env.TEST262_REPORT)}`)
 
-const child = spawn(process.execPath, ["--test", `--test-reporter=${options.reporter}`, testPath], {
+const reporter =
+  options.reporter === "spec"
+    ? path.join(rootPath, "dist/script/test262-reporter.js")
+    : options.reporter
+if (options.reporter === "spec" && !existsSync(reporter)) {
+  program.error("Missing Test262 reporter. Run pnpm build --test before conformance.")
+}
+
+const child = spawn(process.execPath, ["--test", `--test-reporter=${reporter}`, testPath], {
   cwd: rootPath,
   env,
   stdio: "inherit"

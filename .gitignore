@@ -17,3 +17,9 @@
 
 # All generated code, native binaries, diagnostics and test workspaces.
 /dist/
+
+# Temporary release staging and downloaded CI artifacts.
+/.release/
+/release-tarballs/
+/release-packages/
+/release-metadata/

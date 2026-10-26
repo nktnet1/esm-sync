@@ -11,9 +11,13 @@ import trash from "./trash.js"
 import { program } from "commander"
 
 program.option("--prod")
+program.option("--suite <suite>", "Run only runtime or tooling tests")
 program.parse()
 
-const argv = program.opts<{ prod?: boolean }>()
+const argv = program.opts<{ prod?: boolean; suite?: string }>()
+if (argv.suite !== undefined && argv.suite !== "runtime" && argv.suite !== "tooling") {
+  program.error(`Unknown test suite: ${argv.suite} (expected runtime or tooling)`)
+}
 const isWin = process.platform === "win32"
 const rootPath = path.resolve(__dirname, "../..")
 const testPath = path.resolve(rootPath, "dist/test")
@@ -85,11 +89,21 @@ async function setupNode() {
 
 function runTests() {
   const vitest = path.resolve(rootPath, "node_modules/vitest/vitest.mjs")
-  return execa(process.execPath, [vitest, "run", ...(argv.prod ? ["--mode", "production"] : [])], {
-    cwd: rootPath,
-    env: { NODE_ENV },
-    stdio: "inherit"
-  })
+  const projects =
+    argv.suite === "runtime"
+      ? ["--project", "runtime"]
+      : argv.suite === "tooling"
+        ? ["--project", "bootstrap", "--project", "tooling"]
+        : []
+  return execa(
+    process.execPath,
+    [vitest, "run", ...(argv.prod ? ["--mode", "production"] : []), ...projects],
+    {
+      cwd: rootPath,
+      env: { NODE_ENV },
+      stdio: "inherit"
+    }
+  )
 }
 
 Promise.resolve()

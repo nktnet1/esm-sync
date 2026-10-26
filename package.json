@@ -34,7 +34,10 @@
     "typecheck": "node script/src/esm/cli.ts typecheck",
     "typecheck:tsc": "node script/src/esm/cli.ts typecheck",
     "verify:prod": "pnpm build:prod --test && pnpm test:run:prod",
-    "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio"
+    "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio",
+    "release:beta": "node script/src/esm/release-beta.ts",
+    "release:pack": "node script/src/esm/prepare-release-package.ts",
+    "release:publish": "node script/src/esm/publish-release-package.ts"
   },
   "main": "./dist/esm.js",
   "types": "./dist/esm.d.ts",
