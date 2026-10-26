@@ -66,6 +66,7 @@ function init(): SharedState {
     inited: false,
     loader: new Map(),
     memoize: {
+      moduleCache: new WeakMap(),
       builtinEntries: new Map(),
       builtinModules: new Map(),
       fsRealpath: new Map(),
