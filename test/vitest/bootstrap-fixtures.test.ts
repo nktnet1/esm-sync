@@ -17,7 +17,7 @@ it(
     const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-clean-fixtures-"))
     try {
       const excluded = path.join(root, "src/vendor")
-      for (const name of ["src", "script/src", "config", "debug", "test/harness"])
+      for (const name of ["src", "script/src", "config", "test/harness"])
         await cp(path.join(root, name), path.join(directory, name), {
           recursive: true,
           filter: (source) => source !== excluded
@@ -68,13 +68,17 @@ globalThis.fetch = async (url) => {
         ["CHECK", "config/tsconfig.harness.json"],
         ["CLEAN", "Remove old generated tooling files"],
         ["EMIT", "Generate tooling from script/src"],
-        ["EMIT", "Generate tooling from debug"],
         ["EMIT", "Generate tooling from test/harness"],
         ["RUN", "setup-fixtures acorn"]
       ] as const) {
         const stage = new RegExp(`\\[cli\\] ${category}\\s+${description.replaceAll(".", "\\.")}`)
         assert.match(result.stdout, stage, result.diagnostic)
       }
+      const emittedSources = Array.from(
+        result.stdout.matchAll(/\[cli\] EMIT\s+Generate tooling from ([^\r\n]+)/g),
+        (match) => match[1]
+      )
+      assert.deepEqual(emittedSources, ["script/src", "test/harness"], result.diagnostic)
       assert.match(result.stdout, /\[cli\] DONE {2}setup-fixtures/, result.diagnostic)
       assert.match(result.stdout, /\[acorn\] setup complete\./, result.diagnostic)
       assert.equal(result.stderr, "", result.diagnostic)

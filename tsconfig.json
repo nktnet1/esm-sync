@@ -12,7 +12,6 @@
     "src/**/*.ts",
     "script/src/**/*.ts",
     "src/bootstrap/**/*.ts",
-    "debug/**/*.ts",
     "test/harness/**/*.ts",
     "test/harness/**/*.cts",
     "test/typecheck/**/*.ts",

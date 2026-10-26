@@ -1,75 +1,29 @@
-# Dependency hygiene (Phase 4)
+# Dependency maintenance
 
-## Scope and review
+`punycode` is the only declared production dependency; `src/real/punycode.ts`
+uses its userland `punycode/` entry. Acorn and other runtime code are embedded
+in the build, so a production dependency audit cannot inspect every bundled
+source.
 
-The published package declares only one runtime dependency, `punycode`. The
-`punycode/` import in `src/real/punycode.ts` requires the userland package; it is
-not a redundant reference to Node's built-in module. The build embeds Acorn and
-other loader code, so a production-only package audit does **not** audit the
-contents of the generated bundle.
+The external test runners (AVA, Jest, Mocha, Jasmine, Lab, NYC, `ts-node`,
+Webpack, and Babel register) have actual interoperability scenarios. Do not
+remove or upgrade them solely because the production bundle does not import
+them. See [compatibility tests](test-fixtures-and-compatibility.md).
 
-Direct development dependencies were checked against build scripts, bundler
-configuration, fixture preparation, CLI executables and the active third-party
-interoperability scenarios. The tsdown migration removes `@rspack/cli`,
-`@rspack/core`, `babel-loader`, `terser-webpack-plugin`, `unused-webpack-plugin`,
-and `webpack-bundle-analyzer`. Native tsdown minification also replaces the direct
-`terser` dependency and its custom plugin. `golden-fleece` is removed because
-the temporary publish manifest can use the built-in JSON serializer.
-`html-minifier-next` is also removed: it only compressed README tables during
-publishing, and is unnecessary for the runtime or tests. In particular:
+`pnpm-workspace.yaml` contains targeted security overrides, including overrides
+for legacy consumers on newer Node versions. Review advisories, resolved
+versions, and host compatibility before changing them. Re-evaluate overrides
+when the dependency graph changes; an unused selector does not imply its
+vulnerability is resolved.
 
-- tsdown bundles the loader and emits the public CommonJS entry points. Babel
-  plugins retain the loader's custom strict/sloppy transformations and legacy
-  syntax target. Production minification uses tsdown's native Oxc integration,
-  retaining the external shared binding and the ES2015 output target.
-- Mocha, AVA, Jest, Jasmine, Lab, NYC, `ts-node`, Babel register and Webpack
-  CLI cover real external-host scenarios. See
-  [test-fixtures-and-compatibility.md](test-fixtures-and-compatibility.md).
-- `npm-check-updates` remains a manually invoked maintenance tool.
+Useful checks:
 
-Avoid changing the majors of these legacy host packages without confirming
-that their interoperability tests still exercise their intended behaviour.
+```sh
+pnpm audit:prod
+pnpm audit:all
+```
 
-## Security override review
-
-The pnpm 12 lockfile and installed dependency manifests were examined for
-matching transitive requirements. Ten selectors in `pnpm-workspace.yaml` did
-not match any dependency requirement in that graph and were removed:
-
-| Package | Removed selector(s) |
-| --- | --- |
-| `@grpc/grpc-js` | `<1.8.22` |
-| `axios` | `<0.31.0` |
-| `degenerator` | `<3.0.1` |
-| `pac-resolver` | `<5.0.0` |
-| `postcss` | `<8.5.10` |
-| `protobufjs` | `^8.0.0 <8.2.0` |
-| `systeminformation` | `^4.17.0 <=5.31.5` |
-| `tar` | `<6.2.1`, `>7.0.0 <=7.5.9` |
-| `uuid` | `^4.0.0 <14.0.0` |
-
-The remaining 23 selectors match at least one declared dependency range. They
-are deliberately retained, including the `yargs` 16/17 CommonJS patches used
-for Node 26 compatibility. Some security overrides force a different major
-version than the parent requested (for example, `got` in the legacy
-`update-notifier` chain). Do not widen or remove those overrides without a
-real-host compatibility test and a current advisory review.
-
-**An inactive selector is not proof that its advisory has disappeared.** The
-review is based on the current dependency graph; repeat it when changing
-major dependencies or regenerating the lockfile. Lockfile changes are kept out
-of incremental patches, and the lockfile must be regenerated with pnpm 12
-before enabling frozen installs in CI.
-
-## Ongoing audit
-
-`pnpm audit:prod` checks for high/critical advisories in the published
-dependency graph. CI runs it once, on Node 26; registry errors should fail the
-job instead of being ignored. `pnpm audit:all` performs the broader high/critical
-audit including development tools and interoperability dependencies. Triage
-those advisories individually rather than applying automated major upgrades
-to the legacy build or runner stack immediately before Phase 8.
-
-The original local audit did not have access to the npm registry. A fresh
-registry-backed `pnpm audit:all` and `pnpm outdated` review remain necessary
-before marking the full dependency-security review complete.
+The first checks published dependencies; the second includes development and
+test tooling. Review findings before applying major updates. The lockfile is
+maintained locally when changing dependencies but excluded from incremental
+patches. Registry-backed audit results depend on current registry access.

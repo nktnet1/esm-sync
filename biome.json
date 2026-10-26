@@ -79,7 +79,6 @@
         "config/**/*.ts",
         "tsdown.config.mts",
         "test/harness/**",
-        "debug/**",
         "test/**/*.ts"
       ],
       "linter": {

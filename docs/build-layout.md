@@ -1,75 +1,37 @@
 # Build layout
 
-Generated JavaScript, native binaries, diagnostics, and disposable test workspaces
-live under `dist/`. Maintained TypeScript and compatibility fixtures stay in their
-source directories. Prepared Acorn/Test262 corpora are downloaded build inputs,
-not generated JavaScript.
+Maintained code lives in `src/`, `script/src/`, `config/`, `native/`, and `test/`.
+All generated JavaScript, declarations, native binaries, and test workspaces belong
+under the ignored `dist/` directory.
 
-| Maintained input | Generated output |
+| Maintained input | Output |
 | --- | --- |
-| `src/bootstrap/esm.ts`, `src/bootstrap/index.ts` | `dist/esm.js`, `dist/index.js` |
+| `src/bootstrap/{esm,index}.ts` | `dist/{esm,index}.js` and `.d.ts` |
 | `src/index.ts` | `dist/esm/loader.js` |
-| Standalone compiler/runtime entries | `dist/build/*.js` with `--test` |
-| `script/src/*.ts` commands | `dist/script/` |
-| `script/src/build-sync-await.ts` | Public `dist/script/build-sync-await.js` and private `build-sync-await-dev.js` |
+| Compiler/runtime entry points | `dist/build/*.js` in test builds |
+| `script/src/*.ts` | `dist/script/*.js` |
+| `script/src/build-sync-await.ts` | `dist/script/build-sync-await.js` (published), `build-sync-await-dev.js` (local) |
 | `native/sync-await.cc` | `dist/native/<platform>-<arch>-<ABI>.node` |
-| `test/harness/` and maintained test inputs | Disposable `dist/test/` |
-| `debug/*.ts` | `dist/debug/` |
+| `test/harness/` and fixture files | Disposable `dist/test/` workspace |
 
-The native TypeScript CLI prepares a fresh test workspace before build, test, and
-conformance commands. It copies fixtures, corpus inputs, and environment files;
-the harness emitter then writes its JavaScript there. Fixture compilers, native
-addons, caches, and child-process executables write into this disposable copy.
-Tests never need generated files beside maintained fixtures. A development-only
-`dist/node_modules` junction points to the installed workspace dependencies and
-is excluded from the published package.
+`tsdown.config.mts` builds the public CommonJS entries separately, bundles the
+loader, and generates the public declarations. It updates package exports;
+compatibility aliases are added by its `customExports` callback. The original
+CommonJS module context and public paths must remain intact. Production builds
+use Oxc minification; the custom Babel transformation remains necessary for the
+loader's strict/sloppy and equality semantics.
 
-`package.json` points at `dist/esm.js`. Its explicit `files` list includes the
-public bootstrap, loader, installer, native binaries, maintained declaration, and
-C++ source. Development tooling and test workspaces are excluded. Package exports
-preserve the existing `esm`, `esm.js`, `index`, and `index.js` aliases. CommonJS,
-native ESM, CLI preload, tarball installation, and Verdaccio installation exercise
-the published layout, including native compilation from the installed source.
-Alias exports also point at the maintained declaration file, so the layout change
-preserves their TypeScript contracts without emitting duplicate declarations.
+The CLI prepares a fresh `dist/test/` before builds or test execution that need
+fixtures. It emits test helpers to their expected `.js`, `.cjs`, or `.mjs`
+locations. A development-only `dist/node_modules` junction lets the copied
+fixtures resolve workspace dependencies. No generated test files are published.
 
-Native miscellaneous suites run with a symlinked temporary directory in both
-cache modes. Resolver assertions use a canonicalised `mkdtemp` directory, catching
-macOS `/var` versus `/private/var` assumptions on Linux as well. The repository's
-`AGENTS.md` records this path-comparison rule for future changes.
+`pnpm build:prod` produces the public distribution; `pnpm build --test` also
+produces standalone bundles used by tests. Builds prepare Acorn source when
+necessary. `pnpm typecheck` does not emit files. Publishing includes only the
+paths listed in `package.json` (`files`), plus standard package metadata.
 
-The native TypeScript CLI and checking helpers in `script/src/esm/` execute from
-source and are not emitted. Their private ESM package config stays in source.
-The CLI explicitly awaits the complete registry task. Registry and publish tasks
-invoke already-prepared build helpers instead of regenerating executing commands.
-Registry success is reported after teardown, and an incomplete exit is an error.
-Tooling's no-emit check uses ES2022 for the native CLI's top-level await; the
-emitter and tsdown still enforce ES2015 generated JavaScript.
-
-`.ncurc.mjs` is a maintained, tracked configuration. It is not emitted or deleted
-by development commands. Other main tool configs stay at the root, with secondary
-configs under `config/`.
-
-## Minification and the Oxc evaluation
-
-tsdown's native Oxc minifier handles production JavaScript. The old publish-time
-HTML minifier only compressed README tables; it was unnecessary for runtime or
-tests and has been removed. tsdown does not minify HTML, so publishing simply
-retains the maintained README.
-
-The remaining Babel replacement evaluation is complete. A direct comparison of
-the installed Rolldown/Oxc transformer with the retained Babel configuration gave
-different observable results for ordinary function `this` and non-null equality:
-
-| Probe | Required/Babel | Oxc with `target: "node6"` |
-| --- | --- | --- |
-| Ordinary function sees `this === undefined` | `true` | `false` |
-| Explicit `"use sloppy"` function sees its receiver | `true` | `true` |
-| Comparison of `"1" == 1` after the custom equality transform | `false` | `true` |
-
-Oxc's target lowering does not implement these project-specific transformations.
-Removing Babel would change loader behavior. The custom Babel pass therefore
-remains; tsdown continues to own bundling, public TypeScript emission, and native
-minification. `build-transforms.test.ts` protects the strict/sloppy and equality
-contracts. See the upstream [Oxc lowering](https://oxc.rs/docs/guide/usage/transformer/lowering)
-and [transformer plugins](https://oxc.rs/docs/guide/usage/transformer/plugins) references.
+The published native installer rebuilds the optional async bridge from included
+C++ source during installation. Test and Verdaccio consumers verify both the
+package exports and that installed bridge. See [TypeScript layout](typescript-migration.md)
+and [compatibility tests](test-fixtures-and-compatibility.md).

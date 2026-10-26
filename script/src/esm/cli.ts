@@ -90,8 +90,6 @@ function outputPath(filename: string): string | undefined {
     return path.resolve(root, "dist/script/build-sync-await-dev.js")
   if (relative.startsWith("script/src/"))
     return path.resolve(root, "dist/script", relative.slice(11).replace(/\.ts$/, ".js"))
-  if (relative.startsWith("debug/"))
-    return path.resolve(root, "dist", relative.replace(/\.ts$/, ".js"))
   return undefined
 }
 
@@ -275,7 +273,7 @@ try {
           fs.rmSync(path.join(scriptDirectory, entry.name), { recursive: true, force: true })
       }
     })
-    for (const directory of ["script/src", "debug", "test/harness"])
+    for (const directory of ["script/src", "test/harness"])
       await stage("EMIT", `Generate tooling from ${directory}`, () =>
         emitTree(path.join(root, directory))
       )
