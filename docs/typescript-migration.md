@@ -26,6 +26,9 @@ factory, and `package.json` retains the `esm`, `esm.js`, `index`, and
 `index.js` compatibility paths. tsdown manages the primary export; a small
 callback adds type conditions and aliases.
 
+Maintained root-level compatibility shims forward filesystem-based legacy entry
+paths to the generated implementation and declarations in `dist/`.
+
 Public bootstrap output must preserve its CommonJS `module`, `require`, and
 sloppy-mode behaviour. The bundled loader keeps its Babel source transforms;
 production output uses tsdown's Oxc minifier. The published native bridge
@@ -33,13 +36,13 @@ installer is also CommonJS and does not depend on development tooling.
 
 ## Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm typecheck` | Strict no-emit checks and the owned-type audit |
-| `pnpm fixtures:acorn` | Prepare the Acorn source fixture |
-| `pnpm build:prod` | Build the published package |
-| `pnpm build --test` | Build test bundles and harness output |
-| `pnpm test:run:prod` | Run tests against an existing production test build |
+| Command               | Purpose                                             |
+| --------------------- | --------------------------------------------------- |
+| `pnpm typecheck`      | Strict no-emit checks and the owned-type audit      |
+| `pnpm fixtures:acorn` | Prepare the Acorn source fixture                    |
+| `pnpm build:prod`     | Build the published package                         |
+| `pnpm build --test`   | Build test bundles and harness output               |
+| `pnpm test:run:prod`  | Run tests against an existing production test build |
 
 `pnpm typecheck` checks the root TypeScript project, tooling, bootstrap, harness,
 and separate AVA TypeScript fixture. Type checking has no output side effects

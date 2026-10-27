@@ -19,6 +19,10 @@ import {
 } from "../../script/src/esm/release-publisher.ts"
 
 const required = [
+  "esm.js",
+  "esm.d.ts",
+  "index.js",
+  "index.d.ts",
   "dist/esm.js",
   "dist/index.js",
   "dist/esm.d.ts",

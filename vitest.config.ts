@@ -19,6 +19,7 @@ const runtimeTests = [
   "legacy-runtime",
   "main-hook",
   "native-suites",
+  "optional-native",
   "repl-hook",
   "require-bindings",
   "resolution-safety",

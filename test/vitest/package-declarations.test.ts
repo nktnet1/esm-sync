@@ -54,3 +54,7 @@ it("resolves generated CommonJS declarations through every published subpath", (
 it("resolves generated ESM declarations through every published subpath", () => {
   checkPublishedTypes("test/fixture/typecheck/published.mts", true)
 })
+
+it("resolves declarations for physical compatibility entries", () => {
+  checkPublishedTypes("test/fixture/typecheck/legacy-paths.cts")
+})

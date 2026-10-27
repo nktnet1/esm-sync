@@ -38,11 +38,11 @@ loop. It is usable on the initial CommonJS startup stack, **not** recursively
 from an active callback or Promise reaction. Recursive polling would be unsafe
 under libuv's non-reentrancy rules.
 
-| Calling context | Microtask-settled await | Timer/I/O-settled await |
-| --- | --- | --- |
-| Initial CommonJS startup | Supported | Supported with native bridge |
-| Timer, next tick, or I/O callback | Supported when no active async graph requires re-entry | Re-entry error |
-| Promise reaction or queued microtask | Re-entry error if another checkpoint is needed | Re-entry error |
+| Calling context                      | Microtask-settled await                                | Timer/I/O-settled await      |
+| ------------------------------------ | ------------------------------------------------------ | ---------------------------- |
+| Initial CommonJS startup             | Supported                                              | Supported with native bridge |
+| Timer, next tick, or I/O callback    | Supported when no active async graph requires re-entry | Re-entry error               |
+| Promise reaction or queued microtask | Re-entry error if another checkpoint is needed         | Re-entry error               |
 
 Ordinary asynchronous `import()` remains available in all these contexts.
 Unawaited imports can continue after a synchronous root load completes. Worker
@@ -56,17 +56,42 @@ specific to the platform, architecture, and Node ABI. Without it, pure-JavaScrip
 loading and microtask awaits still work; synchronous timer/I/O awaits fail
 explicitly. `pnpm build:await` rebuilds the bridge.
 
+### pnpm installations without build permission
+
+pnpm can skip the install hook. A matching bundled bridge remains usable without
+running a compiler. When no compatible bridge is present, ordinary CJS/ESM loads
+and microtask-settled top-level awaits still work. A synchronous await that needs
+timers or I/O fails with `ERR_ESM_SYNC_ASYNC_PENDING`; the loader does not compile
+or download a bridge at runtime.
+
+On pnpm 12, an unreviewed dependency build can fail installation under the
+default `strictDepBuilds` policy. To explicitly decline this package's build,
+record the decision in `pnpm-workspace.yaml`:
+
+```yaml
+allowBuilds:
+  esm-sync: false
+```
+
+If the workspace already uses `permissions`, its `esm-sync.build` decision takes
+precedence over `allowBuilds`. Allow the hook when a local bridge build is needed.
+The installer reuses a valid bundled bridge before looking for a compiler.
+Explicit source builds continue to rebuild the bridge.
+
+See pnpm's [build settings](https://github.com/pnpm/pnpm/blob/main/pnpm/docs/settings/build.md)
+for `allowBuilds`, `permissions`, and `strictDepBuilds`.
+
 ## Errors and timeouts
 
 `ESM_SYNC_AWAIT_TIMEOUT_MS` sets a positive, safe-integer polling deadline in
 milliseconds (default: `5000`). The native bridge uses nonblocking polling;
 slow callbacks or OS scheduling can still exceed its nominal interval.
 
-| Error code | Meaning |
-| --- | --- |
-| `ERR_ESM_SYNC_ASYNC_PENDING` | Await cannot make progress, or the native bridge is unavailable |
+| Error code                     | Meaning                                                                          |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| `ERR_ESM_SYNC_ASYNC_PENDING`   | Await cannot make progress, or the native bridge is unavailable                  |
 | `ERR_ESM_SYNC_ASYNC_REENTRANT` | Synchronous access would require unsafe re-entry or observe an incomplete module |
-| `ERR_ESM_SYNC_ASYNC_TIMEOUT` | Deadline expired or setting is invalid |
+| `ERR_ESM_SYNC_ASYNC_TIMEOUT`   | Deadline expired or setting is invalid                                           |
 
 A failed synchronous load abandons affected generators without executing user
 `finally` blocks or exposing partially evaluated exports. It does **not** cancel

@@ -13,7 +13,7 @@
     "build:prod": "pnpm build --prod",
     "build:await": "node script/src/esm/cli.ts build-sync-await --required",
     "benchmark:await": "node script/src/esm/cli.ts benchmark-async",
-    "install": "node -e \"if(require('fs').existsSync('dist/script/build-sync-await.js'))require('./dist/script/build-sync-await.js')()\"",
+    "install": "node -e \"if(require('fs').existsSync('dist/script/build-sync-await.js'))require('./dist/script/build-sync-await.js')({preferPrebuilt:true})\"",
     "clean": "node script/src/esm/cli.ts clean",
     "fixtures:acorn": "node script/src/esm/cli.ts setup-fixtures acorn",
     "fixtures:prepare": "node script/src/esm/cli.ts setup-fixtures",
@@ -61,6 +61,10 @@
     "url": "https://github.com/nktnet1/esm-sync"
   },
   "files": [
+    "esm.js",
+    "esm.d.ts",
+    "index.js",
+    "index.d.ts",
     "dist/esm.d.ts",
     "dist/index.d.ts",
     "dist/esm.js",

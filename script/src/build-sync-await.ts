@@ -6,14 +6,38 @@ import { spawnSync } from "child_process"
 
 // The ordinary loader and its microtask-only fallback remain usable on the
 // historical runtime range. The optional bridge targets the tested Node versions.
-function buildSyncAwait(options: { required?: boolean | undefined } = {}): string | null {
+function buildSyncAwait(
+  options: { required?: boolean | undefined; preferPrebuilt?: boolean | undefined } = {}
+): string | null {
   if (Number(process.versions.node.split(".")[0]) < 22) return null
 
   const { styleText } = require("util") as typeof import("node:util")
-  const root = path.resolve(__dirname, "../..")
+  const root = fs.realpathSync(path.resolve(__dirname, "../.."))
   const name = `${process.platform}-${process.arch}-${process.versions.modules}.node`
   const output = path.join(root, "dist/native", name)
   const source = path.join(root, "native/sync-await.cc")
+
+  // Installations can already contain a usable ABI-specific bridge. Keep it
+  // without requiring a local compiler; source builds still rebuild by default.
+  if (options.preferPrebuilt) {
+    try {
+      const bridge: unknown = require(output)
+      if (
+        typeof bridge === "object" &&
+        bridge !== null &&
+        "canPoll" in bridge &&
+        typeof bridge.canPoll === "function" &&
+        "alive" in bridge &&
+        typeof bridge.alive === "function" &&
+        "poll" in bridge &&
+        typeof bridge.poll === "function"
+      ) {
+        console.log(`[esm-sync] Native await bridge ${styleText("green", "ready")}.`)
+        return output
+      }
+    } catch {}
+  }
+
   fs.mkdirSync(path.dirname(output), { recursive: true })
   const executableDirectory = path.dirname(fs.realpathSync(process.execPath))
   const candidates = [

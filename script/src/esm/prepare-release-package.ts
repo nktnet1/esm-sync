@@ -53,6 +53,10 @@ export function prepareReleasePackage({ root, tag, expectedSha }: PrepareRelease
     for (const name of matches) inputs.add(name)
   }
   const requiredFiles = [
+    "esm.js",
+    "esm.d.ts",
+    "index.js",
+    "index.d.ts",
     "dist/esm.js",
     "dist/index.js",
     "dist/esm.d.ts",

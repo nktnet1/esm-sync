@@ -98,6 +98,10 @@ export function inspectReleaseTarball(file: string): ReleaseTarball {
   if (!footer) throw new Error("Missing or invalid tar footer")
   if (!manifest) throw new Error("Release tarball is missing package.json")
   for (const name of [
+    "package/esm.js",
+    "package/esm.d.ts",
+    "package/index.js",
+    "package/index.d.ts",
     "package/dist/esm.js",
     "package/dist/index.js",
     "package/dist/esm.d.ts",

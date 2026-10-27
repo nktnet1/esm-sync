@@ -174,6 +174,23 @@ test("a retained factory respects repeated jest.resetModules calls", () => {
   }
 })
 
+test("explicit registry resets refresh CJS state inside isolated scenarios", () => {
+  const factory = require("../../../../index.js")
+  const previous = factory(module)("./type.js")
+  expect(new previous().number).toBe(1)
+
+  for (let index = 0; index < 2; index++) {
+    jest.isolateModules(() => {
+      jest.resetModules()
+      const load = factory(module)
+      const Type = load("./type.js")
+      expect(Type).not.toBe(previous)
+      expect(new Type().number).toBe(1)
+      expect(load("./value.js") instanceof Type).toBe(true)
+    })
+  }
+})
+
 test("a retained require discards CommonJS state after a registry reset", () => {
   const load = createRequire()
   const Type = load("./type.js")
