@@ -12,6 +12,7 @@ import SafeObject from "./safe/object.js"
 
 import assign from "./util/assign.js"
 import builtinIds from "./builtin-ids.js"
+import createJestCache from "./module/internal/jest-cache.js"
 import getModuleDirname from "./util/get-module-dirname.js"
 import has from "./util/has.js"
 import isExtNode from "./path/is-ext-node.js"
@@ -91,7 +92,10 @@ if (Module._cache !== RealModule._cache) {
 
     cache = externalCache
 
-    if (!writable) {
+    const jestCache = writable ? null : createJestCache(externalCache)
+    if (jestCache !== null) cache = jestCache
+
+    if (!writable && jestCache === null) {
       // The host reloads our manifest after a registry reset, even when an
       // application retains this loader factory. Use that identity to expire
       // our private CJS entries along with the host's module state.
