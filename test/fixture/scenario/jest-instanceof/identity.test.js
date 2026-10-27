@@ -6,6 +6,82 @@ function createRequire() {
 
 beforeEach(() => jest.resetModules())
 
+test("preserves Node globals in CommonJS and ESM dependencies", () => {
+  // Older Jest environments omit modern globals. Install the same lazy,
+  // non-enumerable properties supplied by newer Jest versions for this case.
+  const host = require("vm").runInThisContext("({ DOMException, performance, crypto, navigator })")
+  const descriptors = new Map()
+  const expected = {}
+
+  for (const name of Object.keys(host)) {
+    descriptors.set(name, Object.getOwnPropertyDescriptor(global, name))
+    expected[name] = name in global ? global[name] : host[name]
+    Object.defineProperty(global, name, {
+      configurable: true,
+      enumerable: false,
+      get() { return expected[name] }
+    })
+  }
+
+  try {
+    const load = createRequire()
+    const commonjs = load("./globals.js")
+    const esm = load("./globals.mjs")
+
+    for (const dependency of [commonjs, esm, esm.commonjs]) {
+      const globals = dependency.read()
+      for (const name of Object.keys(expected)) {
+        expect(globals[name]).toBe(expected[name])
+      }
+      const error = dependency.createError()
+      expect(error).toBeInstanceOf(DOMException)
+      expect(error.name).toBe("AbortError")
+      expect(error.message).toBe("Cancelled")
+    }
+  } finally {
+    for (const [name, descriptor] of descriptors) {
+      if (descriptor) Object.defineProperty(global, name, descriptor)
+      else delete global[name]
+    }
+  }
+})
+
+test("preserves non-enumerable globals and does not eagerly invoke getters", () => {
+  const hidden = {}
+  const lazy = {}
+  let reads = 0
+
+  Object.defineProperty(global, "ESM_SYNC_HIDDEN_GLOBAL", {
+    configurable: true,
+    value: hidden
+  })
+  Object.defineProperty(global, "ESM_SYNC_LAZY_GLOBAL", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      reads++
+      return lazy
+    }
+  })
+
+  try {
+    const dependency = createRequire()("./globals.js")
+    expect(reads).toBe(0)
+    expect(dependency.readHidden()).toBe(hidden)
+    expect(dependency.hiddenDescriptor()).toEqual({
+      configurable: true,
+      enumerable: false,
+      writable: false,
+      value: hidden
+    })
+    expect(dependency.readLazy()).toBe(lazy)
+    expect(reads).toBe(1)
+  } finally {
+    delete global.ESM_SYNC_HIDDEN_GLOBAL
+    delete global.ESM_SYNC_LAZY_GLOBAL
+  }
+})
+
 test("CJS dependencies share constructors across an ESM graph", () => {
   const load = createRequire()
   const { schema, Type, value } = load("./main.mjs")

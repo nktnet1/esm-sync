@@ -1,3 +1,4 @@
+import type { Descriptor } from "./reflection.js"
 import type { SharedState } from "./types/runtime.js"
 import INSPECT from "./constant/inspect.js"
 import ESM from "./constant/esm.js"
@@ -167,7 +168,22 @@ function init(): SharedState {
       typeof unsafeGlobal.global === "object" &&
       new safeVM.Script("typeof global").runInContext(context) === "undefined"
     ) {
-      context = safeVM.createContext({ ...unsafeGlobal })
+      // Preserve non-enumerable globals such as DOMException and copy accessors
+      // without resolving Node's lazy globals or invoking application getters.
+      const sandbox = {}
+
+      for (const name of Reflect.ownKeys(unsafeGlobal)) {
+        const descriptor: Descriptor | undefined = Reflect.getOwnPropertyDescriptor(
+          unsafeGlobal,
+          name
+        )
+
+        if (descriptor !== void 0) {
+          Reflect.defineProperty(sandbox, name, descriptor)
+        }
+      }
+
+      context = safeVM.createContext(sandbox)
     }
 
     return utilPrepareContext(context)
