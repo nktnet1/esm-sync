@@ -11,6 +11,7 @@ const runtimeTests = [
   "async-syntax",
   "builtin-modules",
   "cache-isolation",
+  "cached-module-bindings",
   "check-hook",
   "cli-hook",
   "deferred-import",
