@@ -4,10 +4,10 @@ A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues
 
 | Status                |  Count |
 | --------------------- | -----: |
-| Fix confirmed bugs    |      8 |
+| Fix confirmed bugs    |      7 |
 | Investigate           |     19 |
 | Improve documentation |      4 |
-| Already covered       |     29 |
+| Already covered       |     30 |
 | Not planned           |     23 |
 | **Total**             | **83** |
 
@@ -15,7 +15,6 @@ A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues
 
 ### High priority: crashes and incorrect module behaviour
 
-- [#796](https://github.com/standard-things/esm/issues/796) — Loading `.esmrc.js` can crash during configuration setup. Fix initialization and test other config formats.
 - [#846](https://github.com/standard-things/esm/issues/846) — Exports of `var` declarations inside blocks are incorrectly rejected. Respect JavaScript hoisting rules.
 - [#809](https://github.com/standard-things/esm/issues/809) — Changes to `Reflect` made by CommonJS polyfills are not visible in ES modules.
 - [#924](https://github.com/standard-things/esm/issues/924) — Package `exports` support needs correct `import`/`require` conditions and `.cjs` targets.
@@ -101,6 +100,7 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#821](https://github.com/standard-things/esm/issues/821) — Node filesystem/stat compatibility is handled.
 - [#816](https://github.com/standard-things/esm/issues/816) — Basic repeated initialization does not reproduce the `__global__` error.
 - [#813](https://github.com/standard-things/esm/issues/813) — `Object.assign` preserves added properties in the tested mixed-module case.
+- [#796](https://github.com/standard-things/esm/issues/796) — Executable configuration has a temporary default package and completes evaluation during cold startup. All supported config formats, dependencies, warm caches, and failed-initialization recovery have regression coverage.
 
 ## Not planned
 

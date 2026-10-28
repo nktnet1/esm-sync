@@ -89,6 +89,7 @@ function init(): SharedState {
     },
     module: {},
     moduleState: {
+      configuring: false,
       instantiating: false,
       parsing: false,
       requireDepth: 0,

@@ -39,6 +39,37 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/796
+    it("loads the reported .esmrc.js mainFields config during cold startup", async ({ expect }) => {
+      await withFiles(
+        {
+          ".esmrc.js": "module.exports = { mainFields: ['module', 'main'] };\n",
+          "index.js": "import value from 'config-target'; console.log(value)\n",
+          "node_modules/config-target/package.json": JSON.stringify({
+            main: "main.js",
+            module: "module.js"
+          }),
+          "node_modules/config-target/main.js": "module.exports = 'wrong-main'\n",
+          "node_modules/config-target/module.js": "export default 'configured-module'\n"
+        },
+        async (directory) => {
+          checkSuccess(
+            expect,
+            await runNode(
+              ["-r", loaderPath, "index.js"],
+              esmEnv,
+              {},
+              {
+                cwd: directory,
+                cacheNamespace: "upstream-esmrc-js"
+              }
+            ),
+            "configured-module"
+          )
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/843
     it("reports the original zero-width-space source as a syntax error", async ({ expect }) => {
       await withFiles(

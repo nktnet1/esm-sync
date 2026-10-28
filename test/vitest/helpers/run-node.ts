@@ -59,12 +59,14 @@ export function runNode(
   {
     timeout = 20_000,
     executable = process.execPath,
+    cwd = testPath,
     cacheNamespace,
     input,
     keepStdinOpen = false
   }: {
     timeout?: number
     executable?: string
+    cwd?: string
     cacheNamespace?: string
     input?: string
     keepStdinOpen?: boolean
@@ -95,7 +97,7 @@ export function runNode(
     }
 
     const child = spawn(executable, args, {
-      cwd: testPath,
+      cwd,
       env,
       stdio: "pipe",
       timeout
