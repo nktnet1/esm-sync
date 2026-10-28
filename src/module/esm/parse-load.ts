@@ -7,7 +7,14 @@ import { asyncError } from "../internal/sync-await.js"
 import shared from "../../shared.js"
 import validateDeep from "./validate-deep.js"
 
-const { STATE_PARSING_COMPLETED, TYPE_CJS } = ENTRY
+const {
+  LOAD_COMPLETED,
+  NAMESPACE_FINALIZATION_COMPLETED,
+  STATE_EXECUTION_COMPLETED,
+  STATE_PARSING_COMPLETED,
+  TYPE_CJS,
+  TYPE_ESM
+} = ENTRY
 
 function parseLoad(
   request: string,
@@ -32,7 +39,20 @@ function parseLoad(
         "Cannot expose exports from an evaluating async module"
       )
     }
-    entry.updateBindings()
+    // Fully evaluated, non-circular ESM exports are read through live getter
+    // proxies, and assignments propagate via runtime.updateBindings(). A cache
+    // hit does not need to re-evaluate every exported getter. Retain the
+    // original refresh for CJS interop, cycles and in-flight evaluations.
+    if (
+      entry.type !== TYPE_ESM ||
+      entry.state !== STATE_EXECUTION_COMPLETED ||
+      entry._loaded !== LOAD_COMPLETED ||
+      entry._namespaceFinalized !== NAMESPACE_FINALIZATION_COMPLETED ||
+      entry.circular ||
+      entry.asyncEvaluation !== null
+    ) {
+      entry.updateBindings()
+    }
 
     if (entry.state === STATE_PARSING_COMPLETED) {
       if (entry.type !== TYPE_CJS) {
