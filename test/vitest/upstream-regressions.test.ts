@@ -39,6 +39,30 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/846
+    it("exports the var declared inside the reported if block", async ({ expect }) => {
+      await withFiles(
+        {
+          "value.js": "if (true) {\n    var x = 1;\n}\nexport { x };\n",
+          "index.js": "import { x } from './value.js'; console.log(x)\n"
+        },
+        async (directory) => {
+          checkSuccess(
+            expect,
+            await runNode(
+              ["-r", loaderPath, path.join(directory, "index.js")],
+              esmEnv,
+              loaderOptions,
+              {
+                cacheNamespace: "upstream-hoisted-var"
+              }
+            ),
+            "1"
+          )
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/796
     it("loads the reported .esmrc.js mainFields config during cold startup", async ({ expect }) => {
       await withFiles(

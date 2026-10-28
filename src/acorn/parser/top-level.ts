@@ -104,6 +104,16 @@ function init() {
           importedBindings.add(name)
           topIdentifiers.add(name)
         }
+      } else {
+        for (const id of getHoistedIdentifiers(object)) {
+          const { name } = id
+
+          if (inModule && funcs.has(name)) {
+            raiseRedeclaration(this, id.start, name)
+          }
+
+          topIdentifiers.add(name)
+        }
       }
 
       body.push(stmt)
@@ -117,6 +127,63 @@ function init() {
     node.top = top
 
     return this.finishNode(node, "Program") as import("../../types/acorn.js").Program
+  }
+
+  function getHoistedIdentifiers(root: AstNode | null | undefined) {
+    const identifiers: ReturnType<typeof getIdentifiersFromPattern> = []
+    const queue = [root]
+
+    for (let i = 0; i < queue.length; i++) {
+      const node = queue[i]
+
+      if (node == null) continue
+
+      // Only descend through statements sharing the module's var scope.
+      // Function bodies, class static blocks, and expressions are boundaries.
+      switch (node.type) {
+        case "VariableDeclaration":
+          if (node.kind === "var") {
+            for (const declaration of node.declarations) {
+              identifiers.push(...getIdentifiersFromPattern(declaration.id))
+            }
+          }
+          break
+
+        case "BlockStatement":
+          queue.push(...node.body)
+          break
+
+        case "IfStatement":
+          queue.push(node.consequent, node.alternate)
+          break
+
+        case "LabeledStatement":
+        case "WhileStatement":
+        case "DoWhileStatement":
+        case "WithStatement":
+          queue.push(node.body)
+          break
+
+        case "ForStatement":
+          queue.push(node.init, node.body)
+          break
+
+        case "ForInStatement":
+        case "ForOfStatement":
+          queue.push(node.left, node.body)
+          break
+
+        case "SwitchStatement":
+          for (const branch of node.cases) queue.push(...branch.consequent)
+          break
+
+        case "TryStatement":
+          queue.push(node.block, node.handler?.body, node.finalizer)
+          break
+      }
+    }
+
+    return identifiers
   }
 
   function raiseRedeclaration(parser: AcornParser, pos: number, name: string) {

@@ -4,10 +4,10 @@ A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues
 
 | Status                |  Count |
 | --------------------- | -----: |
-| Fix confirmed bugs    |      7 |
+| Fix confirmed bugs    |      6 |
 | Investigate           |     19 |
 | Improve documentation |      4 |
-| Already covered       |     30 |
+| Already covered       |     31 |
 | Not planned           |     23 |
 | **Total**             | **83** |
 
@@ -15,7 +15,6 @@ A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues
 
 ### High priority: crashes and incorrect module behaviour
 
-- [#846](https://github.com/standard-things/esm/issues/846) — Exports of `var` declarations inside blocks are incorrectly rejected. Respect JavaScript hoisting rules.
 - [#809](https://github.com/standard-things/esm/issues/809) — Changes to `Reflect` made by CommonJS polyfills are not visible in ES modules.
 - [#924](https://github.com/standard-things/esm/issues/924) — Package `exports` support needs correct `import`/`require` conditions and `.cjs` targets.
 - [#863](https://github.com/standard-things/esm/issues/863) — Package `exports` maps must block access to unexported subpaths. Address alongside #924.
@@ -95,6 +94,7 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#866](https://github.com/standard-things/esm/issues/866) — Optional chaining is supported.
 - [#864](https://github.com/standard-things/esm/issues/864) — Migration options and module boundaries are supported.
 - [#855](https://github.com/standard-things/esm/issues/855) — The earlier `"type": "module"` warning is not reproduced.
+- [#846](https://github.com/standard-things/esm/issues/846) — Module binding discovery follows `var` through nested statements without crossing function or class boundaries. The reported export and broader hoisting, destructuring, scope, and live-binding cases have regression coverage.
 - [#843](https://github.com/standard-things/esm/issues/843) — Invalid zero-width tokens report a syntax error instead of resuming tokenization; the original source and broader tokenizer cases have regression coverage.
 - [#841](https://github.com/standard-things/esm/issues/841) — Build instructions are available in `docs/build-layout.md`.
 - [#821](https://github.com/standard-things/esm/issues/821) — Node filesystem/stat compatibility is handled.
