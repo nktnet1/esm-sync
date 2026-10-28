@@ -1,8 +1,7 @@
-import assert from "node:assert/strict"
 import { readFile, rm } from "node:fs/promises"
 import path from "node:path"
 import JSON6 from "json-6"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { isolateLoaderCache, nodeEnv, runNode, testPath } from "./helpers/run-node.ts"
 
 const cachedEnv = `${nodeEnv}-test-cached`
@@ -32,16 +31,14 @@ describe("isolated native Node loader caches", () => {
     const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
     const uncached = isolateLoaderCache(options, plainEnv, "main-hook")
     const cached = isolateLoaderCache(options, cachedEnv, "main-hook")
-    assert.equal(
-      (JSON6.parse(uncached.ESM_OPTIONS || "{}") as { cache?: string }).cache,
+    expect((JSON6.parse(uncached.ESM_OPTIONS || "{}") as { cache?: string }).cache).toBe(
       path.join(testPath, "env/native-cache", plainEnv, "vitest-main-hook")
     )
-    assert.equal(
-      (JSON6.parse(cached.ESM_OPTIONS || "{}") as { cache?: string }).cache,
+    expect((JSON6.parse(cached.ESM_OPTIONS || "{}") as { cache?: string }).cache).toBe(
       cachePath("main-hook")
     )
-    assert.notEqual(uncached.ESM_OPTIONS, cached.ESM_OPTIONS)
-    assert.equal(options.ESM_OPTIONS, "{cjs:false,mode:'auto'}")
+    expect(uncached.ESM_OPTIONS).not.toBe(cached.ESM_OPTIONS)
+    expect(options.ESM_OPTIONS).toBe("{cjs:false,mode:'auto'}")
   })
 
   it("keeps JSON6 option values unchanged and separates cached test files", () => {
@@ -57,19 +54,19 @@ describe("isolated native Node loader caches", () => {
       ["eval-hook", evalHook]
     ] as const) {
       const source = isolated.ESM_OPTIONS
-      assert.ok(source)
-      assert.ok(source.endsWith(",cjs:0,mode:all}"))
+      expect.assert(source)
+      expect(source).toMatch(/,cjs:0,mode:all\}$/)
       const parsed = JSON6.parse(source.replace("mode:all", "mode:'all'")) as {
         cache: string
         cjs: number
         mode: string
       }
-      assert.equal(parsed.cache, cachePath(namespace))
-      assert.equal(parsed.cjs, 0)
-      assert.equal(parsed.mode, "all")
+      expect(parsed.cache).toBe(cachePath(namespace))
+      expect(parsed.cjs).toBe(0)
+      expect(parsed.mode).toBe("all")
     }
-    assert.notEqual(main.ESM_OPTIONS, evalHook.ESM_OPTIONS)
-    assert.equal(options.ESM_OPTIONS, "{cjs:0,mode:all}")
+    expect(main.ESM_OPTIONS).not.toBe(evalHook.ESM_OPTIONS)
+    expect(options.ESM_OPTIONS).toBe("{cjs:0,mode:all}")
   })
 
   it("inserts after the opening brace without changing later braces or whitespace", () => {
@@ -78,14 +75,14 @@ describe("isolated native Node loader caches", () => {
     }
     const isolated = isolateLoaderCache(options, cachedEnv, "nested-options")
 
-    assert.ok(isolated.ESM_OPTIONS?.startsWith(" \n {cache:'"))
-    assert.ok(isolated.ESM_OPTIONS?.endsWith(",cjs:false,mode:'auto',extra:{value:'{keep-me}'}} "))
-    assert.equal(options.ESM_OPTIONS, " \n {cjs:false,mode:'auto',extra:{value:'{keep-me}'}} ")
+    expect(isolated.ESM_OPTIONS).toMatch(/^ \n \{cache:'/)
+    expect(isolated.ESM_OPTIONS).toMatch(/,cjs:false,mode:'auto',extra:\{value:'\{keep-me\}'\}\} $/)
+    expect(options.ESM_OPTIONS).toBe(" \n {cjs:false,mode:'auto',extra:{value:'{keep-me}'}} ")
   })
 
   it("respects tests that supply their own cache setting", () => {
     const options = { ESM_OPTIONS: "{cache:false,cjs:false}" }
-    assert.equal(isolateLoaderCache(options, cachedEnv, "main-hook"), options)
+    expect(isolateLoaderCache(options, cachedEnv, "main-hook")).toBe(options)
   })
 
   it("loads .mjs imports from CommonJS concurrently with separate disk caches", async () => {
@@ -105,8 +102,8 @@ describe("isolated native Node loader caches", () => {
       )
 
       for (const result of results) {
-        assert.equal(result.exitCode, 0, result.stderr)
-        assert.ok(result.stdout.includes("dynamic-import-cjs:true"), result.stdout)
+        expect(result.exitCode, result.stderr).toBe(0)
+        expect(result.stdout, result.stdout).toContain("dynamic-import-cjs:true")
       }
     })
   })
@@ -126,15 +123,18 @@ describe("isolated native Node loader caches", () => {
       )
 
       for (const result of results) {
-        assert.equal(result.exitCode, 0, result.stderr)
-        assert.ok(result.stdout.includes("cache:true"), result.stdout)
+        expect(result.exitCode, result.stderr).toBe(0)
+        expect(result.stdout, result.stdout).toContain("cache:true")
       }
 
       for (const namespace of namespaces) {
         const cacheMeta = JSON.parse(
           await readFile(path.join(cachePath(namespace), ".data.json"), "utf8")
         ) as { meta: Record<string, unknown> }
-        assert.ok(Object.keys(cacheMeta.meta).length > 0, "Expected a populated disk cache")
+        expect(
+          Object.keys(cacheMeta.meta).length,
+          "Expected a populated disk cache"
+        ).toBeGreaterThan(0)
       }
     })
   })
@@ -166,12 +166,12 @@ describe("isolated native Node loader caches", () => {
           const result = await runNode(["./fixture/cache/index.js"], cachedEnv, {
             ESM_OPTIONS: "{cache:false,cjs:false,mode:'auto'}"
           })
-          assert.equal(result.exitCode, 0, result.stderr)
-          assert.ok(result.stdout.includes("cache:true"), result.stdout)
+          expect(result.exitCode, result.stderr).toBe(0)
+          expect(result.stdout, result.stdout).toContain("cache:true")
         }
       }
       const [result] = await Promise.all([suite, writers()])
-      assert.equal(result.exitCode, 0, result.stderr || result.stdout)
+      expect(result.exitCode, result.stderr || result.stdout).toBe(0)
       const summary = result.stdout
         .split(/\r?\n/)
         .filter((line) => line.startsWith("ESM_SYNC_TEST_EVENT "))
@@ -189,10 +189,10 @@ describe("isolated native Node loader caches", () => {
             "kind" in record &&
             record.kind === "summary"
         )
-      assert.ok(summary, result.stdout)
-      assert.equal(summary.success, true, result.stdout)
-      assert.ok(summary.counts.passed > 0, result.stdout)
-      assert.equal(summary.counts.failed, 0, result.stdout)
+      expect.assert(summary, result.stdout)
+      expect(summary.success, result.stdout).toBe(true)
+      expect(summary.counts.passed, result.stdout).toBeGreaterThan(0)
+      expect(summary.counts.failed, result.stdout).toBe(0)
     },
     90_000
   )

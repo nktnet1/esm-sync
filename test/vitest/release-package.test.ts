@@ -1,4 +1,3 @@
-import assert from "node:assert/strict"
 import {
   mkdtempSync,
   mkdirSync,
@@ -11,7 +10,7 @@ import {
 import os from "node:os"
 import path from "node:path"
 import { gzipSync } from "node:zlib"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { prepareReleasePackage } from "../../script/src/esm/prepare-release-package.ts"
 import {
   inspectReleaseTarball,
@@ -104,29 +103,28 @@ describe("release artifact packaging", () => {
       const manifest: Record<string, unknown> = JSON.parse(
         readFileSync(path.join(root, ".release/package/package.json"), "utf8")
       )
-      assert.equal(manifest.version, "3.3.8-beta.2")
-      assert.deepEqual(manifest.scripts, {
+      expect(manifest.version).toBe("3.3.8-beta.2")
+      expect(manifest.scripts).toStrictEqual({
         test: 'echo "Error: no test specified" && exit 1',
         install: "node native-install.js"
       })
-      assert.equal(manifest.devDependencies, undefined)
+      expect(manifest.devDependencies).toBe(undefined)
       const archive = pack(root)
-      assert.equal(inspectReleaseTarball(archive).manifest.version, "3.3.8-beta.2")
+      expect(inspectReleaseTarball(archive).manifest.version).toBe("3.3.8-beta.2")
       await publishReleasePackage({
         root,
         tag: "v3.3.8-beta.2",
         registry: "https://registry.npmjs.org",
         dryRun: true
       })
-      await assert.rejects(
+      await expect(
         publishReleasePackage({
           root,
           tag: "v3.3.8-beta.3",
           registry: "https://registry.npmjs.org",
           dryRun: true
-        }),
-        /Expected esm-sync@3\.3\.8-beta\.3/
-      )
+        })
+      ).rejects.toThrow(/Expected esm-sync@3\.3\.8-beta\.3/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -140,7 +138,7 @@ describe("release artifact packaging", () => {
         "utf8"
       )
       const packedDirectory = /npm pack \.release\/package --pack-destination (\S+)/.exec(release)
-      assert.ok(packedDirectory, "Release workflow must specify its npm pack destination")
+      expect.assert(packedDirectory, "Release workflow must specify its npm pack destination")
       const outputDirectory = packedDirectory[1]!
 
       createSource(root, "3.4.0-beta.1")
@@ -153,12 +151,12 @@ describe("release artifact packaging", () => {
         registry: "https://registry.npmjs.org",
         dryRun: true
       })
-      assert.ok(release.includes(`path: ${outputDirectory}/*.tgz`))
+      expect(release).toContain(`path: ${outputDirectory}/*.tgz`)
       const publish = readFileSync(
         new URL("../../.github/workflows/publish.yaml", import.meta.url),
         "utf8"
       )
-      assert.ok(publish.includes(`path: ${outputDirectory}\n`))
+      expect(publish).toContain(`path: ${outputDirectory}\n`)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -170,7 +168,7 @@ describe("release artifact packaging", () => {
       createSource(root, "3.3.8")
       prepareReleasePackage({ root, tag: "v3.3.8" })
       const archive = pack(root)
-      assert.equal(inspectReleaseTarball(archive).manifest.version, "3.3.8")
+      expect(inspectReleaseTarball(archive).manifest.version).toBe("3.3.8")
       await publishReleasePackage({
         root,
         tag: "v3.3.8",
@@ -186,9 +184,9 @@ describe("release artifact packaging", () => {
     const root = tempRoot()
     try {
       createSource(root)
-      assert.throws(() => prepareReleasePackage({ root, tag: "v3.3.8" }), /Expected/)
+      expect(() => prepareReleasePackage({ root, tag: "v3.3.8" })).toThrow(/Expected/)
       rmSync(path.join(root, required[required.length - 1]!), { force: true })
-      assert.throws(() => prepareReleasePackage({ root, tag: "v3.3.8-beta.2" }), /Missing/)
+      expect(() => prepareReleasePackage({ root, tag: "v3.3.8-beta.2" })).toThrow(/Missing/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -203,15 +201,14 @@ describe("release artifact packaging", () => {
       mkdirSync(path.join(root, "release-metadata"))
       writeFileSync(path.join(root, "release-metadata/tag"), "v3.3.8-beta.2\n")
       writeFileSync(path.join(root, "release-metadata/sha"), `${"a".repeat(40)}\n`)
-      await assert.rejects(
+      await expect(
         publishReleasePackage({
           root,
           expectedSha: "b".repeat(40),
           registry: "https://registry.npmjs.org",
           dryRun: true
-        }),
-        /does not match the successful build SHA/
-      )
+        })
+      ).rejects.toThrow(/does not match the successful build SHA/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -228,7 +225,7 @@ describe("release artifact packaging", () => {
         "LICENSE",
         "package.json"
       ])
-      assert.throws(() => inspectReleaseTarball(archive), /dist\/esm\.js/)
+      expect(() => inspectReleaseTarball(archive)).toThrow(/dist\/esm\.js/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -241,7 +238,7 @@ describe("release artifact packaging", () => {
       const binary = path.join(root, required[required.length - 1]!)
       rmSync(binary)
       symlinkSync(path.join(root, "README.md"), binary)
-      assert.throws(() => prepareReleasePackage({ root, tag: "v3.3.8-beta.2" }), /regular file/)
+      expect(() => prepareReleasePackage({ root, tag: "v3.3.8-beta.2" })).toThrow(/regular file/)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -256,7 +253,7 @@ describe("release artifact packaging", () => {
       const bytes = readFileSync(archive)
       bytes[bytes.length - 10] = bytes[bytes.length - 10]! ^ 0xff
       writeFileSync(archive, bytes)
-      assert.throws(() => inspectReleaseTarball(archive))
+      expect(() => inspectReleaseTarball(archive)).toThrow()
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

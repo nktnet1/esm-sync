@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 for (const esmEnv of testEnvironments) {
@@ -11,8 +10,8 @@ for (const esmEnv of testEnvironments) {
         { ESM_OPTIONS: "{cjs:false,mode:'auto'}" },
         { cacheNamespace: "deferred-import" }
       )
-      assert.equal(exitCode, 0, stderr.slice(-4000))
-      assert.equal(stdout.trim(), "deferred-import:ok")
+      expect(exitCode, stderr.slice(-4000)).toBe(0)
+      expect(stdout.trim()).toBe("deferred-import:ok")
     })
 
     it("caches failed evaluation rather than treating subsequent reads as successful", async () => {
@@ -22,8 +21,8 @@ for (const esmEnv of testEnvironments) {
         { ESM_OPTIONS: "{cjs:false,mode:'auto'}" },
         { cacheNamespace: "deferred-import-error" }
       )
-      assert.equal(exitCode, 0, stderr.slice(-4000))
-      assert.equal(stdout.trim(), "deferred-error:ok")
+      expect(exitCode, stderr.slice(-4000)).toBe(0)
+      expect(stdout.trim()).toBe("deferred-error:ok")
     })
   })
 }

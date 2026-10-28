@@ -1,9 +1,8 @@
-import assert from "node:assert/strict"
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
-import { afterEach, describe, it } from "vitest"
+import { afterEach, describe, it, expect } from "vitest"
 
 const require = createRequire(import.meta.url)
 const setupTest262 = require("../../dist/script/setup-test262.js") as {
@@ -41,26 +40,26 @@ async function makeCorpus() {
 describe("Test262 fixture provenance", () => {
   it("rejects an unmarked corpus, even when the harness and directories exist", async () => {
     const directory = await makeCorpus()
-    assert.equal(setupTest262.isPrepared(directory), false)
+    expect(setupTest262.isPrepared(directory)).toBe(false)
   })
 
   it("rejects an older or different revision", async () => {
     const directory = await makeCorpus()
     await writeFile(path.join(directory, ".prepared-revision"), "0".repeat(40) + "\n")
-    assert.equal(setupTest262.isPrepared(directory), false)
+    expect(setupTest262.isPrepared(directory)).toBe(false)
   })
 
   it("accepts a complete corpus at the pinned revision", async () => {
     const directory = await makeCorpus()
     await writeFile(path.join(directory, ".prepared-revision"), setupTest262.revision + "\n")
-    assert.equal(setupTest262.isPrepared(directory), true)
+    expect(setupTest262.isPrepared(directory)).toBe(true)
   })
 
   it("rejects a corpus with a missing required test directory", async () => {
     const directory = await makeCorpus()
     await writeFile(path.join(directory, ".prepared-revision"), setupTest262.revision + "\n")
     await rm(path.join(directory, "test/language/module-code"), { recursive: true })
-    assert.equal(setupTest262.isPrepared(directory), false)
+    expect(setupTest262.isPrepared(directory)).toBe(false)
   })
 
   it("requires the pinned resource-management groups in an already marked corpus", async () => {
@@ -68,7 +67,7 @@ describe("Test262 fixture provenance", () => {
     await writeFile(path.join(directory, ".prepared-revision"), setupTest262.revision + "\n")
     for (const name of ["using", "await-using"]) {
       await rm(path.join(directory, "test/language/statements", name), { recursive: true })
-      assert.equal(setupTest262.isPrepared(directory), false)
+      expect(setupTest262.isPrepared(directory)).toBe(false)
       await mkdir(path.join(directory, "test/language/statements", name))
     }
   })

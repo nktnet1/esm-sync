@@ -42,6 +42,10 @@ module.exports = defineConfig(({ mode }) => ({
     setupFiles: ["./test/vitest/setup.ts"],
     fsModuleCache: true,
     isolate: false,
+    fileParallelism: true,
+    // Independent subprocess cases opt into describe.concurrent. Bound each
+    // file's fan-out as well as the native suite queue's separate worker cap.
+    maxConcurrency: 3,
     env: {
       ESM_SYNC_NODE_ENV: mode === "production" ? "production" : "development"
     },

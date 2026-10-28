@@ -1,7 +1,6 @@
-import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { it } from "vitest"
+import { it, expect } from "vitest"
 import ts from "typescript"
 
 it("keeps generated CJS package exports and legacy entry points compatible", () => {
@@ -12,9 +11,9 @@ it("keeps generated CJS package exports and legacy entry points compatible", () 
   }
   const esm = { types: "./dist/esm.d.ts", default: "./dist/esm.js" }
   const index = { types: "./dist/index.d.ts", default: "./dist/index.js" }
-  assert.equal(pkg.main.replace(/^\.\//, ""), "dist/esm.js")
-  assert.equal(pkg.types.replace(/^\.\//, ""), "dist/esm.d.ts")
-  assert.deepEqual(pkg.exports, {
+  expect(pkg.main.replace(/^\.\//, "")).toBe("dist/esm.js")
+  expect(pkg.types.replace(/^\.\//, "")).toBe("dist/esm.d.ts")
+  expect(pkg.exports).toStrictEqual({
     ".": esm,
     "./esm": esm,
     "./esm.js": esm,
@@ -36,15 +35,14 @@ function checkPublishedTypes(filename: string, esModuleInterop = false): void {
   }
   const program = ts.createProgram([path.resolve(filename)], options)
   const diagnostics = ts.getPreEmitDiagnostics(program)
-  assert.equal(
+  expect(
     diagnostics.length,
-    0,
     ts.formatDiagnostics(diagnostics, {
       getCanonicalFileName: (name) => name,
       getCurrentDirectory: () => process.cwd(),
       getNewLine: () => "\n"
     })
-  )
+  ).toBe(0)
 }
 
 it("resolves generated CommonJS declarations through every published subpath", () => {

@@ -1,9 +1,8 @@
-import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import execa from "execa"
-import { it } from "vitest"
+import { it, expect } from "vitest"
 import { testPath } from "./helpers/run-node.ts"
 
 type ConformanceCase = {
@@ -38,33 +37,33 @@ it("preserves the pinned Test262 module-instantiation cases", async () => {
       }
     )
 
-    assert.equal(timedOut, false)
-    assert.equal(exitCode, 0, stderr || stdout)
+    expect(timedOut).toBe(false)
+    expect(exitCode, stderr || stdout).toBe(0)
 
     const report = JSON.parse(await readFile(reportPath, "utf8")) as ConformanceReport
-    assert.equal(report.complete, true)
-    assert.equal(report.selected, 76)
-    assert.equal(report.passed, 76)
-    assert.equal(report.failed, 0)
-    assert.equal(report.unsupported, 0)
-    assert.equal(report.cases.length, 76)
-    assert.ok(report.cases.every(({ status }) => status === "pass"))
+    expect(report.complete).toBe(true)
+    expect(report.selected).toBe(76)
+    expect(report.passed).toBe(76)
+    expect(report.failed).toBe(0)
+    expect(report.unsupported).toBe(0)
+    expect(report.cases.length).toBe(76)
+    expect(report.cases.map(({ status }) => status)).toStrictEqual(
+      Array.from({ length: 76 }, () => "pass")
+    )
 
     // Preserve both successful linking and early SyntaxErrors. Excluding the
     // negative cases would otherwise produce a misleading green report.
-    assert.equal(
+    expect(
       report.cases.filter(
         ({ expectedError, expectedPhase }) =>
           expectedError === "SyntaxError" && expectedPhase === "resolution"
-      ).length,
-      18
-    )
-    assert.equal(
+      ).length
+    ).toBe(18)
+    expect(
       report.cases.filter(
         ({ expectedError, expectedPhase }) => expectedError === null && expectedPhase === null
-      ).length,
-      58
-    )
+      ).length
+    ).toBe(58)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

@@ -1,9 +1,8 @@
-import assert from "node:assert/strict"
 import { mkdir, mkdtemp, realpath, rm, stat, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
-import { describe, it } from "vitest"
+import { describe, it, type TestContext } from "vitest"
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
 
 const loaderOptions = { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }
@@ -26,16 +25,22 @@ async function withFiles(
   }
 }
 
-function checkSuccess(result: Awaited<ReturnType<typeof runNode>>, output: string): void {
-  assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-  assert.equal(result.stdout.trim(), output)
-  assert.equal(result.stderr.trim(), "")
+function checkSuccess(
+  expect: TestContext["expect"],
+  result: Awaited<ReturnType<typeof runNode>>,
+  output: string
+): void {
+  expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+  expect(result.stdout.trim()).toBe(output)
+  expect(result.stderr.trim()).toBe("")
 }
 
+// Each case owns its fixtures and cache namespace. Only independent cases
+// overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
-  describe(`resolved upstream regressions (${esmEnv})`, () => {
+  describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
     // https://github.com/standard-things/esm/issues/926
-    it("parses optional chaining when eval occurs in comments or strings", async () => {
+    it("parses optional chaining when eval occurs in comments or strings", async ({ expect }) => {
       await withFiles(
         {
           "value.mjs": "export const value = 'ok'\n",
@@ -55,6 +60,7 @@ console.log('eval-string:' + (text === 'eval' ? data?.answer : 'wrong'))
             ["string.js", "eval-string:ok"]
           ] as const) {
             checkSuccess(
+              expect,
               await runNode(
                 ["-r", "../index.js", path.join(directory, filename)],
                 esmEnv,
@@ -70,7 +76,7 @@ console.log('eval-string:' + (text === 'eval' ? data?.answer : 'wrong'))
 
     // https://github.com/standard-things/esm/issues/918
     // https://github.com/standard-things/esm/issues/866
-    it("executes optional chaining for missing and computed properties", async () => {
+    it("executes optional chaining for missing and computed properties", async ({ expect }) => {
       await withFiles(
         {
           "optional.mjs": `const missing = null
@@ -84,6 +90,7 @@ const load = require('../esm.js')(module)
 assert.deepEqual(Array.from(load(process.argv[1]).result), [undefined, 42, undefined])
 console.log('optional:ok')`
           checkSuccess(
+            expect,
             await runNode(
               ["-e", source, path.join(directory, "optional.mjs")],
               esmEnv,
@@ -99,7 +106,7 @@ console.log('optional:ok')`
     })
 
     // https://github.com/standard-things/esm/issues/921
-    it("loads functions containing optional chaining without calling them", async () => {
+    it("loads functions containing optional chaining without calling them", async ({ expect }) => {
       await withFiles(
         {
           "plugin.js": `export function createQuery(params) {
@@ -118,6 +125,7 @@ assert.equal(createQuery({plugin_setup: {enabled: 42}, propsP: {fieldA: 'enabled
 assert.equal(globalThis.__queryCalls, 1)
 console.log('query:ok')`
           checkSuccess(
+            expect,
             await runNode(
               ["-e", source, path.join(directory, "plugin.js")],
               esmEnv,
@@ -134,7 +142,7 @@ console.log('query:ok')`
 
     // https://github.com/standard-things/esm/issues/909
     // https://github.com/standard-things/esm/issues/879
-    it("executes nullish coalescing in files containing imports", async () => {
+    it("executes nullish coalescing in files containing imports", async ({ expect }) => {
       await withFiles(
         {
           "value.mjs": "export const value = 'ok'\n",
@@ -151,6 +159,7 @@ console.log('nullish-builtin:' + (null ?? (typeof http.request === 'function' ? 
             ["builtin.js", "nullish-builtin:ok"]
           ] as const) {
             checkSuccess(
+              expect,
               await runNode(
                 ["-r", "../index.js", path.join(directory, filename)],
                 esmEnv,
@@ -166,7 +175,9 @@ console.log('nullish-builtin:' + (null ?? (typeof http.request === 'function' ? 
 
     // https://github.com/standard-things/esm/issues/896
     // https://github.com/standard-things/esm/issues/914
-    it("reports thrown module errors without printing the bundled loader source", async () => {
+    it("reports thrown module errors without printing the bundled loader source", async ({
+      expect
+    }) => {
       await withFiles(
         { "failure.mjs": "throw new Error('upstream-error-marker')\n" },
         async (directory) => {
@@ -174,26 +185,26 @@ console.log('nullish-builtin:' + (null ?? (typeof http.request === 'function' ? 
           const result = await runNode(["-r", "../index.js", filename], esmEnv, loaderOptions, {
             cacheNamespace: "upstream-error-report"
           })
-          assert.notEqual(result.exitCode, 0)
-          assert.equal(result.stdout, "")
-          assert.match(result.stderr, /Error: upstream-error-marker/)
-          assert.ok(
+          expect(result.exitCode).not.toBe(0)
+          expect(result.stdout).toBe("")
+          expect(result.stderr).toMatch(/Error: upstream-error-marker/)
+          expect(
             result.stderr.includes(filename) ||
               result.stderr.includes(pathToFileURL(filename).href),
             result.stderr
-          )
-          assert.ok(
-            result.stderr.length < 12_000,
+          ).toBe(true)
+          expect(
+            result.stderr.length,
             `Unexpected error output: ${result.stderr.length} bytes`
-          )
-          assert.doesNotMatch(result.stderr, /const __global__ = this|var __shared__;const/)
+          ).toBeLessThan(12_000)
+          expect(result.stderr).not.toMatch(/const __global__ = this|var __shared__;const/)
         }
       )
     })
 
     // https://github.com/standard-things/esm/issues/931
     // https://github.com/standard-things/esm/issues/821
-    it("loads filesystem built-ins without using removed Node internals", async () => {
+    it("loads filesystem built-ins without using removed Node internals", async ({ expect }) => {
       await withFiles(
         {
           "filesystem.mjs": `import fs from 'node:fs'
@@ -205,6 +216,7 @@ console.log('filesystem:ok')
         },
         async (directory) => {
           checkSuccess(
+            expect,
             await runNode(
               ["-r", "../index.js", path.join(directory, "filesystem.mjs")],
               esmEnv,
@@ -222,7 +234,7 @@ console.log('filesystem:ok')
     // https://github.com/standard-things/esm/issues/868
     // https://github.com/standard-things/esm/issues/897
     // https://github.com/standard-things/esm/issues/900
-    it('loads a "type": "module" package from CommonJS without warnings', async () => {
+    it('loads a "type": "module" package from CommonJS without warnings', async ({ expect }) => {
       await withFiles(
         {
           "package.json": '{"type":"module"}\n',
@@ -233,6 +245,7 @@ console.log('package-type:' + load('./module.js').X)
         },
         async (directory) => {
           checkSuccess(
+            expect,
             await runNode([path.join(directory, "main.cjs")], esmEnv, loaderOptions, {
               cacheNamespace: "upstream-package-type"
             }),
@@ -243,7 +256,9 @@ console.log('package-type:' + load('./module.js').X)
     })
 
     // https://github.com/standard-things/esm/issues/816
-    it("can initialise the loader more than once without redeclaring globals", async () => {
+    it("can initialise the loader more than once without redeclaring globals", async ({
+      expect
+    }) => {
       await withFiles({ "value.mjs": "export const value = 42\n" }, async (directory) => {
         const source = `const assert = require('node:assert/strict')
 const esm = require('../esm.js')
@@ -253,6 +268,7 @@ assert.equal(first(process.argv[1]).value, 42)
 assert.equal(second(process.argv[1]).value, 42)
 console.log('bootstrap-twice:ok')`
         checkSuccess(
+          expect,
           await runNode(["-e", source, path.join(directory, "value.mjs")], esmEnv, loaderOptions, {
             cacheNamespace: "upstream-repeat-loader"
           }),
@@ -262,7 +278,9 @@ console.log('bootstrap-twice:ok')`
     })
 
     // https://github.com/standard-things/esm/issues/872
-    it("exposes default-export instances through the namespace or cjs.dedefault", async () => {
+    it("exposes default-export instances through the namespace or cjs.dedefault", async ({
+      expect
+    }) => {
       await withFiles(
         {
           "plugin.js": `class Plugin { activate() { return 'activated' } }
@@ -277,6 +295,7 @@ const result = load(process.argv[1])
 ${dedefault ? "assert.equal(result.activate(), 'activated')" : "assert.equal(typeof result.activate, 'undefined'); assert.equal(result.default.activate(), 'activated')"}
 console.log('dedefault:ok')`
             checkSuccess(
+              expect,
               await runNode(
                 ["-e", source, path.join(directory, "plugin.js")],
                 esmEnv,
@@ -293,7 +312,7 @@ console.log('dedefault:ok')`
     })
 
     // https://github.com/standard-things/esm/issues/813
-    it("retains assigned properties when copying mixed CJS/ESM exports", async () => {
+    it("retains assigned properties when copying mixed CJS/ESM exports", async ({ expect }) => {
       await withFiles(
         {
           "options.js": "import fs from 'node:fs'\nmodule.exports = {}\n"
@@ -307,6 +326,7 @@ assert.equal(options.dev, true)
 assert.equal(Object.assign({}, options).dev, true)
 console.log('mixed-assign:ok')`
           checkSuccess(
+            expect,
             await runNode(
               ["-e", source, path.join(directory, "options.js")],
               esmEnv,
@@ -322,7 +342,9 @@ console.log('mixed-assign:ok')`
     })
 
     // https://github.com/standard-things/esm/issues/874
-    it("invalidates the disk compiler cache when a dependency changes between runs", async () => {
+    it("invalidates the disk compiler cache when a dependency changes between runs", async ({
+      expect
+    }) => {
       await withFiles(
         {
           "node_modules/upstream-cache-dependency/package.json":
@@ -344,12 +366,12 @@ console.log('cache-dependency:' + load(process.argv[1]).value)`
               cacheNamespace: "upstream-dependency-upgrade"
             })
 
-          checkSuccess(await execute(), "cache-dependency:before")
+          checkSuccess(expect, await execute(), "cache-dependency:before")
           await writeFile(dependency, "export const value = 'after'\n")
           const current = await stat(dependency)
           const nextMtime = new Date(current.mtimeMs + 2_000)
           await utimes(dependency, nextMtime, nextMtime)
-          checkSuccess(await execute(), "cache-dependency:after")
+          checkSuccess(expect, await execute(), "cache-dependency:after")
         }
       )
     })

@@ -1,8 +1,7 @@
-import assert from "node:assert/strict"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { describe, it } from "vitest"
+import { describe, it, type TestContext } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const contexts = [
@@ -52,7 +51,7 @@ export const value = 42
   "pending-parent.mjs": "import './pending-disposal.mjs'; globalThis.__parentContinued = true\n"
 }
 
-async function scenario(esmEnv: string, code: string, name: string) {
+async function scenario(expect: TestContext["expect"], esmEnv: string, code: string, name: string) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-async-contexts-"))
   try {
     await Promise.all(
@@ -75,17 +74,22 @@ ${code}
       { ESM_OPTIONS: "{cjs:false,mode:'auto'}" },
       { cacheNamespace: `contexts-${name}` }
     )
-    assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-    assert.equal(result.stdout.trim(), "async-context:ok")
+    expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout.trim()).toBe("async-context:ok")
   } finally {
     await rm(directory, { force: true, recursive: true })
   }
 }
 
+// Each case owns its fixtures and cache namespace. Only independent cases
+// overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
-  describe(`async execution contexts (${esmEnv})`, () => {
-    it("rethrows the cycle error from a deferred namespace of a completed failed member", async () => {
+  describe.concurrent(`async execution contexts (${esmEnv})`, () => {
+    it("rethrows the cycle error from a deferred namespace of a completed failed member", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         esmEnv,
         `globalThis.__cycleFailure = new Error('cycle failure')
 assert.throws(() => load('failed-cycle-entry.mjs'), error => error === globalThis.__cycleFailure)
@@ -102,8 +106,11 @@ later().then(ns => {
         "deferred-failure"
       )
     })
-    it("throws a coded TypeError for deferred access to an evaluating module", async () => {
+    it("throws a coded TypeError for deferred access to an evaluating module", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         esmEnv,
         `const ns = load('deferred-self.mjs')
 assert.ok(globalThis.__deferredError instanceof TypeError)
@@ -114,8 +121,9 @@ console.log('async-context:ok')`,
       )
     })
     for (const [name, schedule, microtask] of contexts) {
-      it(`guards synchronous I/O and unfinished modules in a ${name}`, async () => {
+      it(`guards synchronous I/O and unfinished modules in a ${name}`, async ({ expect }) => {
         await scenario(
+          expect,
           esmEnv,
           `function run() {
   if (${microtask}) assert.throws(() => load('microtask.mjs'), {code: 'ERR_ESM_SYNC_ASYNC_REENTRANT'})
@@ -137,8 +145,11 @@ ${schedule}`,
         )
       })
 
-      it(`completes asynchronous imports with iteration and disposal in a ${name}`, async () => {
+      it(`completes asynchronous imports with iteration and disposal in a ${name}`, async ({
+        expect
+      }) => {
         await scenario(
+          expect,
           esmEnv,
           `function run() {
   load('factory.mjs').later().then(ns => {
@@ -158,8 +169,11 @@ ${schedule}`,
       })
     }
 
-    it("rejects nested synchronous evaluation while polling without aborting the outer module", async () => {
+    it("rejects nested synchronous evaluation while polling without aborting the outer module", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         esmEnv,
         `globalThis.__reenter = () => {
   assert.throws(() => load('reentry.mjs'), {code: 'ERR_ESM_SYNC_ASYNC_REENTRANT'})
@@ -171,8 +185,11 @@ console.log('async-context:ok')`,
       )
     })
 
-    it("allows asynchronous worker imports while rejecting synchronous worker I/O re-entry", async () => {
+    it("allows asynchronous worker imports while rejecting synchronous worker I/O re-entry", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         esmEnv,
         `const {Worker} = require('node:worker_threads')
 const worker = new Worker(\`
@@ -189,8 +206,11 @@ worker.on('message', value => {assert.equal(value, 'ok'); console.log('async-con
       )
     })
 
-    it("keeps completed cycle members private until their async root finishes", async () => {
+    it("keeps completed cycle members private until their async root finishes", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         esmEnv,
         `globalThis.__reenter = () => {
   assert.throws(() => load('cycle-leaf.mjs'), {code: 'ERR_ESM_SYNC_ASYNC_REENTRANT'})
@@ -202,8 +222,11 @@ console.log('async-context:ok')`,
       )
     })
 
-    it("abandons pending disposal without running remaining disposers or importer bodies", async () => {
+    it("abandons pending disposal without running remaining disposers or importer bodies", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         esmEnv,
         `let failure
 assert.throws(() => load('pending-parent.mjs'), error => {

@@ -1,7 +1,6 @@
-import assert from "node:assert/strict"
 import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 for (const esmEnv of testEnvironments) {
@@ -20,8 +19,8 @@ for (const entry of ['esm', 'index']) {
 console.log('legacy-paths:pass')
 `
       const result = await runNode(["-e", source], esmEnv, {}, { cacheNamespace: "legacy-paths" })
-      assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-      assert.equal(result.stdout.trim(), "legacy-paths:pass")
+      expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+      expect(result.stdout.trim()).toBe("legacy-paths:pass")
     })
 
     it("bootstraps and loads ESM without a globalThis binding in its realm", async () => {
@@ -49,8 +48,8 @@ console.log('legacy-realm:pass')
         { ESM_OPTIONS: "{cjs:true,mode:'auto'}" },
         { cacheNamespace: "legacy-runtime" }
       )
-      assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-      assert.equal(result.stdout.trim(), "legacy-realm:pass")
+      expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+      expect(result.stdout.trim()).toBe("legacy-realm:pass")
     })
   })
 }

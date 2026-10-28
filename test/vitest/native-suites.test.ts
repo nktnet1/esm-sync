@@ -1,8 +1,7 @@
-import assert from "node:assert/strict"
 import path from "node:path"
 import os from "node:os"
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises"
-import { beforeAll, describe, it } from "vitest"
+import { beforeAll, describe, it, expect } from "vitest"
 import { collectNativeCases, location } from "./native-cases.ts"
 import { runNode, testEnvironments, testPath, type NodeResult } from "./helpers/run-node.ts"
 
@@ -215,7 +214,7 @@ for (const esmEnv of testEnvironments) {
             const summary = records.find(
               (record): record is SummaryRecord => record.kind === "summary"
             )
-            assert.ok(
+            expect.assert(
               summary,
               `Native suite did not return a test summary:\n${diagnostic(stdout, stderr)}`
             )
@@ -223,46 +222,44 @@ for (const esmEnv of testEnvironments) {
             for (const record of records) {
               if (record.kind === "test") {
                 const key = location(record.line, record.column)
-                assert.ok(!results.has(key), `Duplicate node:test result at ${suite}:${key}`)
+                expect(results.has(key), `Duplicate node:test result at ${suite}:${key}`).toBe(
+                  false
+                )
                 results.set(key, record)
               } else if (record.kind === "skipped-suite") {
                 skippedSuites.add(location(record.line, record.column))
               } else if (record.kind === "suite-failure") {
-                assert.fail(`Native suite ${record.name} failed: ${record.error}`)
+                expect.unreachable(`Native suite ${record.name} failed: ${record.error}`)
               }
             }
 
             const declarations = new Set(cases.map((testCase) => testCase.location))
             for (const key of results.keys()) {
-              assert.ok(declarations.has(key), `Unexpected node:test case at ${suite}:${key}`)
+              expect(declarations, `Unexpected node:test case at ${suite}:${key}`).toContain(key)
             }
 
             for (const testCase of cases) {
               if (!results.has(testCase.location)) {
-                assert.ok(
+                expect(
                   testCase.suites.some((key) => skippedSuites.has(key)),
                   `Native assertion missing from ${suite}: ${testCase.name} (${testCase.location})\n${diagnostic(stdout, stderr)}`
-                )
+                ).toBe(true)
               }
             }
 
-            assert.equal(
-              summary.counts.tests,
-              results.size,
-              `node:test result count differs in ${suite}`
+            expect(summary.counts.tests, `node:test result count differs in ${suite}`).toBe(
+              results.size
             )
-            assert.equal(
-              summary.counts.failed,
-              [...results.values()].filter((record) => record.status === "fail").length,
-              `node:test failure count differs in ${suite}`
+            expect(summary.counts.failed, `node:test failure count differs in ${suite}`).toBe(
+              [...results.values()].filter((record) => record.status === "fail").length
             )
             if (summary.success && exitCode !== 0) {
-              assert.fail(
+              expect.unreachable(
                 `Native suite exited ${exitCode} despite passing tests:\n${diagnostic(stdout, stderr)}`
               )
             }
             if (!summary.success && summary.counts.failed === 0) {
-              assert.fail(
+              expect.unreachable(
                 `Native suite failed without a failing test:\n${diagnostic(stdout, stderr)}`
               )
             }
@@ -277,22 +274,19 @@ for (const esmEnv of testEnvironments) {
               return
             }
 
-            assert.ok(record, `Missing native result for ${suite}: ${testCase.name}`)
-            assert.equal(
-              record.name,
-              testCase.name,
-              `Native assertion mismatch at ${testCase.location}`
+            expect.assert(record, `Missing native result for ${suite}: ${testCase.name}`)
+            expect(record.name, `Native assertion mismatch at ${testCase.location}`).toBe(
+              testCase.name
             )
             if (record.status === "skip") {
               context.skip()
               return
             }
 
-            assert.equal(
+            expect(
               record.status,
-              "pass",
               `${suite}: ${testCase.name}\n${record.error || diagnostic(output, errorOutput)}`
-            )
+            ).toBe("pass")
           })
         }
       })

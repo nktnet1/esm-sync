@@ -1,4 +1,3 @@
-import assert from "node:assert/strict"
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -89,11 +88,15 @@ export function read() { return common.read() }
   }
 }
 
+// Each case owns its fixtures and cache namespace. Only independent cases
+// overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
-  describe(`completed ESM cache hits (${esmEnv})`, () => {
+  describe.concurrent(`completed ESM cache hits (${esmEnv})`, () => {
     const options = { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }
 
-    it("keeps re-exports, live bindings, cycles, and CJS interoperability intact", async () => {
+    it("keeps re-exports, live bindings, cycles, and CJS interoperability intact", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const source = `
 const assert = require('node:assert/strict')
@@ -140,12 +143,14 @@ assert.equal(bridge.read(), 8)
         const result = await runNode(["-e", source], esmEnv, options, {
           cacheNamespace: "cached-module-bindings"
         })
-        assert.equal(result.exitCode, 0, (result.stderr || result.stdout).slice(-1600))
-        assert.equal(result.stdout.trim(), "cache-bindings:pass")
+        expect(result.exitCode, (result.stderr || result.stdout).slice(-1600)).toBe(0)
+        expect(result.stdout.trim()).toBe("cache-bindings:pass")
       })
     })
 
-    it("refreshes named imports for loop writes before the body and after partial destructuring", async () => {
+    it("refreshes named imports for loop writes before the body and after partial destructuring", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const source = `
 const assert = require('node:assert/strict')
@@ -173,12 +178,12 @@ assert.deepEqual(load(path.join(dir, 'loop-cycle.mjs')).seen, [31, 32])
         const result = await runNode(["-e", source], esmEnv, options, {
           cacheNamespace: "cached-loop-bindings"
         })
-        assert.equal(result.exitCode, 0, (result.stderr || result.stdout).slice(-3000))
-        assert.equal(result.stdout.trim(), "loop-bindings:pass")
+        expect(result.exitCode, (result.stderr || result.stdout).slice(-3000)).toBe(0)
+        expect(result.stdout.trim()).toBe("loop-bindings:pass")
       })
     })
 
-    it("does not refresh completed module bindings on repeated cache hits", async () => {
+    it("does not refresh completed module bindings on repeated cache hits", async ({ expect }) => {
       await withFixtures(async (directory) => {
         const small = path.join(directory, "small.mjs")
         const large = path.join(directory, "large.mjs")
@@ -222,8 +227,8 @@ console.log('cache-scale:pass')
         const result = await runNode(["-e", source], esmEnv, options, {
           cacheNamespace: "cached-module-scale"
         })
-        assert.equal(result.exitCode, 0, (result.stderr || result.stdout).slice(-1600))
-        assert.equal(result.stdout.trim(), "cache-scale:pass")
+        expect(result.exitCode, (result.stderr || result.stdout).slice(-1600)).toBe(0)
+        expect(result.stdout.trim()).toBe("cache-scale:pass")
       })
     })
   })

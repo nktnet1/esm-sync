@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { createPublishManifest } from "../../script/src/package-manifest.ts"
 
 describe("published package manifest", () => {
@@ -21,21 +20,22 @@ describe("published package manifest", () => {
       }
     }
     const published = createPublishManifest(source)
-    assert.deepEqual(published.scripts, {
+    expect(published.scripts).toStrictEqual({
       test: 'echo "Error: no test specified" && exit 1',
       preinstall: source.scripts.preinstall,
       install: source.scripts.install,
       postinstall: source.scripts.postinstall
     })
-    assert.deepEqual(published.dependencies, source.dependencies)
-    assert.equal(published.main, source.main)
-    for (const key of ["private", "esm", "devDependencies"]) assert.ok(!(key in published))
-    assert.equal(source.scripts.build, "build workspace")
-    assert.ok("devDependencies" in source)
+    expect(published.dependencies).toStrictEqual(source.dependencies)
+    expect(published.main).toBe(source.main)
+    for (const key of ["private", "esm", "devDependencies"])
+      expect(published).not.toHaveProperty(key)
+    expect(source.scripts.build).toBe("build workspace")
+    expect(source).toHaveProperty("devDependencies")
   })
 
   it("can prepare a manifest without installation scripts", () => {
-    assert.deepEqual(createPublishManifest({ name: "esm-sync" }).scripts, {
+    expect(createPublishManifest({ name: "esm-sync" }).scripts).toStrictEqual({
       test: 'echo "Error: no test specified" && exit 1'
     })
   })

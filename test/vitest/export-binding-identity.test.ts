@@ -1,4 +1,3 @@
-import assert from "node:assert/strict"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { describe, it } from "vitest"
@@ -87,11 +86,13 @@ async function withFixtures(run: (directory: string) => Promise<void>) {
   }
 }
 
+// Each case owns its fixtures and cache namespace. Only independent cases
+// overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
-  describe(`re-export binding identity (${esmEnv})`, () => {
+  describe.concurrent(`re-export binding identity (${esmEnv})`, () => {
     const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
 
-    it("treats duplicate paths to the same binding as unambiguous and live", async () => {
+    it("treats duplicate paths to the same binding as unambiguous and live", async ({ expect }) => {
       await withFixtures(async (directory) => {
         const { exitCode, stdout, stderr } = await runNode(
           ["-r", "../index.js", path.join(directory, "positive.mjs")],
@@ -100,12 +101,12 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "export-binding-identity" }
         )
 
-        assert.equal(exitCode, 0, stderr.slice(-4000))
-        assert.ok(stdout.includes("export-binding-identity:true"), stdout)
+        expect(exitCode, stderr.slice(-4000)).toBe(0)
+        expect(stdout, stdout).toContain("export-binding-identity:true")
       })
     })
 
-    it("rejects different bindings from the same source module", async () => {
+    it("rejects different bindings from the same source module", async ({ expect }) => {
       await withFixtures(async (directory) => {
         const { exitCode, stdout, stderr } = await runNode(
           [
@@ -120,13 +121,15 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "export-binding-conflict" }
         )
 
-        assert.notEqual(exitCode, 0)
-        assert.ok(/^binding-error:SyntaxError$/m.test(stderr), stderr.slice(-4000))
-        assert.equal(stdout, "")
+        expect(exitCode).not.toBe(0)
+        expect(stderr, stderr.slice(-4000)).toMatch(/^binding-error:SyntaxError$/m)
+        expect(stdout).toBe("")
       })
     })
 
-    it("rejects conflicting namespace bindings from different source modules", async () => {
+    it("rejects conflicting namespace bindings from different source modules", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const { exitCode, stdout, stderr } = await runNode(
           [
@@ -141,13 +144,15 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "export-namespace-conflict" }
         )
 
-        assert.notEqual(exitCode, 0)
-        assert.ok(/^binding-error:SyntaxError$/m.test(stderr), stderr.slice(-4000))
-        assert.equal(stdout, "")
+        expect(exitCode).not.toBe(0)
+        expect(stderr, stderr.slice(-4000)).toMatch(/^binding-error:SyntaxError$/m)
+        expect(stdout).toBe("")
       })
     })
 
-    it("ignores cyclic indirect export-star paths while retaining live bindings", async () => {
+    it("ignores cyclic indirect export-star paths while retaining live bindings", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const { exitCode, stdout, stderr } = await runNode(
           ["-r", "../index.js", path.join(directory, "cycle-positive.mjs")],
@@ -156,12 +161,12 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "export-cycle-resolution" }
         )
 
-        assert.equal(exitCode, 0, stderr.slice(-4000))
-        assert.ok(stdout.includes("cyclic-star-resolution:true"), stdout)
+        expect(exitCode, stderr.slice(-4000)).toBe(0)
+        expect(stdout, stdout).toContain("cyclic-star-resolution:true")
       })
     })
 
-    it("rejects an export-star cycle without any concrete binding", async () => {
+    it("rejects an export-star cycle without any concrete binding", async ({ expect }) => {
       await withFixtures(async (directory) => {
         const { exitCode, stdout, stderr } = await runNode(
           [
@@ -176,13 +181,15 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "export-cycle-missing" }
         )
 
-        assert.notEqual(exitCode, 0)
-        assert.ok(/^binding-error:SyntaxError$/m.test(stderr), stderr.slice(-4000))
-        assert.equal(stdout, "")
+        expect(exitCode).not.toBe(0)
+        expect(stderr, stderr.slice(-4000)).toMatch(/^binding-error:SyntaxError$/m)
+        expect(stdout).toBe("")
       })
     })
 
-    it("retains local namespace values when CommonJS dependencies are mocked", async () => {
+    it("retains local namespace values when CommonJS dependencies are mocked", async ({
+      expect
+    }) => {
       const { exitCode, stdout, stderr } = await runNode(
         ["-r", "../index.js", "fixture/scenario/mock-require-inject"],
         esmEnv,
@@ -190,9 +197,9 @@ for (const esmEnv of testEnvironments) {
         { cacheNamespace: "export-namespace-mocking", timeout: 15_000 }
       )
 
-      assert.equal(exitCode, 0, stderr.slice(-4000))
-      assert.equal(stderr, "")
-      assert.equal(stdout, "")
+      expect(exitCode, stderr.slice(-4000)).toBe(0)
+      expect(stderr).toBe("")
+      expect(stdout).toBe("")
     })
   })
 }

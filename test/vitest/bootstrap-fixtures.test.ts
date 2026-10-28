@@ -1,11 +1,10 @@
-import assert from "node:assert/strict"
 import { cp, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import AdmZip from "adm-zip"
 import acornPackage from "acorn/package.json"
-import { it } from "vitest"
+import { it, expect } from "vitest"
 import { runNodeCommand } from "./helpers/run-command.ts"
 
 const root = fileURLToPath(new URL("../../", import.meta.url))
@@ -29,8 +28,8 @@ it(
         path.join(directory, "node_modules"),
         "junction"
       )
-      assert.deepEqual(await readdir(path.join(directory, "script")), ["src"])
-      assert.ok(!(await readdir(path.join(directory, "src"))).includes("vendor"))
+      expect(await readdir(path.join(directory, "script"))).toStrictEqual(["src"])
+      expect(await readdir(path.join(directory, "src"))).not.toContain("vendor")
 
       const archive = new AdmZip()
       const archiveRoot = `acorn-${acornPackage.version}/acorn/`
@@ -72,31 +71,30 @@ globalThis.fetch = async (url) => {
         ["RUN", "setup-fixtures acorn"]
       ] as const) {
         const stage = new RegExp(`\\[cli\\] ${category}\\s+${description.replaceAll(".", "\\.")}`)
-        assert.match(result.stdout, stage, result.diagnostic)
+        expect(result.stdout, result.diagnostic).toMatch(stage)
       }
       const emittedSources = Array.from(
         result.stdout.matchAll(/\[cli\] EMIT\s+Generate tooling from ([^\r\n]+)/g),
         (match) => match[1]
       )
-      assert.deepEqual(emittedSources, ["script/src", "test/harness"], result.diagnostic)
-      assert.match(result.stdout, /\[cli\] DONE {2}setup-fixtures/, result.diagnostic)
-      assert.match(result.stdout, /\[acorn\] setup complete\./, result.diagnostic)
-      assert.equal(result.stderr, "", result.diagnostic)
-      assert.equal(
-        await readFile(path.join(directory, "src/vendor/acorn/acorn/src/state.js"), "utf8"),
-        "export class Parser {}\n"
-      )
-      assert.ok(
-        !(await readdir(path.join(directory, "script"), { recursive: true })).some(
+      expect(emittedSources, result.diagnostic).toStrictEqual(["script/src", "test/harness"])
+      expect(result.stdout, result.diagnostic).toMatch(/\[cli\] DONE {2}setup-fixtures/)
+      expect(result.stdout, result.diagnostic).toMatch(/\[acorn\] setup complete\./)
+      expect(result.stderr, result.diagnostic).toBe("")
+      expect(
+        await readFile(path.join(directory, "src/vendor/acorn/acorn/src/state.js"), "utf8")
+      ).toBe("export class Parser {}\n")
+      expect(
+        (await readdir(path.join(directory, "script"), { recursive: true })).filter(
           (name) => !name.startsWith("src" + path.sep) && /\.d\.[cm]?ts$/.test(name)
         )
-      )
+      ).toStrictEqual([])
 
-      assert.ok(
-        (await readdir(path.join(directory, "dist/script"))).includes("build-sync-await-dev.js")
+      expect(await readdir(path.join(directory, "dist/script"))).toContain(
+        "build-sync-await-dev.js"
       )
       for (const name of ["dist/esm.js", "dist/index.js", "dist/script/build-sync-await.js"])
-        await assert.rejects(readFile(path.join(directory, name)), { code: "ENOENT" })
+        await expect(readFile(path.join(directory, name))).rejects.toMatchObject({ code: "ENOENT" })
 
       await writeFile(
         path.join(directory, "script/src/missing-side-effect.ts"),
@@ -106,10 +104,10 @@ globalThis.fetch = async (url) => {
         ...options,
         expectedExitCode: 1
       })
-      assert.match(failure.stdout, /CHECK\s+config\/tsconfig\.tooling\.json/, failure.diagnostic)
-      assert.match(failure.stdout, /FAIL/, failure.diagnostic)
-      assert.match(failure.stderr, /TS2882/, failure.diagnostic)
-      assert.match(failure.stderr, /missing-owned-module\.js/, failure.diagnostic)
+      expect(failure.stdout, failure.diagnostic).toMatch(/CHECK\s+config\/tsconfig\.tooling\.json/)
+      expect(failure.stdout, failure.diagnostic).toMatch(/FAIL/)
+      expect(failure.stderr, failure.diagnostic).toMatch(/TS2882/)
+      expect(failure.stderr, failure.diagnostic).toMatch(/missing-owned-module\.js/)
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

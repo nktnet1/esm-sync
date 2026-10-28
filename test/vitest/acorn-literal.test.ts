@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { literalRegExp } from "../../src/acorn.ts"
 
 describe("Acorn directive literal matching", () => {
@@ -29,30 +28,30 @@ describe("Acorn directive literal matching", () => {
     "matches $source without changing directive captures",
     ({ source, literal, single, double }) => {
       const match = literalRegExp.exec(source)
-      assert.ok(match)
-      assert.equal(match[0], literal)
-      assert.equal(match[1], single)
-      assert.equal(match[2], double)
+      expect.assert(match)
+      expect(match[0]).toBe(literal)
+      expect(match[1]).toBe(single)
+      expect(match[2]).toBe(double)
     }
   )
 
   it("recognizes escaped line continuations in directive literals", () => {
     const source = "'first\\\nsecond'"
     const match = literalRegExp.exec(source)
-    assert.ok(match)
-    assert.equal(match[0], source)
-    assert.equal(match[1], "first\\\nsecond")
+    expect.assert(match)
+    expect(match[0]).toBe(source)
+    expect(match[1]).toBe("first\\\nsecond")
   })
 
   it.each(["'unfinished", '"unfinished', "'trailing\\", '"trailing\\'])(
     "does not accept an unterminated literal %s",
-    (source) => assert.equal(literalRegExp.exec(source), null)
+    (source) => expect(literalRegExp.exec(source)).toBe(null)
   )
 
   it.each(["'", '"'])("rejects long unmatched %s literals with escaped characters", (quote) => {
     // A class that also matches backslashes admits exponentially many ways
     // to partition these pairs between the escape and character branches.
     const source = quote + String.raw`\!`.repeat(2_048)
-    assert.equal(literalRegExp.exec(source), null)
+    expect(literalRegExp.exec(source)).toBe(null)
   })
 })

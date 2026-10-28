@@ -1,8 +1,7 @@
-import assert from "node:assert/strict"
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, describe, it } from "vitest"
+import { afterEach, describe, it, expect } from "vitest"
 import resolveExports from "../../dist/build/resolve-exports.js"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
@@ -17,26 +16,24 @@ afterEach(async () => {
 describe("literal package export patterns", () => {
   for (const captured of ["leaf", "nested/leaf", "$&", "$`", "$'", "$$", "*"]) {
     it(`substitutes every target wildcard literally for ${JSON.stringify(captured)}`, () => {
-      assert.equal(
+      expect(
         resolveExports(
           { "./feature/*.js": "./dist/*/*.cjs" },
           packagePath,
           `feature/${captured}.js`
-        ),
-        path.join(packagePath, "dist", captured, captured + ".cjs")
-      )
+        )
+      ).toBe(path.join(packagePath, "dist", captured, captured + ".cjs"))
     })
   }
 
   it("supports patterns without a trailing suffix and nested conditions", () => {
-    assert.equal(
+    expect(
       resolveExports(
         { "./feature/*": { require: { node: "./dist/*/*.cjs" }, default: "./wrong.cjs" } },
         packagePath,
         "feature/leaf"
-      ),
-      path.join(packagePath, "dist/leaf/leaf.cjs")
-    )
+      )
+    ).toBe(path.join(packagePath, "dist/leaf/leaf.cjs"))
   })
 
   it("substitutes before checking array fallback files", async () => {
@@ -45,23 +42,21 @@ describe("literal package export patterns", () => {
     await mkdir(path.join(directory, "dist/leaf"), { recursive: true })
     const filename = path.join(directory, "dist/leaf/leaf.cjs")
     await writeFile(filename, "module.exports = 42\n")
-    assert.equal(
+    expect(
       resolveExports(
         { "./feature/*.js": ["./missing/*/*.cjs", { require: "./dist/*/*.cjs" }] },
         directory,
         "feature/leaf.js"
-      ),
-      filename
-    )
+      )
+    ).toBe(filename)
   })
 
   it("keeps exact entries ahead of patterns and does not prefix-match exact entries", () => {
     const exports = { "./feature/*": "./pattern/*.cjs", "./feature/leaf": "./exact.cjs" }
-    assert.equal(
-      resolveExports(exports, packagePath, "feature/leaf"),
+    expect(resolveExports(exports, packagePath, "feature/leaf")).toBe(
       path.join(packagePath, "exact.cjs")
     )
-    assert.equal(resolveExports({ "./feature": "./exact.cjs" }, packagePath, "feature-extra"), "")
+    expect(resolveExports({ "./feature": "./exact.cjs" }, packagePath, "feature-extra")).toBe("")
   })
 
   it("rejects nonmatching, overlapping, and multiple-wildcard keys", () => {
@@ -71,22 +66,20 @@ describe("literal package export patterns", () => {
       ["./ab*bc", "abc"],
       ["./feature/**", "feature/leaf"]
     ] as const)
-      assert.equal(resolveExports({ [key]: "./dist/*.cjs" }, packagePath, subpath), "")
+      expect(resolveExports({ [key]: "./dist/*.cjs" }, packagePath, subpath)).toBe("")
   })
 
   it("preserves unconditional targets and CommonJS condition priority", () => {
-    assert.equal(
-      resolveExports("./literal*.cjs", packagePath, ""),
+    expect(resolveExports("./literal*.cjs", packagePath, "")).toBe(
       path.join(packagePath, "literal*.cjs")
     )
-    assert.equal(
+    expect(
       resolveExports(
         { require: "./require.cjs", node: "./node.cjs", default: "./default.cjs" },
         packagePath,
         ""
-      ),
-      path.join(packagePath, "require.cjs")
-    )
+      )
+    ).toBe(path.join(packagePath, "require.cjs"))
   })
 })
 
@@ -115,7 +108,7 @@ console.log('resolution-safety:ok')
       { ESM_OPTIONS: JSON.stringify({ cache: path.join(directory, "cache") }) },
       { timeout: 10_000 }
     )
-    assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-    assert.equal(result.stdout.trim(), "resolution-safety:ok")
+    expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+    expect(result.stdout.trim()).toBe("resolution-safety:ok")
   })
 }

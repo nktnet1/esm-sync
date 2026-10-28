@@ -1,4 +1,3 @@
-import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -323,10 +322,12 @@ assert.equal(globalThis.__disposals, 1)`
   }
 ]
 
+// Each case owns its fixtures and cache namespace. Only independent cases
+// overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
-  describe(`async syntax (${esmEnv})`, () => {
+  describe.concurrent(`async syntax (${esmEnv})`, () => {
     for (const [index, scenario] of scenarios.entries()) {
-      it(scenario.name, async () => {
+      it(scenario.name, async ({ expect }) => {
         const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-async-syntax-"))
         try {
           const files = {
@@ -357,9 +358,10 @@ console.log('async-syntax:ok')
               },
               { cacheNamespace: `async-syntax-${index}` }
             )
-            assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-            assert.equal(result.stdout.trim(), "async-syntax:ok")
-            if (cache) assert.ok((await readFile(path.join(cache, ".data.json"))).length > 0)
+            expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+            expect(result.stdout.trim()).toBe("async-syntax:ok")
+            if (cache)
+              expect((await readFile(path.join(cache, ".data.json"))).length).toBeGreaterThan(0)
           }
         } finally {
           await rm(directory, { force: true, recursive: true })

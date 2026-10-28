@@ -1,7 +1,5 @@
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import Compiler from "../../dist/build/compiler.js"
-
-import assert from "assert"
 
 const SCRIPT = 1
 const MODULE = 2
@@ -13,21 +11,24 @@ const testGlobal: typeof globalThis & { called?: number } = globalThis
 
 describe("compiler tests", () => {
   it("should support `options.topLevelReturn`", () => {
-    assert.doesNotThrow(() => Compiler.compile("return"))
+    expect(() => Compiler.compile("return")).not.toThrow()
 
-    assert.doesNotThrow(() =>
+    expect(() =>
       Compiler.compile("return", {
         sourceType: MODULE,
         topLevelReturn: true
       })
-    )
+    ).not.toThrow()
 
-    assert.throws(
-      () =>
-        Compiler.compile("return", {
-          sourceType: MODULE
-        }),
-      /SyntaxError: Illegal return statement/
+    expect(() =>
+      Compiler.compile("return", {
+        sourceType: MODULE
+      })
+    ).toThrow(
+      expect.objectContaining({
+        name: "SyntaxError",
+        message: expect.stringMatching(/Illegal return statement/)
+      })
     )
   })
 
@@ -35,7 +36,7 @@ describe("compiler tests", () => {
     for (const sourceType of modernTypes) {
       const result = Compiler.compile('import"a"', { sourceType })
 
-      assert.strictEqual(result.sourceType, MODULE)
+      expect(result.sourceType).toBe(MODULE)
     }
   })
 
@@ -44,18 +45,18 @@ describe("compiler tests", () => {
 
     let result = Compiler.compile(code)
 
-    assert.strictEqual(result.code, code)
+    expect(result.code).toBe(code)
 
     result = Compiler.compile(code, {
       cjsVars: true,
       sourceType: MODULE
     })
 
-    assert.strictEqual(result.code, code)
+    expect(result.code).toBe(code)
 
     result = Compiler.compile(code, { sourceType: MODULE })
 
-    assert.ok(result.code.includes('_.t("arguments")'))
+    expect(result.code).toContain('_.t("arguments")')
   })
 
   it("should support `options.sourceType` of MODULE", () => {
@@ -78,7 +79,7 @@ describe("compiler tests", () => {
         sourceType: MODULE
       })
 
-      assert.strictEqual(result.sourceType, sourceType)
+      expect(result.sourceType).toBe(sourceType)
     }
   })
 
@@ -105,7 +106,7 @@ describe("compiler tests", () => {
         sourceType: UNAMBIGUOUS
       })
 
-      assert.strictEqual(result.sourceType, sourceType)
+      expect(result.sourceType).toBe(sourceType)
     }
   })
 
@@ -119,7 +120,7 @@ describe("compiler tests", () => {
           sourceType
         })
 
-        assert.ok(result.code.includes(value ? "var a" : "let a"))
+        expect(result.code).toContain(value ? "var a" : "let a")
       }
     }
   })
@@ -142,7 +143,7 @@ describe("compiler tests", () => {
         sourceType: UNAMBIGUOUS
       })
 
-      assert.strictEqual(result.sourceType, MODULE)
+      expect(result.sourceType).toBe(MODULE)
     }
   })
 
@@ -159,14 +160,12 @@ describe("compiler tests", () => {
     ]
 
     for (const { code, hint } of datas) {
-      assert.throws(
-        () =>
-          Compiler.compile(code, {
-            hint,
-            sourceType: UNAMBIGUOUS
-          }),
-        /SyntaxError/
-      )
+      expect(() =>
+        Compiler.compile(code, {
+          hint,
+          sourceType: UNAMBIGUOUS
+        })
+      ).toThrow(expect.objectContaining({ name: "SyntaxError" }))
     }
   })
 
@@ -178,7 +177,7 @@ describe("compiler tests", () => {
     for (const sourceType of modernTypes) {
       const result = Compiler.compile(code, { sourceType })
 
-      assert.strictEqual(result.code.includes(shebang), false)
+      expect(result.code.includes(shebang)).toBe(false)
     }
   })
 
@@ -186,7 +185,7 @@ describe("compiler tests", () => {
     for (const sourceType of modernTypes) {
       const result = Compiler.compile('import"a"//trailing comment', { sourceType })
 
-      assert.ok(result.code.endsWith("//trailing comment"))
+      expect(result.code).toMatch(/\/\/trailing comment$/)
     }
   })
 
@@ -195,7 +194,7 @@ describe("compiler tests", () => {
       sourceType: SCRIPT
     })
 
-    assert.ok(result.code.includes('i("a")'))
+    expect(result.code).toContain('i("a")')
   })
 
   it("should preserve the evaluation of a second dynamic import argument", () => {
@@ -212,8 +211,8 @@ describe("compiler tests", () => {
       testGlobal.called = 0
 
       try {
-        assert.deepStrictEqual(new Function("_", `return ${transformed}`)(runtime), {})
-        assert.equal(testGlobal.called, 1)
+        expect(new Function("_", `return ${transformed}`)(runtime)).toStrictEqual({})
+        expect(testGlobal.called).toBe(1)
       } finally {
         delete testGlobal.called
       }
@@ -239,8 +238,8 @@ describe("compiler tests", () => {
 
         const result: unknown = new Function("_", "calls", `return ${transformed}`)(runtime, calls)
 
-        assert.deepStrictEqual(result, ["fixture", {}])
-        assert.deepStrictEqual(calls, ["specifier", "options", phase])
+        expect(result).toStrictEqual(["fixture", {}])
+        expect(calls).toStrictEqual(["specifier", "options", phase])
       }
     }
   })
@@ -260,7 +259,9 @@ describe("compiler tests", () => {
     ]
 
     for (const line of lines) {
-      assert.throws(() => Compiler.compile(line, { sourceType: MODULE }), /SyntaxError/, line)
+      expect(() => Compiler.compile(line, { sourceType: MODULE }), line).toThrow(
+        expect.objectContaining({ name: "SyntaxError" })
+      )
     }
   })
 
@@ -277,7 +278,7 @@ describe("compiler tests", () => {
     for (const sourceType of sourceTypes) {
       const result = Compiler.compile(code, { sourceType })
 
-      assert.strictEqual(result.code.includes("import"), false)
+      expect(result.code.includes("import")).toBe(false)
     }
   })
 
@@ -304,7 +305,7 @@ describe("compiler tests", () => {
       const result = Compiler.compile(code, { sourceType })
       const lines = result.code.split("\n")
 
-      assert.strictEqual(lines[13], "b")
+      expect(lines[13]).toBe("b")
     }
   })
 
@@ -312,7 +313,7 @@ describe("compiler tests", () => {
     for (const sourceType of modernTypes) {
       const result = Compiler.compile('import"\\n\\r\\u2028\\u2029"', { sourceType })
 
-      assert.strictEqual(/[\n\r\u2028\u2029]/.test(result.code), false)
+      expect(/[\n\r\u2028\u2029]/.test(result.code)).toBe(false)
     }
   })
 
@@ -324,7 +325,7 @@ describe("compiler tests", () => {
     for (const sourceType of modernTypes) {
       const result = Compiler.compile(code, { sourceType })
 
-      assert.ok(result.code.endsWith("\r\n".repeat(5)))
+      expect(result.code).toMatch(/(?:\r\n){5}$/)
     }
   })
 
@@ -337,13 +338,13 @@ describe("compiler tests", () => {
     for (const sourceType of sourceTypes) {
       const result = Compiler.compile(code, { sourceType })
 
-      assert.strictEqual(result.code, code)
+      expect(result.code).toBe(code)
     }
   })
 
   it("should parse shorthand async function properties with reserved names", () => {
     for (const sourceType of sourceTypes) {
-      assert.doesNotThrow(() => Compiler.compile("({ async delete() {} })", { sourceType }))
+      expect(() => Compiler.compile("({ async delete() {} })", { sourceType })).not.toThrow()
     }
   })
 
@@ -352,7 +353,7 @@ describe("compiler tests", () => {
 
     for (const line of lines) {
       for (const sourceType of sourceTypes) {
-        assert.doesNotThrow(() => Compiler.compile(line, { sourceType }))
+        expect(() => Compiler.compile(line, { sourceType })).not.toThrow()
       }
     }
   })
@@ -362,7 +363,7 @@ describe("compiler tests", () => {
 
     for (const line of lines) {
       for (const sourceType of modernTypes) {
-        assert.doesNotThrow(() => Compiler.compile(line, { sourceType }))
+        expect(() => Compiler.compile(line, { sourceType })).not.toThrow()
       }
     }
   })
@@ -379,7 +380,7 @@ describe("compiler tests", () => {
     ].join("\n")
 
     for (const sourceType of modernTypes) {
-      assert.doesNotThrow(() => Compiler.compile(code, { sourceType }))
+      expect(() => Compiler.compile(code, { sourceType })).not.toThrow()
     }
   })
 
@@ -398,7 +399,7 @@ describe("compiler tests", () => {
     ].join("\n")
 
     for (const sourceType of sourceTypes) {
-      assert.doesNotThrow(() => Compiler.compile(code, { sourceType }))
+      expect(() => Compiler.compile(code, { sourceType })).not.toThrow()
     }
   })
 
@@ -418,7 +419,7 @@ describe("compiler tests", () => {
     ].join("\n")
 
     for (const sourceType of sourceTypes) {
-      assert.doesNotThrow(() => Compiler.compile(code, { sourceType }))
+      expect(() => Compiler.compile(code, { sourceType })).not.toThrow()
     }
   })
 
@@ -436,7 +437,7 @@ describe("compiler tests", () => {
     ].join("\n")
 
     for (const sourceType of sourceTypes) {
-      assert.doesNotThrow(() => Compiler.compile(code, { sourceType }))
+      expect(() => Compiler.compile(code, { sourceType })).not.toThrow()
     }
   })
 
@@ -477,7 +478,7 @@ describe("compiler tests", () => {
     ].join("\n")
 
     for (const sourceType of modernTypes) {
-      assert.doesNotThrow(() => Compiler.compile(code, { sourceType }))
+      expect(() => Compiler.compile(code, { sourceType })).not.toThrow()
     }
   })
 
@@ -493,7 +494,7 @@ describe("compiler tests", () => {
     ].join("\n")
 
     for (const sourceType of modernTypes) {
-      assert.doesNotThrow(() => Compiler.compile(code, { sourceType }))
+      expect(() => Compiler.compile(code, { sourceType })).not.toThrow()
     }
   })
 
@@ -507,7 +508,7 @@ describe("compiler tests", () => {
     ].join("\n")
 
     for (const sourceType of modernTypes) {
-      assert.doesNotThrow(() => Compiler.compile(code, { sourceType }))
+      expect(() => Compiler.compile(code, { sourceType })).not.toThrow()
     }
   })
 
@@ -545,7 +546,7 @@ describe("compiler tests", () => {
         const result = Compiler.compile(code, { sourceType })
         const actual = result.code.split("\n").pop()
 
-        assert.strictEqual(actual, compiled[index])
+        expect(actual).toBe(compiled[index])
       }
     })
   })
@@ -565,7 +566,7 @@ describe("compiler tests", () => {
         const result = Compiler.compile(code, { sourceType })
         const actual = result.code.split("\n").pop()
 
-        assert.strictEqual(actual, line)
+        expect(actual).toBe(line)
       }
     })
   })
@@ -579,7 +580,7 @@ describe("compiler tests", () => {
       for (const sourceType of modernTypes) {
         const result = Compiler.compile(code, { sourceType })
 
-        assert.strictEqual(result.code.includes("_.g"), false)
+        expect(result.code.includes("_.g")).toBe(false)
       }
     })
   })
@@ -597,7 +598,7 @@ describe("compiler tests", () => {
       for (const sourceType of modernTypes) {
         const result = Compiler.compile(code, { sourceType })
 
-        assert.strictEqual(result.code.includes("_.g"), false)
+        expect(result.code.includes("_.g")).toBe(false)
       }
     })
   })
@@ -653,7 +654,7 @@ describe("compiler tests", () => {
         const actual = result.code.split("\n").pop()
         const compiled = sourceType === SCRIPT ? compiledScript : compiledModule
 
-        assert.strictEqual(actual, compiled[index])
+        expect(actual).toBe(compiled[index])
       }
     })
   })
@@ -672,7 +673,7 @@ describe("compiler tests", () => {
     for (const line of lines) {
       const result = Compiler.compile(line)
 
-      assert.strictEqual(result.code, line)
+      expect(result.code).toBe(line)
     }
   })
 
@@ -685,7 +686,7 @@ describe("compiler tests", () => {
       const result = Compiler.compile(code, { sourceType })
       const actual = result.code.split("\n").pop()
 
-      assert.strictEqual(actual, line)
+      expect(actual).toBe(line)
     }
   })
 
@@ -695,7 +696,7 @@ describe("compiler tests", () => {
     const result = Compiler.compile(code)
     const actual = result.code.split("\n").pop()
 
-    assert.strictEqual(actual, "with ((eval===_.v?_.e:eval)) { eval = eval }")
+    expect(actual).toBe("with ((eval===_.v?_.e:eval)) { eval = eval }")
   })
 
   it("should add TDZ asserts to bindings", () => {
@@ -734,7 +735,7 @@ describe("compiler tests", () => {
         const result = Compiler.compile(code, { sourceType })
         const actual = result.codeWithTDZ!.split("\n").pop()
 
-        assert.strictEqual(actual, compiled[index])
+        expect(actual).toBe(compiled[index])
       }
     })
   })
@@ -756,7 +757,7 @@ describe("compiler tests", () => {
       for (const sourceType of modernTypes) {
         const result = Compiler.compile(code, { sourceType })
 
-        assert.strictEqual(result.codeWithTDZ, null)
+        expect(result.codeWithTDZ).toBe(null)
       }
     }
   })
@@ -764,18 +765,32 @@ describe("compiler tests", () => {
   it("should support V8 parse errors", () => {
     const options = { sourceType: MODULE }
 
-    assert.throws(() => Compiler.compile("a(", options), /SyntaxError: Unexpected end of input/)
-
-    assert.throws(
-      () => Compiler.compile("a(b c)", options),
-      /SyntaxError: missing \) after argument list/
+    expect(() => Compiler.compile("a(", options)).toThrow(
+      expect.objectContaining({
+        name: "SyntaxError",
+        message: expect.stringMatching(/Unexpected end of input/)
+      })
     )
 
-    assert.throws(() => Compiler.compile("'", options), /SyntaxError: Invalid or unexpected token/)
+    expect(() => Compiler.compile("a(b c)", options)).toThrow(
+      expect.objectContaining({
+        name: "SyntaxError",
+        message: expect.stringMatching(/missing \) after argument list/)
+      })
+    )
 
-    assert.throws(
-      () => Compiler.compile("`a", options),
-      /SyntaxError: Unterminated template literal/
+    expect(() => Compiler.compile("'", options)).toThrow(
+      expect.objectContaining({
+        name: "SyntaxError",
+        message: expect.stringMatching(/Invalid or unexpected token/)
+      })
+    )
+
+    expect(() => Compiler.compile("`a", options)).toThrow(
+      expect.objectContaining({
+        name: "SyntaxError",
+        message: expect.stringMatching(/Unterminated template literal/)
+      })
     )
   })
 
@@ -786,15 +801,17 @@ describe("compiler tests", () => {
 
     for (const sourceType of modernTypes) {
       for (const line of lines) {
-        assert.throws(
-          () => Compiler.compile(line + suffix, { sourceType }),
-          /SyntaxError: Identifier 'a' has already been declared/
+        expect(() => Compiler.compile(line + suffix, { sourceType })).toThrow(
+          expect.objectContaining({
+            name: "SyntaxError",
+            message: expect.stringMatching(/Identifier 'a' has already been declared/)
+          })
         )
       }
 
-      assert.doesNotThrow(() =>
+      expect(() =>
         Compiler.compile("function a() { var b; function b() {} }" + suffix, { sourceType })
-      )
+      ).not.toThrow()
     }
   })
 
@@ -804,7 +821,7 @@ describe("compiler tests", () => {
     const suffix = '; import("a")'
 
     for (const line of lines) {
-      assert.doesNotThrow(() => Compiler.compile(line + suffix, { sourceType: SCRIPT }))
+      expect(() => Compiler.compile(line + suffix, { sourceType: SCRIPT })).not.toThrow()
     }
   })
 })
@@ -821,18 +838,17 @@ describe("import assignment target early errors", () => {
         `[${target}] = []`,
         `for (${target} of []) {}`
       ]) {
-        assert.throws(
+        expect(
           () => Compiler.compile(source, { sourceType: MODULE }),
-          SyntaxError,
           `Expected a SyntaxError for: ${source}`
-        )
+        ).toThrow(SyntaxError)
       }
     }
   })
 
   it("keeps property assignments to import.meta and import() results valid", () => {
     for (const source of ["import.meta.value = 1", 'import("value").result = 1']) {
-      assert.doesNotThrow(() => Compiler.compile(source, { sourceType: MODULE }), source)
+      expect(() => Compiler.compile(source, { sourceType: MODULE }), source).not.toThrow()
     }
   })
 })
@@ -843,7 +859,7 @@ describe("arbitrary module namespace names", () => {
       'export { "foo" }; function foo() {}',
       'export { "foo" as "bar" }; function foo() {}'
     ]) {
-      assert.throws(() => Compiler.compile(source, { sourceType: MODULE }), SyntaxError)
+      expect(() => Compiler.compile(source, { sourceType: MODULE })).toThrow(SyntaxError)
     }
   })
 
@@ -860,9 +876,9 @@ describe("arbitrary module namespace names", () => {
           importCalls.push([request, setters])
         }
       })
-      assert.equal(importCalls[0]![0], "fixture")
-      assert.equal(importCalls[0]![1][0]![0], name)
-      assert.equal(importCalls[0]![1][0]![1][0], "value")
+      expect(importCalls[0]![0]).toBe("fixture")
+      expect(importCalls[0]![1][0]![0]).toBe(name)
+      expect(importCalls[0]![1][0]![1][0]).toBe("value")
 
       const reExportCalls: Array<[string, Array<[string, string[], string[]]>]> = []
       const reExportResult = Compiler.compile(
@@ -878,9 +894,9 @@ describe("arbitrary module namespace names", () => {
           reExportCalls.push([request, setters])
         }
       })
-      assert.equal(reExportCalls[0]![1][0]![0], name)
-      assert.equal(reExportCalls[0]![1][0]![2][0], name)
-      assert.equal(reExportCalls[0]![1][0]![2][1], name)
+      expect(reExportCalls[0]![1][0]![0]).toBe(name)
+      expect(reExportCalls[0]![1][0]![2][0]).toBe(name)
+      expect(reExportCalls[0]![1][0]![2][1]).toBe(name)
 
       const namespaceCalls: Array<[string, Array<[string, string[], string[]]>]> = []
       const namespaceResult = Compiler.compile(`export * as ${moduleName} from "fixture"`, {
@@ -895,8 +911,8 @@ describe("arbitrary module namespace names", () => {
           namespaceCalls.push([request, setters])
         }
       })
-      assert.equal(namespaceCalls[0]![1][0]![2][0], "*")
-      assert.equal(namespaceCalls[0]![1][0]![2][1], name)
+      expect(namespaceCalls[0]![1][0]![2][0]).toBe("*")
+      expect(namespaceCalls[0]![1][0]![2][1]).toBe(name)
 
       const localExports: Array<[string, () => unknown]> = []
       const localExportResult = Compiler.compile(
@@ -909,8 +925,8 @@ describe("arbitrary module namespace names", () => {
           localExports.push(...exports)
         }
       })
-      assert.equal(localExports[0]![0], name)
-      assert.equal(localExports[0]![1](), 42)
+      expect(localExports[0]![0]).toBe(name)
+      expect(localExports[0]![1]()).toBe(42)
     }
   })
 
@@ -921,19 +937,18 @@ describe("arbitrary module namespace names", () => {
         `export * as ${name} from "fixture"`,
         `import { ${name} as value } from "fixture"`
       ]) {
-        assert.throws(
+        expect(
           () => Compiler.compile(source, { sourceType: MODULE }),
-          SyntaxError,
           `Expected invalid module namespace name: ${source}`
-        )
+        ).toThrow(SyntaxError)
       }
     }
 
-    assert.doesNotThrow(() =>
+    expect(() =>
       Compiler.compile('export { value as "\\uD83D\\uDE00" }; const value = 1', {
         sourceType: MODULE
       })
-    )
+    ).not.toThrow()
   })
 })
 
@@ -956,10 +971,11 @@ describe("static import attributes", () => {
         const source = `${statement} with { ${attributes} }`
 
         for (const sourceType of modernTypes) {
-          assert.throws(
-            () => Compiler.compile(source, { sourceType }),
-            { name: "SyntaxError", message: /Duplicate attribute key/ },
-            source
+          expect(() => Compiler.compile(source, { sourceType }), source).toThrow(
+            expect.objectContaining({
+              name: "SyntaxError",
+              message: expect.stringMatching(/Duplicate attribute key/)
+            })
           )
         }
       }
@@ -980,7 +996,7 @@ describe("static import attributes", () => {
         const source = `${statement} with { ${attributes} }`
 
         for (const sourceType of modernTypes) {
-          assert.doesNotThrow(() => Compiler.compile(source, { sourceType }), source)
+          expect(() => Compiler.compile(source, { sourceType }), source).not.toThrow()
         }
       }
     }

@@ -24,6 +24,33 @@ Test commands run maintained harness TypeScript as emitted JavaScript under
 real subprocesses with isolated disk caches. Native filesystem assertions must
 compare canonical paths; see `AGENTS.md` for the macOS symlink rule.
 
+## Assertions and parallel execution
+
+Vitest tests use `expect`: compare object and array contents with `toStrictEqual`,
+preserve reference identity with `toBe`, and use specific matchers such as
+`toContain`, `toMatch`, and `toThrow` for their respective checks. A few
+`expect.assert` guards narrow nullable values or discriminated unions for
+TypeScript before accessing their members. The native `node:test` harness and
+source strings executed in child processes keep Node's `assert` API; these
+processes exercise the loader without importing Vitest.
+
+The suite has several bounded levels of parallel execution:
+
+| Group                                                                                                         | Parallelism                                              | Isolation and ordering                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Bootstrap project                                                                                             | One file at a time, before other projects                | Cold TypeScript checks do not compete with nested runners                                                                              |
+| Runtime and tooling projects                                                                                  | Test files run in parallel in the same sequence group    | Existing worker processes and per-file loader caches                                                                                   |
+| Async contexts, async syntax, top-level await, cached bindings, export binding identity, upstream regressions | `describe.concurrent`, at most three test cases per file | Each case owns its fixture directory and cache namespace; cold/warm cache passes and dependency updates remain ordered within the case |
+| Native harness                                                                                                | At most four suite subprocesses                          | Cached and uncached runs of the scenario suite or miscellaneous suite do not overlap each other                                        |
+| External runner scenarios                                                                                     | At most three cases in a native scenario suite           | Separate CLI caches and NYC output directories; PM2 cases stay sequential                                                              |
+| Test262 conformance                                                                                           | At most four cases per runner                            | Each case runs in a separate Node process                                                                                              |
+
+Concurrent Vitest tests use the test context's `expect`, passing it to shared
+assertion helpers when needed. Other tests remain sequential within their file,
+including checks that mutate shared globals, fixtures, or process state. Keep new
+concurrent cases independent of shared mutable state and give them distinct cache
+namespaces.
+
 ## Published package tests
 
 `pnpm test:packed --format=both` packs and installs the package in a disposable
