@@ -1,4 +1,4 @@
-import { argv, stdin } from "../safe/process.js"
+import safeProcess, { argv } from "../safe/process.js"
 
 import getFlags from "./get-flags.js"
 import isPreloaded from "./is-preloaded.js"
@@ -17,7 +17,7 @@ function init() {
 
     const flags = getFlags()
 
-    return flags.eval || (!stdin.isTTY && !flags.interactive)
+    return flags.eval || (!flags.interactive && !safeProcess.stdin.isTTY)
   }
 
   return isEval

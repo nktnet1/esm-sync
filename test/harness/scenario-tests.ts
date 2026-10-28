@@ -334,6 +334,24 @@ describe("scenario tests", { concurrency: 3 }, () => {
       const configPath = path.resolve(dirPath, "jest.config.json")
       return node([jestPath, "--config", configPath, "--rootDir", dirPath], envAuto)
     })
+    it("should not initialize stdin when imported by jest", function () {
+      const dirPath = path.resolve("fixture/scenario/jest-ttywrap")
+      const configPath = path.resolve(dirPath, "jest.config.json")
+      return node(
+        [
+          jestPath,
+          "--config",
+          configPath,
+          "--rootDir",
+          dirPath,
+          "--runInBand",
+          "--detectOpenHandles"
+        ],
+        envAuto
+      ).then(({ stderr }) => {
+        assert.doesNotMatch(stderr, /Jest has detected.*open handle|TTYWRAP/)
+      })
+    })
     it("should carry over globals from `jest.config.json`", function () {
       const dirPath = path.resolve("fixture/scenario/jest-config-globals")
       const configPath = path.resolve(dirPath, "jest.config.json")

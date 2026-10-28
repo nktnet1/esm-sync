@@ -92,7 +92,6 @@ export const {
   once,
   platform,
   setMaxListeners,
-  stdin,
   type,
   versions
 } = safeProcess
