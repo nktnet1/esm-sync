@@ -47,6 +47,12 @@ function legacySources(): TsdownPlugin<unknown> {
   }
 }
 
+const productionMinify = {
+  compress: { target: "es2015" },
+  mangle: { reserved: ["__shared__"] },
+  codegen: { asciiOnly: true, legalComments: "inline" }
+} satisfies Extract<UserConfig["minify"], object>
+
 const base: UserConfig = {
   cwd: path.resolve("."),
   format: "cjs",
@@ -55,13 +61,7 @@ const base: UserConfig = {
   dts: false,
   clean: false,
   sourcemap: false,
-  minify: isProd
-    ? {
-        compress: { target: "es2015" },
-        mangle: { reserved: ["__shared__"] },
-        codegen: { asciiOnly: true, legalComments: "inline" }
-      }
-    : false,
+  minify: isProd ? productionMinify : false,
   cjsDefault: true,
   outExtensions: () => ({ js: ".js" }),
   outputOptions: { strict: true, codeSplitting: false }
@@ -141,6 +141,18 @@ export default defineConfig([
       outDir: "dist",
       treeshake: false,
       deps: { onlyBundle: ["json-6", "semver"] },
+      // Keep production errors readable: V8 prints the source line when a
+      // thrown module error reaches the bootstrap's VM script. Fully minified
+      // lines otherwise dump tens of KB of unrelated loader code to stderr.
+      minify: isProd
+        ? {
+            ...productionMinify,
+            codegen: {
+              ...productionMinify.codegen,
+              removeWhitespace: name !== "esm/loader"
+            }
+          }
+        : false,
       outputOptions: { ...base.outputOptions, intro: banner },
       define: {
         __ESM_PACKAGE_FILENAMES__: JSON.stringify(
