@@ -1,4 +1,9 @@
 export interface ModuleRegistry {
+  esmModuleSource: import("../module/esm/module-source.js").CachedModule
+  test262SourceHost?: {
+    AbstractModuleSource: typeof import("../module/esm/module-source.js").default.AbstractModuleSource
+    register(request: string, filename: string): void
+  }
   test262Load?: (
     filename: string,
     parent: import("./runtime.js").ModuleRecord | null,

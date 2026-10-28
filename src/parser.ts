@@ -67,7 +67,7 @@ function init() {
     acornParserImport.enable(parser)
     acornParserNumericSeparator.enable(parser)
     acornParserRaw.enable(parser)
-    acornParserTolerance.enable(parser)
+    if (options.tolerant !== false) acornParserTolerance.enable(parser)
     acornParserTopLevel.enable(parser)
 
     if (strict !== void 0) {

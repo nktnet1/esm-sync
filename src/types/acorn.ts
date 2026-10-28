@@ -61,6 +61,7 @@ export interface TopLevel {
 }
 export type MutableNode = A.Node & Record<string, unknown>
 export interface ParserOptions extends Omit<A.Options, "sourceType" | "ecmaVersion" | "strict"> {
+  tolerant?: boolean
   ecmaVersion?: A.ecmaVersion
   sourceType?: "module" | "script" | number | undefined
   strict?: boolean | undefined
@@ -147,6 +148,7 @@ export interface AcornParser {
   parseImport(node: MutableNode): AstNode
   parseExport(node: MutableNode, exported: Record<string, boolean>): AstNode
   parseImportNamespaceSpecifier(): Ast<A.ImportNamespaceSpecifier>
+  parseImportDefaultSpecifier(): Ast<A.ImportDefaultSpecifier>
   parseModuleExportName(): Ast<A.Identifier | A.Literal>
   parseWithClause(): Ast<A.ImportAttribute>[]
   parseStatement(

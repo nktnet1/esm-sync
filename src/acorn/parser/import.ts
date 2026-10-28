@@ -81,18 +81,25 @@ function init() {
   }
 
   const parseImport: MethodWrapper<"parseImport"> = function (func, args) {
-    // The contextual `defer` modifier is only recognised before a namespace
-    // import. `import defer from "mod"` still imports a default binding named defer.
     const ahead = lookahead(this)
-    if (ahead.value !== "defer" || lookahead(ahead).type !== tt.star) {
+    const binding = lookahead(ahead)
+    const deferred = ahead.value === "defer" && binding.type === tt.star
+    const source =
+      ahead.value === "source" &&
+      binding.type === tt.name &&
+      (binding.value !== "from" || lookahead(binding).type !== tt.string)
+    // `import source from "mod"` remains an ordinary default import.
+    if (ahead.containsEsc || (!deferred && !source)) {
       return Reflect.apply(func, this, args)
     }
 
     const [node] = args
     this.next()
     this.next()
-    node.phase = "defer"
-    node.specifiers = [this.parseImportNamespaceSpecifier()]
+    node.phase = source ? "source" : "defer"
+    node.specifiers = [
+      source ? this.parseImportDefaultSpecifier() : this.parseImportNamespaceSpecifier()
+    ]
     this.expectContextual("from")
     if (this.type !== tt.string) this.unexpected()
     node.source = this.parseExprAtom()

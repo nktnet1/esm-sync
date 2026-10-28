@@ -10,6 +10,7 @@ function init() {
     map: Map<AstNode, Map<string, boolean>>
   ): boolean {
     let result = false
+    const pending: Map<string, boolean>[] = []
 
     path.getParentNode((parent) => {
       const { type } = parent
@@ -21,20 +22,19 @@ function init() {
         map.set(parent, cache)
       }
 
-      let cached = cache.get(name)
+      const cached = cache.get(name)
 
       if (cached !== void 0) {
-        return (result = cached)
-      }
-
-      if (type === "Program") {
-        result = true
-        cache.set(name, result)
-
+        result = cached
         return true
       }
 
-      cache.set(name, false)
+      pending.push(cache)
+
+      if (type === "Program") {
+        result = true
+        return true
+      }
 
       if (
         type === "ArrowFunctionExpression" ||
@@ -44,6 +44,10 @@ function init() {
         return true
       }
     })
+
+    // Cache the completed scope lookup. An intermediate block's initial
+    // false value must not be mistaken for the answer on a later write.
+    for (const cache of pending) cache.set(name, result)
 
     return result
   }

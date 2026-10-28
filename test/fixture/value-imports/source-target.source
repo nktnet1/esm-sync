@@ -1,0 +1,2 @@
+import "./dependency-that-must-not-be-resolved.mjs"
+throw new Error("A source import must not evaluate its module")

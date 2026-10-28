@@ -409,6 +409,10 @@ class Evaluation {
       }
       if (record.done || record.failed) break
       if (this.deadline === null) this.deadline = awaitDeadline()
+      checkDeadline(this.deadline)
+      // Resuming an await may enqueue another import without creating a
+      // timer or I/O handle. Run that ready work before polling the host.
+      if (this.imports.length !== 0) continue
       poll(this.deadline)
     }
     if (record.failed) throw record.error

@@ -9,6 +9,7 @@ import globby from "globby"
 import test262Parser from "test262-parser"
 
 const require = createRequire(import.meta.url)
+const test262NodeFlags = require("../script/test262-node-flags.js") as string[]
 const setupTest262 =
   require("../script/setup-test262.js") as typeof import("../../script/src/setup-test262.js")
 const { assertTest262Outcome } =
@@ -86,9 +87,7 @@ async function runCase(
   const { exitCode, stdout, stderr, timedOut } = await execa(
     process.execPath,
     [
-      "--harmony",
-      "--experimental-vm-modules",
-      "--disable-warning=ExperimentalWarning",
+      ...test262NodeFlags,
       "-r",
       "../../",
       wrapperPath,

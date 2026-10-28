@@ -141,7 +141,8 @@ function init() {
       const { runtimeName } = this
 
       this.importSpecifierMap.forEach((map) => {
-        code += runtimeName + (map.phase === "defer" ? ".y(" : ".w(") + toStringLiteral(map.request)
+        const methods: Record<string, string> = { evaluation: ".w(", defer: ".y(", source: ".z(" }
+        code += runtimeName + methods[map.phase] + toStringLiteral(map.request)
 
         let setterArgsList = ""
 
@@ -200,11 +201,11 @@ function init() {
             (setterArgsList === "" ? "" : ",") + '["*",null,' + runtimeName + ".n()]"
         }
 
-        if (setterArgsList !== "" || map.moduleType === "text") {
+        if (setterArgsList !== "" || map.moduleType !== void 0) {
           code += ",[" + setterArgsList + "]"
         }
 
-        code += map.moduleType === "text" ? ',"text");' : ");"
+        code += map.moduleType === void 0 ? ");" : "," + toStringLiteral(map.moduleType) + ");"
       })
 
       this.magicString.prependLeft(top.insertIndex, code)
@@ -547,10 +548,10 @@ function init() {
     const attribute = (node.attributes ?? []).find(
       ({ key }) => (key.type === "Identifier" ? key.name : key.value) === "type"
     )
-    const moduleType = attribute?.value.value === "text" ? "text" : void 0
-    const phase = node.phase === "defer" ? "defer" : "evaluation"
-    const key =
-      request + (moduleType === "text" ? "\0text" : "") + (phase === "defer" ? "\0defer" : "")
+    const value = attribute?.value.value
+    const moduleType = value === "text" || value === "bytes" ? value : void 0
+    const phase = node.phase ?? "evaluation"
+    const key = request + (moduleType === void 0 ? "" : "\0" + moduleType) + "\0" + phase
 
     let map = maps.get(key)
 

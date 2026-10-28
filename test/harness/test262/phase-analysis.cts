@@ -217,6 +217,10 @@ function getModuleLoader() {
   // The loader's internal require(symbol) protocol already exposes its
   // shared state to esm-sync's own modules. It is not a public application API.
   const { shared } = loadOwnProtocol()
+  const sourceHost = shared.module.test262SourceHost
+  if (!sourceHost) throw new Error("Test262: module source host is unavailable")
+  sourceHost.register("<module source>", path.resolve(__dirname, "../fixture/module-source.source"))
+  Reflect.set(globalThis, "$262", { AbstractModuleSource: sourceHost.AbstractModuleSource })
   const load = shared?.module?.test262Load
   if (typeof load !== "function") {
     throw new Error("Test262: esm-sync test-only module loader is unavailable")

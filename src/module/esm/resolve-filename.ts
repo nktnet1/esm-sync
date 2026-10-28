@@ -55,7 +55,8 @@ function resolveFilename(
   request: string,
   parent: ModuleRecord | null | undefined,
   isMain: boolean = false,
-  options: { paths?: string[] } | undefined = void 0
+  options: { paths?: string[] } | undefined = void 0,
+  allowUnknownExtension = false
 ) {
   if (request.startsWith("node:")) {
     request = request.substr(5)
@@ -101,7 +102,14 @@ function resolveFilename(
   if (!isObject(options)) {
     cache = shared.memoize.moduleESMResolveFilename
 
-    cacheKey = request + "\0" + fromPath + "\0" + (isMain ? "1" : "")
+    cacheKey =
+      request +
+      "\0" +
+      fromPath +
+      "\0" +
+      (isMain ? "1" : "") +
+      "\0" +
+      (allowUnknownExtension ? "1" : "0")
 
     const cached = cache.get(cacheKey)
 
@@ -179,6 +187,7 @@ function resolveFilename(
   if (foundPath !== "") {
     if (
       cjsPaths ||
+      allowUnknownExtension ||
       isMain ||
       isExtJS(foundPath) ||
       isExtMJS(foundPath) ||
