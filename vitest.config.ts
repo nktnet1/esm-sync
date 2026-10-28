@@ -30,6 +30,7 @@ const runtimeTests = [
   "test262-fixture-loading",
   "test262-instantiation",
   "top-level-await",
+  "upstream-regressions",
   "value-imports"
 ].map((name) => `test/vitest/${name}.test.ts`)
 
