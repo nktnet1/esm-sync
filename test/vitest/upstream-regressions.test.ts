@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { mkdir, mkdtemp, realpath, rm, stat, utimes, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 import { describe, it } from "vitest"
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
 
@@ -176,7 +177,11 @@ console.log('nullish-builtin:' + (null ?? (typeof http.request === 'function' ? 
           assert.notEqual(result.exitCode, 0)
           assert.equal(result.stdout, "")
           assert.match(result.stderr, /Error: upstream-error-marker/)
-          assert.ok(result.stderr.includes(filename), result.stderr)
+          assert.ok(
+            result.stderr.includes(filename) ||
+              result.stderr.includes(pathToFileURL(filename).href),
+            result.stderr
+          )
           assert.ok(
             result.stderr.length < 12_000,
             `Unexpected error output: ${result.stderr.length} bytes`
