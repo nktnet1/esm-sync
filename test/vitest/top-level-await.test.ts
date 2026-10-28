@@ -1,8 +1,7 @@
-import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { describe, it } from "vitest"
+import { describe, it, type TestContext } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const fixtures = {
@@ -169,11 +168,15 @@ async function withFixtures(run: (directory: string) => Promise<void>) {
   }
 }
 
+// Each case owns its fixtures and cache namespace. Only independent cases
+// overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
-  describe(`synchronous top-level await (${esmEnv})`, () => {
+  describe.concurrent(`synchronous top-level await (${esmEnv})`, () => {
     const options = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
 
-    it("returns completed exports without await, preserving identity and live bindings", async () => {
+    it("returns completed exports without await, preserving identity and live bindings", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const code = `const assert = require('node:assert/strict')
 const esmRequire = require('../index.js')(module)
@@ -197,12 +200,14 @@ ns.later().then(value => {
             cacheNamespace: "tla-direct"
           }
         )
-        assert.equal(result.exitCode, 0, result.stderr)
-        assert.equal(result.stdout.trim(), "tla-direct:ok")
+        expect(result.exitCode, result.stderr).toBe(0)
+        expect(result.stdout.trim()).toBe("tla-direct:ok")
       })
     })
 
-    it("completes nested awaits, computed class keys, and transitive graphs", async () => {
+    it("completes nested awaits, computed class keys, and transitive graphs", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const code = `const assert = require('node:assert/strict')
 const esmRequire = require('../index.js')(module)
@@ -219,12 +224,14 @@ console.log('tla-transitive:ok')
         const result = await runNode(["-e", code, directory], esmEnv, options, {
           cacheNamespace: "tla-transitive"
         })
-        assert.equal(result.exitCode, 0, result.stderr)
-        assert.equal(result.stdout.trim(), "tla-transitive:ok")
+        expect(result.exitCode, result.stderr).toBe(0)
+        expect(result.stdout.trim()).toBe("tla-transitive:ok")
       })
     })
 
-    it("resumes user catch blocks for rejections and preserves uncaught rejection identity", async () => {
+    it("resumes user catch blocks for rejections and preserves uncaught rejection identity", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const code = `const assert = require('node:assert/strict')
 const esmRequire = require('../index.js')(module)
@@ -249,12 +256,14 @@ console.log('tla-rejection:ok')
         const result = await runNode(["-e", code, directory], esmEnv, options, {
           cacheNamespace: "tla-rejection"
         })
-        assert.equal(result.exitCode, 0, result.stderr)
-        assert.equal(result.stdout.trim(), "tla-rejection:ok")
+        expect(result.exitCode, result.stderr).toBe(0)
+        expect(result.stdout.trim()).toBe("tla-rejection:ok")
       })
     })
 
-    it("fails promptly for pending awaits, including dependencies, without exposing partial exports", async () => {
+    it("fails promptly for pending awaits, including dependencies, without exposing partial exports", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const code = `const assert = require('node:assert/strict')
 const esmRequire = require('../index.js')(module)
@@ -275,12 +284,17 @@ console.log('tla-pending:ok')
         const result = await runNode(["-e", code, directory], esmEnv, options, {
           cacheNamespace: "tla-pending"
         })
-        assert.equal(result.exitCode, 0, result.stderr)
-        assert.equal(result.stdout.trim(), "tla-pending:ok")
+        expect(result.exitCode, result.stderr).toBe(0)
+        expect(result.stdout.trim()).toBe("tla-pending:ok")
       })
     })
 
-    async function scenario(name: string, source: string, env: NodeJS.ProcessEnv = {}) {
+    async function scenario(
+      expect: TestContext["expect"],
+      name: string,
+      source: string,
+      env: NodeJS.ProcessEnv = {}
+    ) {
       await withFixtures(async (directory) => {
         const code = `const assert = require('node:assert/strict')
 const path = require('node:path')
@@ -296,13 +310,16 @@ ${source}
             cacheNamespace: `tla-${name}`
           }
         )
-        assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-        assert.equal(result.stdout.trim(), `${name}:ok`)
+        expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+        expect(result.stdout.trim()).toBe(`${name}:ok`)
       })
     }
 
-    it("completes timers, filesystem promises, and loopback fetch without workers", async () => {
+    it("completes timers, filesystem promises, and loopback fetch without workers", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         "io",
         `
 assert.equal(load('timer.mjs').value, 42)
@@ -314,8 +331,11 @@ console.log('io:ok')
       )
     })
 
-    it("starts independent siblings before waiting and evaluates shared dependencies once", async () => {
+    it("starts independent siblings before waiting and evaluates shared dependencies once", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         "ordering",
         `
 assert.equal(load('siblings.mjs').value, 42)
@@ -332,8 +352,9 @@ console.log('ordering:ok')
       )
     })
 
-    it("evaluates async cycles while preserving temporal dead zones", async () => {
+    it("evaluates async cycles while preserving temporal dead zones", async ({ expect }) => {
       await scenario(
+        expect,
         "cycles",
         `
 assert.equal(load('cycle-a.mjs').result, 42)
@@ -357,8 +378,9 @@ console.log('cycles:ok')
       )
     })
 
-    it("joins awaited dynamic imports to the graph", async () => {
+    it("joins awaited dynamic imports to the graph", async ({ expect }) => {
       await scenario(
+        expect,
         "dynamic",
         `
 assert.equal(load('dynamic.mjs').value, 42)
@@ -376,9 +398,10 @@ detached.later.then(value => {
       )
     })
 
-    it("caches primitive rejections in both dependencies and importers", async () => {
+    it("caches primitive rejections in both dependencies and importers", async ({ expect }) => {
       for (const failure of ["undefined", "null", "0", "''"]) {
         await scenario(
+          expect,
           "primitive",
           `
 globalThis.__failure = ${failure}
@@ -397,8 +420,11 @@ console.log('primitive:ok')
       }
     })
 
-    it("preserves statement boundaries, default exports, and binding-pattern awaits", async () => {
+    it("preserves statement boundaries, default exports, and binding-pattern awaits", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         "syntax",
         `
 assert.equal(load('asi.mjs').default, 42)
@@ -411,8 +437,11 @@ console.log('syntax:ok')
       )
     })
 
-    it("abandons failed generators without running catches, finally blocks, or later continuations", async () => {
+    it("abandons failed generators without running catches, finally blocks, or later continuations", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         "abandon",
         `
 assert.throws(() => load('never.mjs'), { code: 'ERR_ESM_SYNC_ASYNC_PENDING' })
@@ -427,8 +456,9 @@ setImmediate(() => {
       )
     })
 
-    it("bounds pending I/O and does not resume a timed-out module", async () => {
+    it("bounds pending I/O and does not resume a timed-out module", async ({ expect }) => {
       await scenario(
+        expect,
         "deadline",
         `
 let first
@@ -458,8 +488,9 @@ setImmediate(() => {
       )
     })
 
-    it("rejects completion after a native poll overruns its deadline", async () => {
+    it("rejects completion after a native poll overruns its deadline", async ({ expect }) => {
       await scenario(
+        expect,
         "overdue",
         `
 let first
@@ -480,8 +511,9 @@ setImmediate(() => {
       )
     })
 
-    it("rejects event-loop re-entry from callbacks and microtasks", async () => {
+    it("rejects event-loop re-entry from callbacks and microtasks", async ({ expect }) => {
       await scenario(
+        expect,
         "reentrant",
         `
 Promise.resolve().then(() => {
@@ -495,8 +527,11 @@ setImmediate(() => {
       )
     })
 
-    it("keeps microtask-only loading available when the native bridge is absent", async () => {
+    it("keeps microtask-only loading available when the native bridge is absent", async ({
+      expect
+    }) => {
       await scenario(
+        expect,
         "fallback",
         `
 const Module = require('node:module')
@@ -531,8 +566,9 @@ console.log('fallback:ok')
       )
     })
 
-    it("supports exported TLA even when the legacy await option is enabled", async () => {
+    it("supports exported TLA even when the legacy await option is enabled", async ({ expect }) => {
       await scenario(
+        expect,
         "option",
         `
 assert.equal(load('direct.js').value, 42)
@@ -542,7 +578,9 @@ console.log('option:ok')
       )
     })
 
-    it("reconstructs async graph state in fresh processes with and without disk caching", async () => {
+    it("reconstructs async graph state in fresh processes with and without disk caching", async ({
+      expect
+    }) => {
       await withFixtures(async (directory) => {
         const cacheDirectory = path.join(directory, "cache")
         const code = `const assert = require('node:assert/strict')
@@ -563,17 +601,17 @@ console.log('disk-cache:ok')
             const result = await runNode(["-e", code, directory], esmEnv, {
               ESM_OPTIONS: JSON.stringify({ cache, cjs: false, mode: "auto" })
             })
-            assert.equal(result.exitCode, 0, result.stderr)
-            assert.equal(result.stdout.trim(), "disk-cache:ok")
+            expect(result.exitCode, result.stderr).toBe(0)
+            expect(result.stdout.trim()).toBe("disk-cache:ok")
             if (typeof cache === "string") {
-              assert.ok((await readFile(path.join(cache, ".data.json"))).length > 0)
+              expect((await readFile(path.join(cache, ".data.json"))).length).toBeGreaterThan(0)
             }
           }
         }
       })
     })
 
-    it("returns completed exports from top-level for-await loops", async () => {
+    it("returns completed exports from top-level for-await loops", async ({ expect }) => {
       await withFixtures(async (directory) => {
         const code = `const assert = require('node:assert/strict')
 const esmRequire = require('../index.js')(module)
@@ -586,8 +624,8 @@ console.log('tla-for-await:ok')
           options,
           { cacheNamespace: "tla-for-await" }
         )
-        assert.equal(result.exitCode, 0, result.stderr)
-        assert.equal(result.stdout.trim(), "tla-for-await:ok")
+        expect(result.exitCode, result.stderr).toBe(0)
+        expect(result.stdout.trim()).toBe("tla-for-await:ok")
       })
     })
   })

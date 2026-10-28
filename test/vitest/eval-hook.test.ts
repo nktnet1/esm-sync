@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const requireFlags = ["-r", "--require"]
@@ -26,9 +25,9 @@ for (const esmEnv of testEnvironments) {
             { cacheNamespace: "eval-hook" }
           )
 
-          assert.equal(exitCode, 0, stderr)
-          assert.equal(stderr, "")
-          assert.ok(stdout.includes("eval-hook:true"), stdout)
+          expect(exitCode, stderr).toBe(0)
+          expect(stderr).toBe("")
+          expect(stdout, stdout).toContain("eval-hook:true")
         })
       }
 
@@ -41,9 +40,9 @@ for (const esmEnv of testEnvironments) {
             { cacheNamespace: "eval-hook" }
           )
 
-          assert.equal(exitCode, 0, stderr)
-          assert.equal(stderr, "")
-          assert.equal(stdout, "print-hook:true\n")
+          expect(exitCode, stderr).toBe(0)
+          expect(stderr).toBe("")
+          expect(stdout).toBe("print-hook:true\n")
         })
 
         it(`preserves Node's inline ESM ${printFlag} restriction with ${requireFlag}`, async () => {
@@ -57,9 +56,9 @@ for (const esmEnv of testEnvironments) {
             { cacheNamespace: "eval-hook" }
           )
 
-          assert.equal(exitCode, 1, stderr)
-          assert.equal(stdout, "")
-          assert.match(stderr, /ERR_EVAL_ESM_CANNOT_PRINT/)
+          expect(exitCode, stderr).toBe(1)
+          expect(stdout).toBe("")
+          expect(stderr).toMatch(/ERR_EVAL_ESM_CANNOT_PRINT/)
         })
       }
     }

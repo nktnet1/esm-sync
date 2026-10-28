@@ -1,8 +1,7 @@
-import assert from "node:assert/strict"
 import { access, mkdir, rm, symlink } from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
 
 const loaderOptions = { ESM_OPTIONS: "{cjs:false,mode:'auto'}" }
@@ -37,8 +36,8 @@ for (const esmEnv of testEnvironments) {
           ]
           const { exitCode, stdout, stderr } = await node(args)
 
-          assert.equal(exitCode, 0, stderr.slice(-4_000))
-          assert.ok(stdout.includes("main-hook:true"), stdout)
+          expect(exitCode, stderr.slice(-4_000)).toBe(0)
+          expect(stdout, stdout).toContain("main-hook:true")
         })
       }
     }
@@ -54,8 +53,8 @@ for (const esmEnv of testEnvironments) {
           "./fixture/main-hook/options/env/index.js",
           { ESM_OPTIONS }
         )
-        assert.equal(exitCode, 0, stderr.slice(-4_000))
-        assert.ok(stdout.includes("esm-options:true"), stdout)
+        expect(exitCode, stderr.slice(-4_000)).toBe(0)
+        expect(stdout, stdout).toContain("esm-options:true")
       })
     }
 
@@ -67,7 +66,7 @@ for (const esmEnv of testEnvironments) {
           "./fixture/main-hook/options/env-cache/index.js",
           { ESM_OPTIONS: `{cache:${JSON.stringify(cachePath)}}` }
         )
-        assert.equal(exitCode, 0, stderr.slice(-4_000))
+        expect(exitCode, stderr.slice(-4_000)).toBe(0)
         await access(cachePath)
       } finally {
         await rm(cachePath, { force: true, recursive: true })
@@ -111,35 +110,35 @@ for (const esmEnv of testEnvironments) {
     for (const { name, filename, expected, options } of mainCases) {
       it.skipIf(name === "loads @std/esm" && stdEsmHasUnsafeStatABI)(name, async () => {
         const { exitCode, stdout, stderr } = await runMain(filename, options)
-        assert.equal(exitCode, 0, stderr.slice(-4_000))
-        assert.ok(stdout.includes(expected), stdout)
+        expect(exitCode, stderr.slice(-4_000)).toBe(0)
+        expect(stdout, stdout).toContain(expected)
       })
     }
 
     it("preserves import.meta.url", async () => {
       const filename = "fixture/main-hook/import-meta.mjs"
       const { exitCode, stdout, stderr } = await runMain(filename)
-      assert.equal(exitCode, 0, stderr.slice(-4_000))
-      assert.ok(
-        stdout.includes(`import-meta:${JSON.stringify({ url: new URL(filename, testURL).href })}`)
+      expect(exitCode, stderr.slice(-4_000)).toBe(0)
+      expect(stdout).toContain(
+        `import-meta:${JSON.stringify({ url: new URL(filename, testURL).href })}`
       )
     })
 
     it("preserves query and fragment components in import.meta.url", async () => {
       const filename = "fixture/main-hook/query-fragment.js?a#a"
       const { exitCode, stdout, stderr } = await runMain(filename)
-      assert.equal(exitCode, 0, stderr.slice(-4_000))
-      assert.ok(stdout.includes(`query-fragment:${new URL(filename, testURL).href}`), stdout)
+      expect(exitCode, stderr.slice(-4_000)).toBe(0)
+      expect(stdout, stdout).toContain(`query-fragment:${new URL(filename, testURL).href}`)
     })
 
     it("treats extensionless files as CommonJS", async () => {
       const cjs = await runMain("./fixture/ext/no-ext-cjs")
-      assert.equal(cjs.exitCode, 0, cjs.stderr.slice(-4_000))
-      assert.equal(cjs.stderr, "")
+      expect(cjs.exitCode, cjs.stderr.slice(-4_000)).toBe(0)
+      expect(cjs.stderr).toBe("")
 
       const esm = await runMain("./fixture/ext/no-ext-esm")
-      assert.notEqual(esm.exitCode, 0, "Extensionless ES module unexpectedly executed")
-      assert.ok(esm.stderr.length > 0, "Expected a module-loading error")
+      expect(esm.exitCode, "Extensionless ES module unexpectedly executed").not.toBe(0)
+      expect(esm.stderr.length, "Expected a module-loading error").toBeGreaterThan(0)
     })
 
     for (const filename of ["missing", "missing.js", "missing.mjs"]) {
@@ -153,29 +152,27 @@ for (const esmEnv of testEnvironments) {
             "../index.js",
             filename
           ])
-          assert.equal(
-            exitCode,
-            1,
-            `Missing ${filename} unexpectedly loaded: ${stderr.slice(-4_000)}`
+          expect(exitCode, `Missing ${filename} unexpectedly loaded: ${stderr.slice(-4_000)}`).toBe(
+            1
           )
           const marker = stderr.split("\n").find((line) => line.startsWith("main-hook-error:"))
-          assert.ok(marker, stderr.slice(-4_000))
+          expect.assert(marker, stderr.slice(-4_000))
           const error = JSON.parse(marker.slice("main-hook-error:".length)) as {
             code: string
             message: string
           }
-          assert.equal(error.code, "MODULE_NOT_FOUND")
-          assert.ok(error.message.startsWith("Cannot find module"), error.message)
-          assert.ok(error.message.includes(filename), error.message)
+          expect(error.code).toBe("MODULE_NOT_FOUND")
+          expect(error.message).toMatch(/^Cannot find module/)
+          expect(error.message, error.message).toContain(filename)
         })
       }
     }
 
     it("does not swallow asynchronous errors", async () => {
       const { exitCode, stderr } = await runMain("./fixture/main-hook/async-error.mjs")
-      assert.notEqual(exitCode, 0, "Expected the async error to fail the process")
-      assert.ok(stderr.length > 0, "Expected a visible async error")
-      assert.equal(stderr.includes("async hook stack has become corrupted"), false)
+      expect(exitCode, "Expected the async error to fail the process").not.toBe(0)
+      expect(stderr.length, "Expected a visible async error").toBeGreaterThan(0)
+      expect(stderr.includes("async hook stack has become corrupted")).toBe(false)
     })
 
     for (const extension of [".js", ".mjs"]) {
@@ -192,8 +189,8 @@ for (const esmEnv of testEnvironments) {
               "../index.js",
               linkPath
             ])
-            assert.equal(exitCode, 0, stderr.slice(-4_000))
-            assert.ok(stdout.includes("symlink-file:true"), stdout)
+            expect(exitCode, stderr.slice(-4_000)).toBe(0)
+            expect(stdout, stdout).toContain("symlink-file:true")
           } finally {
             await rm(linkPath, { force: true })
           }
@@ -208,7 +205,7 @@ for (const esmEnv of testEnvironments) {
         await rm(linkPath, { force: true })
         await symlink("real", linkPath, process.platform === "win32" ? "junction" : "dir")
         const { exitCode, stderr } = await runMain("./fixture/main-hook/symlink/package")
-        assert.equal(exitCode, 0, stderr.slice(-4_000))
+        expect(exitCode, stderr.slice(-4_000)).toBe(0)
       } finally {
         await rm(linkPath, { force: true })
       }

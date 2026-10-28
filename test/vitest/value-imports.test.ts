@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 for (const esmEnv of testEnvironments) {
@@ -11,8 +10,8 @@ for (const esmEnv of testEnvironments) {
         { ESM_OPTIONS: "{cjs:false,mode:'auto'}" },
         { cacheNamespace: "source-imports" }
       )
-      assert.equal(result.exitCode, 0, result.stderr.slice(-4000))
-      assert.equal(result.stdout.trim(), "source-imports:pass")
+      expect(result.exitCode, result.stderr.slice(-4000)).toBe(0)
+      expect(result.stdout.trim()).toBe("source-imports:pass")
     })
 
     it("imports immutable bytes on capable hosts and rejects explicitly on other hosts", async () => {
@@ -22,8 +21,8 @@ for (const esmEnv of testEnvironments) {
         { ESM_OPTIONS: "{cjs:false,mode:'auto'}" },
         { cacheNamespace: "bytes-imports" }
       )
-      assert.equal(result.exitCode, 0, result.stderr.slice(-4000))
-      assert.match(result.stdout.trim(), /^bytes-imports:(?:pass|unsupported-host)$/)
+      expect(result.exitCode, result.stderr.slice(-4000)).toBe(0)
+      expect(result.stdout.trim()).toMatch(/^bytes-imports:(?:pass|unsupported-host)$/)
     })
   })
 }

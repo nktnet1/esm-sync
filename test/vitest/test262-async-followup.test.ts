@@ -1,9 +1,8 @@
-import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import path from "node:path"
 import execa from "execa"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { nodeEnv, testEnvironments, testPath } from "./helpers/run-node.ts"
 
 const require = createRequire(import.meta.url)
@@ -90,9 +89,9 @@ for (const esmEnv of testEnvironments) {
               timeout: 20_000
             }
           )
-          assert.equal(timedOut, false, name)
-          assert.equal(exitCode, 0, stderr || stdout)
-          assert.equal(stderr, "", name)
+          expect(timedOut, name).toBe(false)
+          expect(exitCode, stderr || stdout).toBe(0)
+          expect(stderr, name).toBe("")
           assertTest262Outcome(filename, stdout)
         }
       }, 60_000)

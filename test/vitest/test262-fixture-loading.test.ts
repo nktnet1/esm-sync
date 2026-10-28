@@ -1,9 +1,8 @@
-import assert from "node:assert/strict"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import execa from "execa"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { testPath } from "./helpers/run-node.ts"
 
 const fixtureDirectory = path.join(
@@ -34,11 +33,11 @@ async function runScript(filename: string) {
     }
   )
 
-  assert.equal(exitCode, 0, `${filename}: ${stderr || stdout}`)
-  assert.equal(stderr, "", `${filename}: unexpected stderr`)
+  expect(exitCode, `${filename}: ${stderr || stdout}`).toBe(0)
+  expect(stderr, `${filename}: unexpected stderr`).toBe("")
   // The wrapper reports failed Test262 assertions on stdout without failing
   // the subprocess, so exitCode alone is not sufficient.
-  assert.equal(stdout, "", `${filename}: ${stdout}`)
+  expect(stdout, `${filename}: ${stdout}`).toBe("")
 }
 
 describe("Test262 module fixtures", () => {

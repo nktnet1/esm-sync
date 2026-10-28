@@ -1,7 +1,6 @@
-import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { createRequire } from "node:module"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 
 const require = createRequire(import.meta.url)
 const {
@@ -79,18 +78,15 @@ const cases = [
 describe("Test262 case selection", () => {
   it("filters by case-insensitive path text, including Windows separators", () => {
     const selected = selectCases(cases, { filter: "MODULE-CODE" })
-    assert.deepEqual(
-      selected.map(({ relativePath }) => relativePath),
-      [cases[0]!.relativePath, cases[3]!.relativePath]
-    )
+    expect(selected.map(({ relativePath }) => relativePath)).toStrictEqual([
+      cases[0]!.relativePath,
+      cases[3]!.relativePath
+    ])
   })
 
   it("applies the limit after filtering and excluding known cases", () => {
     const selected = selectCases(cases, { filter: "dynamic-import", limit: 1 })
-    assert.deepEqual(
-      selected.map(({ relativePath }) => relativePath),
-      [cases[1]!.relativePath]
-    )
+    expect(selected.map(({ relativePath }) => relativePath)).toStrictEqual([cases[1]!.relativePath])
   })
 
   it("excludes only explicitly tagged features before applying the limit", () => {
@@ -104,48 +100,41 @@ describe("Test262 case selection", () => {
       { relativePath: "test/language/defer/extra.js", features: ["async-iteration"] }
     ]
 
-    assert.deepEqual(
+    expect(
       selectCases(tagged, {
         filter: "defer/",
         excludeFeatures: ["top-level-await"],
         limit: 2
-      }).map(({ relativePath }) => relativePath),
-      [tagged[0]!.relativePath, tagged[2]!.relativePath]
-    )
-    assert.equal(selectCases(tagged).length, 4)
-    assert.deepEqual(
+      }).map(({ relativePath }) => relativePath)
+    ).toStrictEqual([tagged[0]!.relativePath, tagged[2]!.relativePath])
+    expect(selectCases(tagged).length).toBe(4)
+    expect(
       selectCases(tagged, { excludeFeatures: ["top-level-await", "async-iteration"] }).map(
         ({ relativePath }) => relativePath
-      ),
-      [tagged[0]!.relativePath, tagged[2]!.relativePath]
-    )
+      )
+    ).toStrictEqual([tagged[0]!.relativePath, tagged[2]!.relativePath])
   })
 
   it("rejects empty feature filters instead of succeeding with no tests", () => {
-    assert.throws(
-      () => selectCases(cases, { excludeFeatures: [""] }),
+    expect(() => selectCases(cases, { excludeFeatures: [""] })).toThrow(
       /excluded features must be non-empty/
     )
-    assert.throws(
-      () => selectCases(cases, { filter: "not-present", excludeFeatures: ["top-level-await"] }),
-      /No runnable Test262 cases match the path filter/
-    )
-    assert.throws(
-      () =>
-        selectCases([{ relativePath: "one.js", features: ["top-level-await"] }], {
-          excludeFeatures: ["top-level-await"]
-        }),
-      /No runnable Test262 cases remain/
-    )
+    expect(() =>
+      selectCases(cases, { filter: "not-present", excludeFeatures: ["top-level-await"] })
+    ).toThrow(/No runnable Test262 cases match the path filter/)
+    expect(() =>
+      selectCases([{ relativePath: "one.js", features: ["top-level-await"] }], {
+        excludeFeatures: ["top-level-await"]
+      })
+    ).toThrow(/No runnable Test262 cases remain/)
   })
 
   it("rejects an empty selection and invalid limits", () => {
-    assert.throws(
-      () => selectCases(cases, { filter: "not-present" }),
+    expect(() => selectCases(cases, { filter: "not-present" })).toThrow(
       /No runnable Test262 cases match/
     )
-    assert.throws(() => selectCases(cases, { limit: 0 }), /positive integer/)
-    assert.throws(() => selectCases(cases, { limit: 1.5 }), /positive integer/)
+    expect(() => selectCases(cases, { limit: 0 })).toThrow(/positive integer/)
+    expect(() => selectCases(cases, { limit: 1.5 })).toThrow(/positive integer/)
   })
 })
 
@@ -162,15 +151,14 @@ flags: [generated]
 if (true) import("");`
 
   it("parses generated ImportCall grammar without executing unobserved rejections", () => {
-    assert.equal(isGeneratedGrammarCase({ relativePath, flags: { generated: true }, source }), true)
-    assert.equal(
+    expect(isGeneratedGrammarCase({ relativePath, flags: { generated: true }, source })).toBe(true)
+    expect(
       isGeneratedGrammarCase({
         relativePath: relativePath.replaceAll("/", "\\"),
         flags: { generated: true },
         source
-      }),
-      true
-    )
+      })
+    ).toBe(true)
   })
 
   it("keeps cases with actual assertions, completion callbacks, or expected errors executable", () => {
@@ -181,40 +169,35 @@ if (true) import("");`
       "$DONE()",
       "throw new Error('runtime failure')"
     ]) {
-      assert.equal(isGeneratedGrammarCase({ ...generated, source: `${source}\n${body}` }), false)
+      expect(isGeneratedGrammarCase({ ...generated, source: `${source}\n${body}` })).toBe(false)
     }
-    assert.equal(isGeneratedGrammarCase({ ...generated, expectedPhase: "runtime" }), false)
-    assert.equal(isGeneratedGrammarCase({ ...generated, expectedError: "SyntaxError" }), false)
-    assert.equal(isGeneratedGrammarCase({ ...generated, includes: ["assert.js"] }), false)
-    assert.equal(
-      isGeneratedGrammarCase({ ...generated, flags: { generated: true, async: true } }),
+    expect(isGeneratedGrammarCase({ ...generated, expectedPhase: "runtime" })).toBe(false)
+    expect(isGeneratedGrammarCase({ ...generated, expectedError: "SyntaxError" })).toBe(false)
+    expect(isGeneratedGrammarCase({ ...generated, includes: ["assert.js"] })).toBe(false)
+    expect(isGeneratedGrammarCase({ ...generated, flags: { generated: true, async: true } })).toBe(
       false
     )
-    assert.equal(
-      isGeneratedGrammarCase({ ...generated, flags: { generated: true, module: true } }),
+    expect(isGeneratedGrammarCase({ ...generated, flags: { generated: true, module: true } })).toBe(
       false
     )
   })
 
   it("does not infer syntax-only handling from directory names alone", () => {
     const generated = { relativePath, flags: { generated: true }, source }
-    assert.equal(isGeneratedGrammarCase({ ...generated, flags: {} }), false)
-    assert.equal(
+    expect(isGeneratedGrammarCase({ ...generated, flags: {} })).toBe(false)
+    expect(
       isGeneratedGrammarCase({
         ...generated,
         relativePath: relativePath.replace("syntax/valid", "catch")
-      }),
-      false
-    )
-    assert.equal(
+      })
+    ).toBe(false)
+    expect(
       isGeneratedGrammarCase({
         ...generated,
         source: source.replace("/nested-if.template", "/another.case")
-      }),
-      false
-    )
-    assert.equal(
-      isGeneratedGrammarCase({ ...generated, source: source.replace("---*/", "--*/") }),
+      })
+    ).toBe(false)
+    expect(isGeneratedGrammarCase({ ...generated, source: source.replace("---*/", "--*/") })).toBe(
       false
     )
   })
@@ -235,21 +218,18 @@ describe("Test262 JSON result reports", () => {
       ]
     })
 
-    assert.equal(report.passed, 1)
-    assert.equal(report.failed, 2)
-    assert.equal(report.complete, true)
-    assert.deepEqual(report.failuresByGroup, {
+    expect(report.passed).toBe(1)
+    expect(report.failed).toBe(2)
+    expect(report.complete).toBe(true)
+    expect(report.failuresByGroup).toStrictEqual({
       "expressions/dynamic-import": 1,
       "module-code": 1
     })
-    assert.deepEqual(
-      report.cases.map(({ path }) => path),
-      [
-        "test/language/expressions/dynamic-import/a.js",
-        "test/language/module-code/a.js",
-        "test/language/module-code/b.js"
-      ]
-    )
+    expect(report.cases.map(({ path }) => path)).toStrictEqual([
+      "test/language/expressions/dynamic-import/a.js",
+      "test/language/module-code/a.js",
+      "test/language/module-code/b.js"
+    ])
   })
 
   it("identifies partial reports", () => {
@@ -262,16 +242,16 @@ describe("Test262 JSON result reports", () => {
       results: [{ path: "test/language/export/one.js", status: "pass" }]
     })
 
-    assert.equal(report.complete, false)
+    expect(report.complete).toBe(false)
   })
 })
 
 describe("Test262 unsupported engine feature classification", () => {
   it("probes native capabilities without assuming a particular Node version", async () => {
     const features = await detectHostFeatures()
-    assert.equal(typeof features["immutable-arraybuffer"], "boolean")
-    assert.equal(typeof features["nonextensible-applies-to-private"], "boolean")
-    assert.equal(typeof features["import-text"], "boolean")
+    expect(typeof features["immutable-arraybuffer"]).toBe("boolean")
+    expect(typeof features["nonextensible-applies-to-private"]).toBe("boolean")
+    expect(typeof features["import-text"]).toBe("boolean")
 
     const flags = require("../../dist/script/test262-node-flags.js") as string[]
     const immutable = execFileSync(
@@ -286,7 +266,7 @@ catch { process.stdout.write('false') }
       ],
       { encoding: "utf8" }
     )
-    assert.equal(features["immutable-arraybuffer"], immutable === "true")
+    expect(features["immutable-arraybuffer"]).toBe(immutable === "true")
   })
 
   it("uses esm-sync text imports in both source goals and parse-only cases", () => {
@@ -295,14 +275,15 @@ catch { process.stdout.write('false') }
     const available = { "import-text": true }
     const script = { features, isModule: false }
 
-    assert.deepEqual(getUnsupportedHostFeatures(script, unavailable), [])
-    assert.deepEqual(getUnsupportedHostFeatures(script, available), [])
-    assert.deepEqual(getUnsupportedHostFeatures({ ...script, isModule: true }, unavailable), [])
-    assert.deepEqual(getUnsupportedHostFeatures({ ...script, syntaxOnly: true }, unavailable), [])
-    assert.deepEqual(
-      getUnsupportedHostFeatures({ ...script, expectedPhase: "parse" }, unavailable),
+    expect(getUnsupportedHostFeatures(script, unavailable)).toStrictEqual([])
+    expect(getUnsupportedHostFeatures(script, available)).toStrictEqual([])
+    expect(getUnsupportedHostFeatures({ ...script, isModule: true }, unavailable)).toStrictEqual([])
+    expect(getUnsupportedHostFeatures({ ...script, syntaxOnly: true }, unavailable)).toStrictEqual(
       []
     )
+    expect(
+      getUnsupportedHostFeatures({ ...script, expectedPhase: "parse" }, unavailable)
+    ).toStrictEqual([])
   })
 
   it("reports missing immutable buffers as unsupported by the host, not as a pass", () => {
@@ -325,11 +306,11 @@ catch { process.stdout.write('false') }
       ]
     })
 
-    assert.equal(report.passed, 0)
-    assert.equal(report.failed, 0)
-    assert.equal(report.unsupported, 1)
-    assert.deepEqual(report.unsupportedByOrigin, { host: 1, loader: 0 })
-    assert.equal(report.complete, true)
+    expect(report.passed).toBe(0)
+    expect(report.failed).toBe(0)
+    expect(report.unsupported).toBe(1)
+    expect(report.unsupportedByOrigin).toStrictEqual({ host: 1, loader: 0 })
+    expect(report.complete).toBe(true)
   })
 
   it("only excludes recognized capabilities missing from the host", () => {
@@ -339,41 +320,37 @@ catch { process.stdout.write('false') }
       "import-bytes",
       "nonextensible-applies-to-private"
     ]
-    assert.deepEqual(
+    expect(
       getUnsupportedFeatures(features, {
         "immutable-arraybuffer": false,
         "nonextensible-applies-to-private": false
-      }),
-      ["immutable-arraybuffer", "nonextensible-applies-to-private"]
-    )
-    assert.deepEqual(
+      })
+    ).toStrictEqual(["immutable-arraybuffer", "nonextensible-applies-to-private"])
+    expect(
       getUnsupportedFeatures(features, {
         "immutable-arraybuffer": true,
         "nonextensible-applies-to-private": true
-      }),
-      []
-    )
+      })
+    ).toStrictEqual([])
   })
 
   it("declares implemented loader features and can classify an unavailable loader", () => {
     const implemented = detectLoaderFeatures()
-    assert.equal(implemented["source-phase-imports-module-source"], true)
-    assert.equal(implemented["import-bytes"], true)
+    expect(implemented["source-phase-imports-module-source"]).toBe(true)
+    expect(implemented["import-bytes"]).toBe(true)
     const loaderFeatures = { "source-phase-imports-module-source": false }
-    assert.deepEqual(getUnsupportedFeatures(["source-phase-imports"], loaderFeatures), [])
-    assert.deepEqual(
+    expect(getUnsupportedFeatures(["source-phase-imports"], loaderFeatures)).toStrictEqual([])
+    expect(
       getUnsupportedFeatures(
         ["source-phase-imports", "source-phase-imports-module-source"],
         loaderFeatures
-      ),
-      ["source-phase-imports-module-source"]
-    )
-    assert.deepEqual(
+      )
+    ).toStrictEqual(["source-phase-imports-module-source"])
+    expect(
       getUnsupportedFeatures(["source-phase-imports-module-source"], {
         "source-phase-imports-module-source": true
-      }),
-      []
-    )
+      })
+    ).toStrictEqual([])
 
     const features = ["source-phase-imports", "source-phase-imports-module-source"]
     const runtimeModule = {
@@ -381,14 +358,13 @@ catch { process.stdout.write('false') }
       relativePath:
         "test/language/module-code/source-phase-import/reexport-source-binding-named-import.js"
     }
-    assert.deepEqual(getUnsupportedLoaderFeatures(runtimeModule, loaderFeatures), [
+    expect(getUnsupportedLoaderFeatures(runtimeModule, loaderFeatures)).toStrictEqual([
       "source-phase-imports-module-source"
     ])
-    assert.deepEqual(
-      getUnsupportedLoaderFeatures({ ...runtimeModule, expectedPhase: "parse" }, loaderFeatures),
-      []
-    )
-    assert.deepEqual(
+    expect(
+      getUnsupportedLoaderFeatures({ ...runtimeModule, expectedPhase: "parse" }, loaderFeatures)
+    ).toStrictEqual([])
+    expect(
       getUnsupportedLoaderFeatures(
         {
           features,
@@ -396,9 +372,8 @@ catch { process.stdout.write('false') }
             "test\\language\\expressions\\dynamic-import\\syntax\\valid\\top-level-import-source-script-code-valid.js"
         },
         loaderFeatures
-      ),
-      []
-    )
+      )
+    ).toStrictEqual([])
   })
 
   it("reports unsupported cases separately from failures and still counts them as selected", () => {
@@ -427,12 +402,12 @@ catch { process.stdout.write('false') }
         { path: "test/language/module-code/exports.js", status: "pass" }
       ]
     })
-    assert.equal(report.selected, 4)
-    assert.equal(report.unsupported, 3)
-    assert.deepEqual(report.unsupportedByOrigin, { host: 2, loader: 1 })
-    assert.equal(report.failed, 0)
-    assert.equal(report.passed, 1)
-    assert.equal(report.complete, true)
-    assert.deepEqual(report.failuresByGroup, {})
+    expect(report.selected).toBe(4)
+    expect(report.unsupported).toBe(3)
+    expect(report.unsupportedByOrigin).toStrictEqual({ host: 2, loader: 1 })
+    expect(report.failed).toBe(0)
+    expect(report.passed).toBe(1)
+    expect(report.complete).toBe(true)
+    expect(report.failuresByGroup).toStrictEqual({})
   })
 })

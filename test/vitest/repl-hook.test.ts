@@ -1,6 +1,5 @@
-import assert from "node:assert/strict"
 import path from "node:path"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 // Run in Node's actual interactive bootstrap so esm-sync installs its VM
@@ -31,12 +30,11 @@ for (const esmEnv of testEnvironments) {
         { cacheNamespace: "repl-hook", input }
       )
 
-      assert.equal(exitCode, 0, stderr)
-      assert.equal(stderr, "")
-      assert.match(stdout, /does not provide an export named 'NOT_EXPORTED'/)
-      assert.ok(
-        stdout.includes(`ESM_SYNC_REPL_OK:error-recovery ${path.join("parent", "child")}`),
-        stdout
+      expect(exitCode, stderr).toBe(0)
+      expect(stderr).toBe("")
+      expect(stdout).toMatch(/does not provide an export named 'NOT_EXPORTED'/)
+      expect(stdout, stdout).toContain(
+        `ESM_SYNC_REPL_OK:error-recovery ${path.join("parent", "child")}`
       )
     })
 
@@ -52,9 +50,9 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "repl-hook", keepStdinOpen: true }
         )
 
-        assert.equal(exitCode, 0, stderr)
-        assert.equal(stderr, "")
-        assert.ok(stdout.includes(`ESM_SYNC_REPL_OK:${scenario}\n`), stdout)
+        expect(exitCode, stderr).toBe(0)
+        expect(stderr).toBe("")
+        expect(stdout, stdout).toContain(`ESM_SYNC_REPL_OK:${scenario}\n`)
       })
     }
   })

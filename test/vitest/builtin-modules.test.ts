@@ -1,7 +1,6 @@
-import assert from "node:assert/strict"
 import Module from "node:module"
 import { fileURLToPath } from "node:url"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const envAuto = { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }
@@ -21,13 +20,13 @@ for (const esmEnv of testEnvironments) {
         }
       )
 
-      assert.equal(builtin.exitCode, 0, builtin.stderr)
-      assert.equal(loader.exitCode, 0, loader.stderr)
-      assert.equal(loader.stdout, builtin.stdout)
+      expect(builtin.exitCode, builtin.stderr).toBe(0)
+      expect(loader.exitCode, loader.stderr).toBe(0)
+      expect(loader.stdout).toBe(builtin.stdout)
     })
 
     it("does not expose non-enumerable built-in properties as exports", async () => {
-      assert.equal(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable, false)
+      expect(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable).toBe(false)
 
       const filename = `${fixturePath}non-enumerable.mjs`
       const { exitCode, stdout, stderr } = await runNode(
@@ -43,21 +42,17 @@ for (const esmEnv of testEnvironments) {
           : stderr
       const report = /^builtin-error:(.+)$/m.exec(stderr)
 
-      assert.equal(exitCode, 1, diagnostic)
-      assert.ok(report, diagnostic)
-      assert.deepEqual(
-        JSON.parse(report[1]!),
-        {
-          name: "SyntaxError",
-          message: "The requested module 'module' does not provide an export named '_stat'"
-        },
-        diagnostic
-      )
-      assert.equal(stdout, "")
+      expect(exitCode, diagnostic).toBe(1)
+      expect.assert(report, diagnostic)
+      expect(JSON.parse(report[1]!), diagnostic).toStrictEqual({
+        name: "SyntaxError",
+        message: "The requested module 'module' does not provide an export named '_stat'"
+      })
+      expect(stdout).toBe("")
     })
 
     it("exposes non-enumerable built-in properties with cjs.namedExports", async () => {
-      assert.equal(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable, false)
+      expect(Object.getOwnPropertyDescriptor(Module, "_stat")?.enumerable).toBe(false)
 
       const filename = `${fixturePath}non-enumerable.js`
       const { exitCode, stdout, stderr } = await runNode(
@@ -67,9 +62,9 @@ for (const esmEnv of testEnvironments) {
         { cacheNamespace: "builtin-modules-positive" }
       )
 
-      assert.equal(exitCode, 0, stderr)
-      assert.equal(stderr.includes("does not provide an export"), false)
-      assert.equal(stdout.trim(), "non-enumerable:true")
+      expect(exitCode, stderr).toBe(0)
+      expect(stderr.includes("does not provide an export")).toBe(false)
+      expect(stdout.trim()).toBe("non-enumerable:true")
     })
   })
 }

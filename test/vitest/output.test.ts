@@ -1,7 +1,6 @@
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import Compiler from "../../dist/build/compiler.js"
 
-import assert from "assert"
 import fs from "fs-extra"
 import globby from "globby"
 import path from "path"
@@ -20,7 +19,7 @@ const tests = files.reduce<
 >((tests, thePath) => {
   const dirPath = path.dirname(thePath)
   const kind = path.basename(thePath).replace(/\.m?js$/, "")
-  assert.ok(kind === "actual" || kind === "expected")
+  expect.assert(kind === "actual" || kind === "expected")
 
   if (!tests[dirPath]) {
     tests[dirPath] = {}
@@ -40,7 +39,7 @@ describe("output tests", () => {
   for (const dirPath of dirPaths) {
     const name = path.basename(dirPath).split("-").join(" ")
     const test = tests[dirPath]!
-    assert.ok(test.actual && test.expected, `Incomplete output fixture: ${dirPath}`)
+    expect.assert(test.actual && test.expected, `Incomplete output fixture: ${dirPath}`)
     const { actual: input, expected: output } = test
 
     it(`compiles ${name} example as expected`, () => {
@@ -56,7 +55,7 @@ describe("output tests", () => {
         .replace(/[ \t]+$/gm, "")
         .trimRight()
 
-      assert.strictEqual(actual, expected)
+      expect(actual).toBe(expected)
     })
   }
 })

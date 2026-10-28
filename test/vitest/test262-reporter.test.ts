@@ -1,11 +1,10 @@
-import assert from "node:assert/strict"
 import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { stripVTControlCharacters } from "node:util"
 import { fileURLToPath } from "node:url"
 import execa from "execa"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 const reporter = path.join(root, "dist/script/test262-reporter.js")
@@ -73,31 +72,31 @@ describe("Test262 grouped reporter", () => {
          })\n`
       )
       const { exitCode, stdout, stderr } = run("--test", [`--test-reporter=${reporter}`, fixture])
-      assert.equal(exitCode, 1, stderr)
+      expect(exitCode, stderr).toBe(1)
       const output = stripVTControlCharacters(stdout)
 
-      assert.match(output, /TEST262 {2}Test262 conformance \(revision\)/)
-      assert.match(output, /\n {2}export\n {2}-+\n {4}PASS {2}first\.js/)
-      assert.match(output, /\n {2}expressions \/ dynamic-import\n {2}-+\n {4}SKIP {2}skip\.js/)
-      assert.match(output, /FAIL {2}fail\.js/)
-      assert.match(output, /unsupported host feature/)
-      assert.match(output, /intentional failure/)
-      assert.match(output, /RESULTS\n {2}-+\n {4}PASS 1 {4}FAIL 1 {4}SKIP 1 {4}TODO 0/)
-      assert.doesNotMatch(output, /FAIL {2}Test262 conformance/)
+      expect(output).toMatch(/TEST262 {2}Test262 conformance \(revision\)/)
+      expect(output).toMatch(/\n {2}export\n {2}-+\n {4}PASS {2}first\.js/)
+      expect(output).toMatch(/\n {2}expressions \/ dynamic-import\n {2}-+\n {4}SKIP {2}skip\.js/)
+      expect(output).toMatch(/FAIL {2}fail\.js/)
+      expect(output).toMatch(/unsupported host feature/)
+      expect(output).toMatch(/intentional failure/)
+      expect(output).toMatch(/RESULTS\n {2}-+\n {4}PASS 1 {4}FAIL 1 {4}SKIP 1 {4}TODO 0/)
+      expect(output).not.toMatch(/FAIL {2}Test262 conformance/)
 
       const fragments = stdout.split(String.fromCharCode(27))
       const colouredSpans = fragments
         .filter((_, index) => index % 2 === 1)
         .map((fragment) => fragment.replace(/^\[[\d;]*m/, ""))
-      assert.ok(colouredSpans.includes("PASS"), "PASS should be coloured")
-      assert.ok(colouredSpans.includes("FAIL"), "FAIL should be coloured")
-      assert.ok(colouredSpans.includes("SKIP"), "SKIP should be coloured")
-      assert.ok(
-        colouredSpans.every((span) =>
-          ["TEST262", "RESULTS", "PASS", "FAIL", "SKIP", "TODO"].includes(span)
+      expect(colouredSpans, "PASS should be coloured").toContain("PASS")
+      expect(colouredSpans, "FAIL should be coloured").toContain("FAIL")
+      expect(colouredSpans, "SKIP should be coloured").toContain("SKIP")
+      expect(
+        colouredSpans.filter(
+          (span) => !["TEST262", "RESULTS", "PASS", "FAIL", "SKIP", "TODO"].includes(span)
         ),
         `Only status and heading tokens may be coloured: ${colouredSpans.join(", ")}`
-      )
+      ).toStrictEqual([])
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }
@@ -106,21 +105,21 @@ describe("Test262 grouped reporter", () => {
   it("uses the grouped reporter for the default conformance command", () => {
     withFixtureRunner((command, env) => {
       const { exitCode, stdout, stderr } = run(command, [], env)
-      assert.equal(exitCode, 0, stderr || stdout)
+      expect(exitCode, stderr || stdout).toBe(0)
       const output = stripVTControlCharacters(stdout)
-      assert.match(output, /TEST262 {2}Test262 conformance/)
-      assert.match(output, /\n {2}export\n {2}-+\n {4}PASS/)
-      assert.match(output, /RESULTS\n {2}-+\n {4}PASS 2 {4}FAIL 0 {4}SKIP 0/)
+      expect(output).toMatch(/TEST262 {2}Test262 conformance/)
+      expect(output).toMatch(/\n {2}export\n {2}-+\n {4}PASS/)
+      expect(output).toMatch(/RESULTS\n {2}-+\n {4}PASS 2 {4}FAIL 0 {4}SKIP 0/)
     })
   })
 
   it("preserves Node's dot reporter when explicitly requested", () => {
     withFixtureRunner((command, env) => {
       const { exitCode, stdout, stderr } = run(command, ["--reporter", "dot"], env)
-      assert.equal(exitCode, 0, stderr || stdout)
+      expect(exitCode, stderr || stdout).toBe(0)
       const output = stripVTControlCharacters(stdout)
-      assert.doesNotMatch(output, /RESULTS\n/)
-      assert.match(output, /\.\./)
+      expect(output).not.toMatch(/RESULTS\n/)
+      expect(output).toMatch(/\.\./)
     })
   })
 })

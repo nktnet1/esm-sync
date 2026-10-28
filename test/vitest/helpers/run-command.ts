@@ -1,4 +1,4 @@
-import assert from "node:assert/strict"
+import { expect } from "vitest"
 import { performance } from "node:perf_hooks"
 import execa from "execa"
 
@@ -45,6 +45,9 @@ export async function runNodeCommand(
     `stderr:\n${result.stderr || "[empty]"}`
   ].join("\n")
 
-  assert.ok(!result.timedOut && !result.signal && result.exitCode === expectedExitCode, diagnostic)
+  expect(
+    { timedOut: result.timedOut, signal: result.signal, exitCode: result.exitCode },
+    diagnostic
+  ).toStrictEqual({ timedOut: false, signal: undefined, exitCode: expectedExitCode })
   return { stdout: result.stdout, stderr: result.stderr, diagnostic }
 }

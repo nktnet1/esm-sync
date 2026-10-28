@@ -1,9 +1,8 @@
-import assert from "node:assert/strict"
 import { readFile, readdir } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { parse } from "acorn"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const root = fileURLToPath(new URL("../../", import.meta.url))
@@ -19,7 +18,7 @@ const bundles = [
 describe("build output contract", () => {
   it("emits standalone test bundles without additional shared chunks", async () => {
     const files = await readdir(path.join(root, "dist/build"), { recursive: true })
-    assert.deepEqual(files.filter((name) => name.endsWith(".js")).sort(), bundles)
+    expect(files.filter((name) => name.endsWith(".js")).sort()).toStrictEqual(bundles)
   })
 
   it("keeps published JavaScript and test bundles compatible with ES2015 syntax", async () => {
@@ -31,10 +30,10 @@ describe("build output contract", () => {
       ...bundles.map((name) => "dist/build/" + name)
     ]) {
       const source = await readFile(path.join(root, filename), "utf8")
-      assert.doesNotThrow(
+      expect(
         () => parse(source, { ecmaVersion: 2015, sourceType: "script", allowHashBang: true }),
         filename
-      )
+      ).not.toThrow()
     }
   })
 
@@ -47,7 +46,10 @@ describe("build output contract", () => {
     ]) {
       const source = await readFile(path.join(root, filename), "utf8")
       const first = parse(source, { ecmaVersion: 2015, sourceType: "script" }).body[0]
-      assert.ok(first?.type === "ExpressionStatement" && first.directive === "use strict", filename)
+      expect(first, filename).toMatchObject({
+        type: "ExpressionStatement",
+        directive: "use strict"
+      })
     }
   })
 
@@ -68,8 +70,8 @@ console.log('public-commonjs:ok')`
         {},
         { cacheNamespace: "public-commonjs" }
       )
-      assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-      assert.equal(result.stdout.trim(), "public-commonjs:ok")
+      expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+      expect(result.stdout.trim()).toBe("public-commonjs:ok")
     })
   }
 })

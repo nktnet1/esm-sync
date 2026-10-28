@@ -1,6 +1,5 @@
-import assert from "node:assert/strict"
 import path from "node:path"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import ts from "typescript"
 import { checkTypeSafety } from "../../script/src/esm/check-type-safety.ts"
 
@@ -43,28 +42,27 @@ for (const [platform, paths] of [
 
     it("accepts unknown values and explicitly typed collections", () => {
       const diagnostics = ts.getPreEmitDiagnostics(program)
-      assert.equal(
+      expect(
         diagnostics.length,
-        0,
         ts.formatDiagnostics(diagnostics, {
           getCanonicalFileName: host.getCanonicalFileName,
           getCurrentDirectory: host.getCurrentDirectory,
           getNewLine: host.getNewLine
         })
-      )
-      assert.doesNotThrow(() => checkTypeSafety(program, validRoot))
+      ).toBe(0)
+      expect(() => checkTypeSafety(program, validRoot)).not.toThrow()
     })
 
     it("rejects inferred any that TypeScript strict mode permits", () => {
-      assert.throws(
-        () => checkTypeSafety(program, invalidRoot),
-        (error: unknown) => {
-          assert.ok(error instanceof Error)
-          assert.match(error.message, /Type safety check failed/)
-          assert.equal(error.message.match(/unchecked any/g)?.length, 3)
-          return true
-        }
-      )
+      let error: unknown
+      try {
+        checkTypeSafety(program, invalidRoot)
+      } catch (failure) {
+        error = failure
+      }
+      expect.assert(error instanceof Error)
+      expect(error.message).toMatch(/Type safety check failed/)
+      expect(error.message.match(/unchecked any/g)).toHaveLength(3)
     })
   })
 }

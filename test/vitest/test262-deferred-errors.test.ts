@@ -1,9 +1,8 @@
-import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import execa from "execa"
-import { it } from "vitest"
+import { it, expect } from "vitest"
 import { testPath } from "./helpers/run-node.ts"
 
 type ConformanceReport = {
@@ -59,36 +58,36 @@ it("preserves deferred-import error handling without top-level await", async () 
       }
     )
 
-    assert.equal(timedOut, false)
-    assert.equal(exitCode, 0, stderr || stdout)
+    expect(timedOut).toBe(false)
+    expect(exitCode, stderr || stdout).toBe(0)
 
     const report = JSON.parse(await readFile(reportPath, "utf8")) as ConformanceReport
-    assert.equal(report.complete, true)
-    assert.equal(report.selected, expectedPaths.length)
-    assert.equal(report.passed, expectedPaths.length)
-    assert.equal(report.failed, 0)
-    assert.equal(report.unsupported, 0)
-    assert.deepEqual(
-      report.cases.map(({ path: filename }) => filename).sort(),
+    expect(report.complete).toBe(true)
+    expect(report.selected).toBe(expectedPaths.length)
+    expect(report.passed).toBe(expectedPaths.length)
+    expect(report.failed).toBe(0)
+    expect(report.unsupported).toBe(0)
+    expect(report.cases.map(({ path: filename }) => filename).sort()).toStrictEqual(
       [...expectedPaths].sort()
     )
-    assert.ok(report.cases.every(({ status }) => status === "pass"))
-    assert.deepEqual(
+    expect(report.cases.map(({ status }) => status)).toStrictEqual(
+      Array.from({ length: expectedPaths.length }, () => "pass")
+    )
+    expect(
       report.cases
         .filter(({ expectedError, expectedPhase }) => expectedError && expectedPhase)
         .map(({ path: filename, expectedError, expectedPhase }) => ({
           filename,
           expectedError,
           expectedPhase
-        })),
-      [
-        {
-          filename: `${prefix}syntax-error/import-defer-of-syntax-error-fails.js`,
-          expectedError: "SyntaxError",
-          expectedPhase: "resolution"
-        }
-      ]
-    )
+        }))
+    ).toStrictEqual([
+      {
+        filename: `${prefix}syntax-error/import-defer-of-syntax-error-fails.js`,
+        expectedError: "SyntaxError",
+        expectedPhase: "resolution"
+      }
+    ])
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

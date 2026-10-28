@@ -1,4 +1,3 @@
-import assert from "node:assert/strict"
 import { realpathSync } from "node:fs"
 import {
   copyFile,
@@ -13,7 +12,7 @@ import {
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const root = realpathSync(fileURLToPath(new URL("../../", import.meta.url)))
@@ -72,7 +71,7 @@ for (const esmEnv of testEnvironments) {
           const manifest: { scripts: { install: string } } = JSON.parse(
             await readFile(path.join(directory, "package.json"), "utf8")
           )
-          assert.ok(manifest.scripts.install.startsWith("node -e "))
+          expect(manifest.scripts.install).toMatch(/^node -e /)
           const installSource: string = JSON.parse(
             manifest.scripts.install.slice("node -e ".length)
           )
@@ -115,8 +114,8 @@ if (${JSON.stringify(scenario)} !== 'prebuilt') {
 console.log('optional-native:pass')
 `
           const result = await runNode(["-e", source, directory], esmEnv)
-          assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-          assert.match(result.stdout, /optional-native:pass/)
+          expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+          expect(result.stdout).toMatch(/optional-native:pass/)
         })
       })
     }

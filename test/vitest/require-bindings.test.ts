@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const program = `const assert = require('node:assert/strict')
@@ -38,8 +37,8 @@ describe("module-local require bindings", () => {
             { ESM_OPTIONS: JSON.stringify({ cjs, mode: "auto" }) },
             { cacheNamespace: `require-bindings-${cjs}` }
           )
-          assert.equal(result.exitCode, 0, result.stderr || result.stdout)
-          assert.equal(result.stdout.trim(), "require-bindings:ok")
+          expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+          expect(result.stdout.trim()).toBe("require-bindings:ok")
         }
       })
     }

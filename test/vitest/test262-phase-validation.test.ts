@@ -1,10 +1,9 @@
-import assert from "node:assert/strict"
 import { mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
 import execa from "execa"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { testPath } from "./helpers/run-node.ts"
 
 const require = createRequire(import.meta.url)
@@ -97,13 +96,13 @@ async function executeCase(options: TestCaseOptions) {
       }
     )
 
-    assert.equal(timedOut, false)
+    expect(timedOut).toBe(false)
     if (options.expectProcessFailure) {
-      assert.notEqual(exitCode, 0, "An unhandled error must not be treated as a passing test")
-      assert.notEqual(stderr, "", "An unhandled error must remain observable")
+      expect(exitCode, "An unhandled error must not be treated as a passing test").not.toBe(0)
+      expect(stderr, "An unhandled error must remain observable").not.toBe("")
     } else {
-      assert.equal(exitCode, 0, stderr || stdout)
-      assert.equal(stderr, "")
+      expect(exitCode, stderr || stdout).toBe(0)
+      expect(stderr).toBe("")
     }
     return { filename: testFilename, stdout, stderr }
   } finally {
@@ -130,7 +129,7 @@ describe("Test262 negative-phase verification", () => {
         isModule: true,
         syntaxOnly: true
       })
-      assert.equal(valid.stdout, "")
+      expect(valid.stdout).toBe("")
     }
   })
 
@@ -142,11 +141,10 @@ describe("Test262 negative-phase verification", () => {
       source: 'throw new SyntaxError("runtime")',
       expectedPhase: "parse"
     })
-    assert.equal(runtime.stdout, "")
-    assert.throws(
-      () => assertTest262Outcome(runtime.filename, runtime.stdout, "SyntaxError", "parse"),
-      /but no error occurred/
-    )
+    expect(runtime.stdout).toBe("")
+    expect(() =>
+      assertTest262Outcome(runtime.filename, runtime.stdout, "SyntaxError", "parse")
+    ).toThrow(/but no error occurred/)
   })
 
   it("allows a delayed deferred-import rejection to complete", async () => {
@@ -163,18 +161,16 @@ setTimeout(() => {
 }, 1200);`,
       isAsync: true
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("includes the original failure message in Test262 outcome errors", () => {
-    assert.throws(
-      () =>
-        assertTest262Outcome(
-          "positive-case.js",
-          JSON.stringify({ name: "Error", message: "assertion details", phase: "runtime" })
-        ),
-      /unexpected error type: assertion details/
-    )
+    expect(() =>
+      assertTest262Outcome(
+        "positive-case.js",
+        JSON.stringify({ name: "Error", message: "assertion details", phase: "runtime" })
+      )
+    ).toThrow(/unexpected error type: assertion details/)
   })
 
   it("keeps unrelated unhandled rejections and asynchronous exceptions fatal", async () => {
@@ -187,13 +183,13 @@ setTimeout(() => {
       }))`,
       expectProcessFailure: true
     })
-    assert.match(rejection.stderr, /unrelated rejection/)
+    expect(rejection.stderr).toMatch(/unrelated rejection/)
 
     const exception = await executeCase({
       source: 'queueMicrotask(() => { throw new SyntaxError("unrelated async exception") })',
       expectProcessFailure: true
     })
-    assert.match(exception.stderr, /unrelated async exception/)
+    expect(exception.stderr).toMatch(/unrelated async exception/)
   })
 
   it("tracks the native import() Promise without changing its observable identity", async () => {
@@ -207,7 +203,7 @@ assert.sameValue(holder.import(42), 42);
 const globalThis = { shadowed: true };
 assert.sameValue(import("another-absent-native-import").constructor, Promise);`
     })
-    assert.equal(ordinaryImport.stdout, "")
+    expect(ordinaryImport.stdout).toBe("")
   })
 
   // Source-phase calls use the same native Promise completion semantics, but
@@ -219,7 +215,7 @@ const source = import.source("<module source>");
 assert.sameValue(source.constructor, Promise);
 assert.sameValue(source.then, Promise.prototype.then);`
     })
-    assert.equal(sourceImport.stdout, "")
+    expect(sourceImport.stdout).toBe("")
   })
 
   it("does not mistake an unrelated Promise for the tracked import Promise", async () => {
@@ -230,7 +226,7 @@ import({ toString() { throw failure } });
 Promise.reject(failure);`,
       expectProcessFailure: true
     })
-    assert.match(sameError.stderr, /shared rejection instance/)
+    expect(sameError.stderr).toMatch(/shared rejection instance/)
 
     // This Promise is derived from an import, but it is *not* the Promise
     // returned by the import expression. Its unhandled rejection must fail.
@@ -239,7 +235,7 @@ Promise.reject(failure);`,
 import({ toString() { throw new Error("derived rejection") } }).then(() => {});`,
       expectProcessFailure: true
     })
-    assert.match(derivedPromise.stderr, /derived rejection/)
+    expect(derivedPromise.stderr).toMatch(/derived rejection/)
 
     // Property methods named import or import.source are not language-level
     // import expressions and must never be tagged as native import Promises.
@@ -251,7 +247,7 @@ const holder = {
 holder.import(new Error("ordinary method rejection"));`,
       expectProcessFailure: true
     })
-    assert.match(ordinaryMethod.stderr, /ordinary method rejection/)
+    expect(ordinaryMethod.stderr).toMatch(/ordinary method rejection/)
 
     const sourceMethod = await executeCase({
       source: `
@@ -259,7 +255,7 @@ const holder = { import: { source() { return Promise.reject(new Error("member re
 holder.import.source();`,
       expectProcessFailure: true
     })
-    assert.match(sourceMethod.stderr, /member rejection/)
+    expect(sourceMethod.stderr).toMatch(/member rejection/)
 
     const immediate = await executeCase({
       source: `
@@ -281,7 +277,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       source: "var smoosh; function smoosh() {}",
       syntaxOnly: true
     })
-    assert.equal(valid.stdout, "")
+    expect(valid.stdout).toBe("")
   })
 
   it("parses generated positive grammar cases without resolving placeholder imports", async () => {
@@ -289,7 +285,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       source: "var smoosh; function smoosh() {} import.source('<module source>');",
       syntaxOnly: true
     })
-    assert.equal(valid.stdout, "")
+    expect(valid.stdout).toBe("")
 
     const invalid = await executeCase({
       source: "new import.source('<module source>').prop;",
@@ -325,8 +321,8 @@ throw new SyntaxError("unrelated synchronous exception");`
           env: { ...process.env, NODE_ENV: "development", ESM_ENV: "development-test" }
         }
       )
-      assert.equal(timedOut, false)
-      assert.equal(exitCode, 0, stderr || stdout)
+      expect(timedOut).toBe(false)
+      expect(exitCode, stderr || stdout).toBe(0)
 
       const report = JSON.parse(await readFile(reportFile, "utf8")) as {
         selected: number
@@ -334,19 +330,18 @@ throw new SyntaxError("unrelated synchronous exception");`
         failed: number
         cases: Array<{ path: string; syntaxOnly?: boolean }>
       }
-      assert.equal(report.selected, 6)
-      assert.equal(report.passed, 6)
-      assert.equal(report.failed, 0)
-      assert.deepEqual(
+      expect(report.selected).toBe(6)
+      expect(report.passed).toBe(6)
+      expect(report.failed).toBe(0)
+      expect(
         report.cases
           .filter(({ syntaxOnly }) => syntaxOnly)
           .map(({ path: filename }) => path.basename(filename))
-          .sort(),
-        [
-          "top-level-import-source-empty-str-is-valid-assign-expr.js",
-          "top-level-import-source-script-code-valid.js"
-        ]
-      )
+          .sort()
+      ).toStrictEqual([
+        "top-level-import-source-empty-str-is-valid-assign-expr.js",
+        "top-level-import-source-script-code-valid.js"
+      ])
     } finally {
       await rm(directory, { force: true, recursive: true })
     }
@@ -377,19 +372,19 @@ throw new SyntaxError("unrelated synchronous exception");`
           env: { ...process.env, NODE_ENV: "development", ESM_ENV: "development-test" }
         }
       )
-      assert.equal(timedOut, false)
-      assert.equal(exitCode, 0, stderr || stdout)
+      expect(timedOut).toBe(false)
+      expect(exitCode, stderr || stdout).toBe(0)
       const report = JSON.parse(await readFile(reportFile, "utf8")) as {
         selected: number
         passed: number
         failed: number
         cases: Array<{ path: string; syntaxOnly?: boolean; status: string }>
       }
-      assert.equal(report.selected, 1)
-      assert.equal(report.passed, 1)
-      assert.equal(report.failed, 0)
-      assert.equal(report.cases[0]!.syntaxOnly, undefined)
-      assert.equal(report.cases[0]!.status, "pass")
+      expect(report.selected).toBe(1)
+      expect(report.passed).toBe(1)
+      expect(report.failed).toBe(0)
+      expect(report.cases[0]!.syntaxOnly).toBe(undefined)
+      expect(report.cases[0]!.status).toBe("pass")
     } finally {
       await rm(directory, { force: true, recursive: true })
     }
@@ -442,7 +437,7 @@ throw new SyntaxError("unrelated synchronous exception");`
         isModule: true,
         syntaxOnly: true
       })
-      assert.equal(result.stdout, "")
+      expect(result.stdout).toBe("")
     }
   })
 
@@ -454,10 +449,9 @@ throw new SyntaxError("unrelated synchronous exception");`
       expectedPhase: "resolution"
     })
     assertFailure(missing, "SyntaxError", "resolution")
-    assert.throws(
-      () => assertTest262Outcome(missing.filename, missing.stdout, "SyntaxError", "runtime"),
-      /unexpected error phase/
-    )
+    expect(() =>
+      assertTest262Outcome(missing.filename, missing.stdout, "SyntaxError", "runtime")
+    ).toThrow(/unexpected error phase/)
 
     const thrown = await executeCase({
       source: 'import "./dependency.mjs";',
@@ -466,10 +460,9 @@ throw new SyntaxError("unrelated synchronous exception");`
       expectedPhase: "runtime"
     })
     assertFailure(thrown, "SyntaxError", "runtime")
-    assert.throws(
-      () => assertTest262Outcome(thrown.filename, thrown.stdout, "SyntaxError", "resolution"),
-      /unexpected error phase/
-    )
+    expect(() =>
+      assertTest262Outcome(thrown.filename, thrown.stdout, "SyntaxError", "resolution")
+    ).toThrow(/unexpected error phase/)
   })
 
   it("attributes syntax errors in dependencies to the resolution phase", async () => {
@@ -480,10 +473,9 @@ throw new SyntaxError("unrelated synchronous exception");`
       expectedPhase: "resolution"
     })
     assertFailure(result, "SyntaxError", "resolution")
-    assert.throws(
-      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "parse"),
-      /unexpected error phase/
-    )
+    expect(() =>
+      assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "parse")
+    ).toThrow(/unexpected error phase/)
   })
 
   it("checks positive module linking before allowing evaluation", async () => {
@@ -493,8 +485,8 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true
     })
     assertFailure(invalid, "SyntaxError", "resolution")
-    assert.match(invalid.stdout, /absent/)
-    assert.doesNotMatch(invalid.stdout, /evaluated/)
+    expect(invalid.stdout).toMatch(/absent/)
+    expect(invalid.stdout).not.toMatch(/evaluated/)
 
     const evaluated = await executeCase({
       source: 'throw new TypeError("positive module evaluated")',
@@ -508,7 +500,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       dependency: "export const answer = 42",
       isModule: true
     })
-    assert.equal(valid.stdout, "")
+    expect(valid.stdout).toBe("")
   })
 
   it("instantiates a valid module graph without executing any of its bodies", async () => {
@@ -518,11 +510,10 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true,
       expectedPhase: "resolution"
     })
-    assert.equal(result.stdout, "")
-    assert.throws(
-      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution"),
-      /but no error occurred/
-    )
+    expect(result.stdout).toBe("")
+    expect(() =>
+      assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution")
+    ).toThrow(/but no error occurred/)
   })
 
   it("does not evaluate a syntax-free module while checking instantiation", async () => {
@@ -531,7 +522,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true,
       expectedPhase: "resolution"
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("enforces the Test262 module goal for syntax-free .js files", async () => {
@@ -542,7 +533,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       packageType: "commonjs",
       isModule: true
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("uses the module goal for syntax-free .js dependencies", async () => {
@@ -556,7 +547,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       packageType: "commonjs",
       isModule: true
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("checks the resolution of syntax-free .js modules without running their bodies", async () => {
@@ -567,7 +558,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true,
       expectedPhase: "resolution"
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("preserves module goals and link-only checks through symlinked fixture paths", async () => {
@@ -583,7 +574,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       source:
         'if (this !== undefined || typeof require !== "undefined" || typeof module !== "undefined") throw new SyntaxError("executed as CommonJS")'
     })
-    assert.equal(root.stdout, "")
+    expect(root.stdout).toBe("")
 
     const dependency = await executeCase({
       ...options,
@@ -593,14 +584,14 @@ throw new SyntaxError("unrelated synchronous exception");`
         "dependency.js": 'if (this !== undefined) throw new SyntaxError("dependency was CommonJS")'
       }
     })
-    assert.equal(dependency.stdout, "")
+    expect(dependency.stdout).toBe("")
 
     const resolution = await executeCase({
       ...options,
       source: 'throw new SyntaxError("evaluated instead of linked")',
       expectedPhase: "resolution"
     })
-    assert.equal(resolution.stdout, "")
+    expect(resolution.stdout).toBe("")
   })
 
   it("links syntax-free .js dependencies without executing them", async () => {
@@ -614,7 +605,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true,
       expectedPhase: "resolution"
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("validates cyclic imports through esm-sync without evaluating the cycle", async () => {
@@ -629,7 +620,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true,
       expectedPhase: "resolution"
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("rejects missing exports in a transitive graph before evaluating bodies", async () => {
@@ -644,8 +635,8 @@ throw new SyntaxError("unrelated synchronous exception");`
       expectedPhase: "resolution"
     })
     assertFailure(result, "SyntaxError", "resolution")
-    assert.match(result.stdout, /absent/)
-    assert.doesNotMatch(result.stdout, /evaluated/)
+    expect(result.stdout).toMatch(/absent/)
+    expect(result.stdout).not.toMatch(/evaluated/)
   })
 
   it("rejects an ambiguous star re-export during instantiation", async () => {
@@ -660,8 +651,8 @@ throw new SyntaxError("unrelated synchronous exception");`
       expectedPhase: "resolution"
     })
     assertFailure(result, "SyntaxError", "resolution")
-    assert.match(result.stdout, /shared/)
-    assert.doesNotMatch(result.stdout, /evaluated/)
+    expect(result.stdout).toMatch(/shared/)
+    expect(result.stdout).not.toMatch(/evaluated/)
   })
 
   it("does not credit a matching runtime error to the resolution phase", async () => {
@@ -671,11 +662,10 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true,
       expectedPhase: "resolution"
     })
-    assert.equal(result.stdout, "")
-    assert.throws(
-      () => assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution"),
-      /but no error occurred/
-    )
+    expect(result.stdout).toBe("")
+    expect(() =>
+      assertTest262Outcome(result.filename, result.stdout, "SyntaxError", "resolution")
+    ).toThrow(/but no error occurred/)
   })
 
   it("links deferred imports without triggering evaluation", async () => {
@@ -686,7 +676,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       isModule: true,
       expectedPhase: "resolution"
     })
-    assert.equal(linked.stdout, "")
+    expect(linked.stdout).toBe("")
 
     const runtime = await executeCase({
       source:
@@ -694,7 +684,7 @@ throw new SyntaxError("unrelated synchronous exception");`
       dependency: "export const value = 1",
       isModule: true
     })
-    assert.equal(runtime.stdout, "")
+    expect(runtime.stdout).toBe("")
   })
 
   it("reuses deferred namespace identity across static and dynamic imports without top-level await", async () => {
@@ -720,7 +710,7 @@ import.defer("./dependency.mjs")
       isModule: true,
       isAsync: true
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("classifies actual dependency evaluation failures as runtime errors", async () => {
@@ -731,7 +721,7 @@ import.defer("./dependency.mjs")
       expectedPhase: "runtime"
     })
     assertFailure(result, "SyntaxError", "runtime")
-    assert.match(result.stdout, /dependency runtime failure/)
+    expect(result.stdout).toMatch(/dependency runtime failure/)
   })
 
   it("accepts a runtime error only with the correct type and phase", async () => {
@@ -740,10 +730,9 @@ import.defer("./dependency.mjs")
       expectedPhase: "runtime"
     })
     assertFailure(failure, "TypeError", "runtime")
-    assert.throws(
-      () => assertTest262Outcome(failure.filename, failure.stdout, "SyntaxError", "runtime"),
-      /unexpected error type/
-    )
+    expect(() =>
+      assertTest262Outcome(failure.filename, failure.stdout, "SyntaxError", "runtime")
+    ).toThrow(/unexpected error type/)
   })
 })
 
@@ -764,7 +753,7 @@ Promise.resolve()
   );`,
       isAsync: true
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("links but defers a real dependency until its namespace is read", async () => {
@@ -781,7 +770,7 @@ import.defer("./dependency.mjs")
       dependency: "globalThis.test262EvaluationCount += 1; export const answer = 42;",
       isAsync: true
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   it("does not transform scripts that mention import.defer only in strings", async () => {
@@ -791,7 +780,7 @@ var description = "import.defer(";
 if (this !== globalThis || description !== "import.defer(") throw new Error("script changed");
 if (globalThis.description !== description) throw new Error("script global changed");`
     })
-    assert.equal(result.stdout, "")
+    expect(result.stdout).toBe("")
   })
 
   // These 16 cases spawn real Node subprocesses from a nested Test262 runner.
@@ -814,8 +803,8 @@ if (globalThis.description !== description) throw new Error("script global chang
         ],
         { cwd: path.dirname(runner), reject: false, timeout: 75_000 }
       )
-      assert.equal(timedOut, false)
-      assert.equal(exitCode, 0, stderr || stdout)
+      expect(timedOut).toBe(false)
+      expect(exitCode, stderr || stdout).toBe(0)
       const report = JSON.parse(await readFile(reportPath, "utf8")) as {
         selected: number
         passed: number
@@ -824,19 +813,19 @@ if (globalThis.description !== description) throw new Error("script global chang
         complete: boolean
         cases: Array<{ status: string; expectedError: string | null; path: string }>
       }
-      assert.equal(report.complete, true)
-      assert.equal(report.selected, 16)
-      assert.equal(report.passed, 16)
-      assert.equal(report.failed, 0)
-      assert.equal(report.unsupported, 0)
-      assert.ok(
-        report.cases.every(
+      expect(report.complete).toBe(true)
+      expect(report.selected).toBe(16)
+      expect(report.passed).toBe(16)
+      expect(report.failed).toBe(0)
+      expect(report.unsupported).toBe(0)
+      expect(
+        report.cases.filter(
           ({ status, path: filename, expectedError }) =>
-            status === "pass" &&
-            expectedError === null &&
-            filename.includes("/dynamic-import/catch/")
+            status !== "pass" ||
+            expectedError !== null ||
+            !filename.includes("/dynamic-import/catch/")
         )
-      )
+      ).toStrictEqual([])
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -852,8 +841,8 @@ describe("Test262 asynchronous completion", () => {
       asyncTimeoutMs: 100,
       expectProcessFailure: true
     })
-    assert.equal(result.stdout, "")
-    assert.match(result.stderr, /Test262: \$DONE\(\) was not called within 100 ms/)
+    expect(result.stdout).toBe("")
+    expect(result.stderr).toMatch(/Test262: \$DONE\(\) was not called within 100 ms/)
   })
 
   it("completes on $DONE and preserves its original error", async () => {
@@ -861,14 +850,14 @@ describe("Test262 asynchronous completion", () => {
       source: "Promise.resolve().then(() => $DONE())",
       isAsync: true
     })
-    assert.equal(completed.stdout, "")
+    expect(completed.stdout).toBe("")
 
     const failed = await executeCase({
       source: 'Promise.resolve().then(() => $DONE(new TypeError("async failure")))',
       isAsync: true
     })
     assertFailure(failed, "TypeError", "runtime")
-    assert.match(failed.stdout, /async failure/)
+    expect(failed.stdout).toMatch(/async failure/)
   })
 
   it("rejects duplicate $DONE calls and uncaught rejections", async () => {
@@ -877,7 +866,7 @@ describe("Test262 asynchronous completion", () => {
       isAsync: true
     })
     assertFailure(duplicate, "Error", "runtime")
-    assert.match(duplicate.stdout, /more than once/)
+    expect(duplicate.stdout).toMatch(/more than once/)
 
     const rejection = await executeCase({
       source: 'Promise.reject(new RangeError("unhandled"))',

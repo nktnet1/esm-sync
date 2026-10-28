@@ -1,5 +1,4 @@
-import assert from "node:assert/strict"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 const esmPaths = ["../", "../index.js", "../esm.js"]
 
@@ -14,8 +13,8 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "cli-hook" }
         )
 
-        assert.equal(exitCode, 0, stderr)
-        assert.equal(stderr, "")
+        expect(exitCode, stderr).toBe(0)
+        expect(stderr).toBe("")
       })
 
       it(`inspects JSON-encoded arguments with ${request}`, async () => {
@@ -26,8 +25,8 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "cli-hook" }
         )
 
-        assert.equal(exitCode, 0, stderr)
-        assert.ok(stdout.includes("cli-hook:true"), stdout)
+        expect(exitCode, stderr).toBe(0)
+        expect(stdout, stdout).toContain("cli-hook:true")
       })
 
       it(`rejects .mjs sideloading with ${request}`, async () => {
@@ -38,8 +37,8 @@ for (const esmEnv of testEnvironments) {
           { cacheNamespace: "cli-hook" }
         )
 
-        assert.equal(exitCode, 1, stderr)
-        assert.match(stderr, /(?:^|\n)cli-hook-fail:ERR_REQUIRE_ESM(?:\n|$)/)
+        expect(exitCode, stderr).toBe(1)
+        expect(stderr).toMatch(/(?:^|\n)cli-hook-fail:ERR_REQUIRE_ESM(?:\n|$)/)
       })
     }
   })

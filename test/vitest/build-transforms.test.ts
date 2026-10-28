@@ -1,7 +1,6 @@
-import assert from "node:assert/strict"
 import { createRequire } from "node:module"
 import vm from "node:vm"
-import { it } from "vitest"
+import { it, expect } from "vitest"
 import options from "../../config/babel.ts"
 
 const require = createRequire(import.meta.url)
@@ -28,11 +27,11 @@ globalThis.nullComparison = nullish(undefined)`,
       envName: "development"
     }
   )
-  assert.equal(typeof result?.code, "string")
+  expect(typeof result?.code).toBe("string")
   const context: Record<string, unknown> = {}
   vm.runInNewContext(result!.code!, context)
-  assert.equal(context.strictThis, true)
-  assert.equal(context.sloppyThis, true)
-  assert.equal(context.strictComparison, false)
-  assert.equal(context.nullComparison, true)
+  expect(context.strictThis).toBe(true)
+  expect(context.sloppyThis).toBe(true)
+  expect(context.strictComparison).toBe(false)
+  expect(context.nullComparison).toBe(true)
 })

@@ -1,7 +1,6 @@
-import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { describe, it } from "vitest"
+import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
 
 // Modern Node handles --check with its native syntax checker even when
@@ -31,9 +30,9 @@ for (const esmEnv of testEnvironments) {
               { cacheNamespace: "check-hook" }
             )
 
-            assert.equal(exitCode, 0, stderr)
-            assert.equal(stdout, "")
-            assert.equal(stderr, "")
+            expect(exitCode, stderr).toBe(0)
+            expect(stdout).toBe("")
+            expect(stderr).toBe("")
           })
         }
 
@@ -45,9 +44,9 @@ for (const esmEnv of testEnvironments) {
             { cacheNamespace: "check-hook" }
           )
 
-          assert.equal(exitCode, 1, stderr)
-          assert.equal(stdout, "")
-          assert.match(stderr, /SyntaxError/)
+          expect(exitCode, stderr).toBe(1)
+          expect(stdout).toBe("")
+          expect(stderr).toMatch(/SyntaxError/)
         })
 
         it(`accepts ESM stdin with ${requireFlag} ${checkFlag}`, async () => {
@@ -60,9 +59,9 @@ for (const esmEnv of testEnvironments) {
             { cacheNamespace: "check-hook", input: source }
           )
 
-          assert.equal(exitCode, 0, stderr)
-          assert.equal(stdout, "")
-          assert.equal(stderr, "")
+          expect(exitCode, stderr).toBe(0)
+          expect(stdout).toBe("")
+          expect(stderr).toBe("")
         })
 
         it(`rejects invalid ESM stdin with ${requireFlag} ${checkFlag}`, async () => {
@@ -73,9 +72,9 @@ for (const esmEnv of testEnvironments) {
             { cacheNamespace: "check-hook", input: invalidSource }
           )
 
-          assert.equal(exitCode, 1, stderr)
-          assert.equal(stdout, "")
-          assert.match(stderr, /SyntaxError/)
+          expect(exitCode, stderr).toBe(1)
+          expect(stdout).toBe("")
+          expect(stderr).toMatch(/SyntaxError/)
         })
       }
     }
