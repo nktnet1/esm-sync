@@ -4,10 +4,10 @@ A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues
 
 | Status                |  Count |
 | --------------------- | -----: |
-| Fix confirmed bugs    |      9 |
+| Fix confirmed bugs    |      8 |
 | Investigate           |     19 |
 | Improve documentation |      4 |
-| Already covered       |     28 |
+| Already covered       |     29 |
 | Not planned           |     23 |
 | **Total**             | **83** |
 
@@ -15,7 +15,6 @@ A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues
 
 ### High priority: crashes and incorrect module behaviour
 
-- [#843](https://github.com/standard-things/esm/issues/843) — A zero-width character can hang the parser or exhaust memory. Report a syntax error instead.
 - [#796](https://github.com/standard-things/esm/issues/796) — Loading `.esmrc.js` can crash during configuration setup. Fix initialization and test other config formats.
 - [#846](https://github.com/standard-things/esm/issues/846) — Exports of `var` declarations inside blocks are incorrectly rejected. Respect JavaScript hoisting rules.
 - [#809](https://github.com/standard-things/esm/issues/809) — Changes to `Reflect` made by CommonJS polyfills are not visible in ES modules.
@@ -97,6 +96,7 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#866](https://github.com/standard-things/esm/issues/866) — Optional chaining is supported.
 - [#864](https://github.com/standard-things/esm/issues/864) — Migration options and module boundaries are supported.
 - [#855](https://github.com/standard-things/esm/issues/855) — The earlier `"type": "module"` warning is not reproduced.
+- [#843](https://github.com/standard-things/esm/issues/843) — Invalid zero-width tokens report a syntax error instead of resuming tokenization; the original source and broader tokenizer cases have regression coverage.
 - [#841](https://github.com/standard-things/esm/issues/841) — Build instructions are available in `docs/build-layout.md`.
 - [#821](https://github.com/standard-things/esm/issues/821) — Node filesystem/stat compatibility is handled.
 - [#816](https://github.com/standard-things/esm/issues/816) — Basic repeated initialization does not reproduce the `__global__` error.
