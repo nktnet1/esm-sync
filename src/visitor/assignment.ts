@@ -11,6 +11,7 @@ type Options = Pick<
   | "transformImportBindingAssignments"
   | "transformInsideFunctions"
   | "transformOutsideFunctions"
+  | "top"
 >
 import Visitor from "../visitor.js"
 
@@ -25,6 +26,20 @@ function init() {
   const shadowedMap: ShadowedMap = new Map()
 
   class AssignmentVisitor extends Visitor<Options> {
+    get loopIdentifiers(): Set<string> {
+      return this.currentOptions.top.identifiers
+    }
+    visitForInStatement(
+      path: InstanceType<typeof FastPath<Extract<AstNode, { type: "ForInStatement" }>>>
+    ) {
+      visitLoop(this, path)
+    }
+
+    visitForOfStatement(
+      path: InstanceType<typeof FastPath<Extract<AstNode, { type: "ForOfStatement" }>>>
+    ) {
+      visitLoop(this, path)
+    }
     get assignableBindings(): Options["assignableBindings"] {
       return this.currentOptions.assignableBindings
     }
@@ -62,6 +77,62 @@ function init() {
     ) {
       checkAndMaybeWrap(this, path, "argument")
     }
+  }
+
+  function visitLoop(
+    visitor: AssignmentVisitor,
+    path: InstanceType<
+      typeof FastPath<Extract<AstNode, { type: "ForInStatement" | "ForOfStatement" }>>
+    >
+  ) {
+    const node = path.getValue()
+    const { left, right, body } = node
+    const declaration = left.type === "VariableDeclaration"
+    const pattern = declaration ? left.declarations[0]!.id : left
+    // Top-level for-await is already lowered, including binding refreshes.
+    if (
+      (declaration && (left.kind !== "var" || !isOutsideFunction(path, "", scopeMap))) ||
+      (node.type === "ForOfStatement" && node.await && isOutsideFunction(path, "", scopeMap))
+    ) {
+      visitor.visitChildren(path)
+      return
+    }
+    const names = getNamesFromPattern(pattern)
+    const changesExports = names.some(
+      (name) =>
+        visitor.assignableBindings.has(name) &&
+        !isShadowed(path, name, shadowedMap) &&
+        (isOutsideFunction(path, name, scopeMap)
+          ? visitor.transformOutsideFunctions
+          : visitor.transformInsideFunctions)
+    )
+    if (!changesExports) {
+      visitor.visitChildren(path)
+      return
+    }
+    visitor.visitChildren(path)
+    const { magicString, runtimeName } = visitor
+    const identifiers = visitor.loopIdentifiers
+    let temporary = runtimeName + "$loop" + node.start
+    while (identifiers.has(temporary)) temporary += "$"
+    identifiers.add(temporary)
+    // Move the original pattern, retaining edits to default initializers.
+    // A finally refresh also observes partially completed destructuring when
+    // a later target throws. Native iteration still performs IteratorClose.
+    magicString.move(left.start, left.end, body.start)
+    magicString.overwrite(
+      node.start,
+      left.start,
+      (node.type === "ForOfStatement" && node.await ? "for await(" : "for(") + "const " + temporary
+    )
+    magicString.overwrite(left.end, right.start, node.type === "ForInStatement" ? " in (" : " of (")
+    magicString.overwrite(right.end, body.start, ")){")
+    magicString.prependRight(left.start, declaration ? "try{" : "try{(")
+    magicString.appendLeft(
+      left.end,
+      "=" + temporary + (declaration ? ";" : ");") + "}finally{" + runtimeName + ".u()}"
+    )
+    magicString.appendLeft(body.end, "}")
   }
 
   function checkAndMaybeWrap(

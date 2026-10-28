@@ -10,7 +10,7 @@ import errors from "../../errors.js"
 import esmLoad from "./load.js"
 import isError from "../../util/is-error.js"
 import isPath from "../../util/is-path.js"
-import importText from "./import-text.js"
+import importValue from "./import-value.js"
 import { resolve } from "../../safe/path.js"
 import shared from "../../shared.js"
 import validateDeep from "./validate-deep.js"
@@ -27,9 +27,8 @@ function esmImport(
   isDynamic = false,
   moduleType: string | undefined = void 0
 ) {
-  if (moduleType === "text") {
-    importText(request, parentEntry, setterArgsList)
-    return
+  if (moduleType === "text" || moduleType === "bytes") {
+    return importValue(request, parentEntry, setterArgsList, moduleType)
   }
 
   const { moduleState } = shared

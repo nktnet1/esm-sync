@@ -7,12 +7,13 @@ function dualResolveFilename(
   request: string,
   parent: ModuleRecord | null | undefined,
   isMain: boolean = false,
-  options: { paths?: string[] } | undefined = void 0
+  options: { paths?: string[] } | undefined = void 0,
+  allowUnknownExtension = false
 ) {
   let error: unknown
 
   try {
-    return esmResolveFilename(request, parent, isMain, options)
+    return esmResolveFilename(request, parent, isMain, options, allowUnknownExtension)
   } catch (e) {
     error = e
   }

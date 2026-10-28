@@ -251,6 +251,7 @@ function init() {
         }
 
         assignmentVisitor.visit(rootPath, {
+          top,
           assignableBindings,
           importedBindings,
           magicString,
@@ -334,6 +335,7 @@ function init() {
           possibleTemporalIndexes.sort(ascendingComparator)
 
           assignmentVisitor.visit(rootPath, {
+            top,
             assignableBindings,
             magicString,
             possibleIndexes: possibleAssignableBindingsIndexes!,

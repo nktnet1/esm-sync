@@ -2,15 +2,15 @@
 
 ## Preparing fixtures and running tests
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm fixtures:acorn` | Prepare Acorn sources matching the installed package |
-| `pnpm fixtures:test262` | Prepare the pinned Test262 selection |
-| `pnpm fixtures:prepare` | Prepare both corpora |
-| `pnpm test` | Prepare fixtures, build, and run Vitest |
-| `pnpm test:prod` | Run the same flow against production output |
-| `pnpm test:run:prod` | Reuse an existing production test build |
-| `pnpm test:conformance` | Prepare, build, and run the selected Test262 suite |
+| Command                 | Purpose                                              |
+| ----------------------- | ---------------------------------------------------- |
+| `pnpm fixtures:acorn`   | Prepare Acorn sources matching the installed package |
+| `pnpm fixtures:test262` | Prepare the pinned Test262 selection                 |
+| `pnpm fixtures:prepare` | Prepare both corpora                                 |
+| `pnpm test`             | Prepare fixtures, build, and run Vitest              |
+| `pnpm test:prod`        | Run the same flow against production output          |
+| `pnpm test:run:prod`    | Reuse an existing production test build              |
+| `pnpm test:conformance` | Prepare, build, and run the selected Test262 suite   |
 
 The Test262 revision is pinned in `script/src/setup-test262.ts` to
 [`d53ebc8b1931d9f1541e43d59650776e4b766248`](https://github.com/tc39/test262/commit/d53ebc8b1931d9f1541e43d59650776e4b766248),
@@ -58,7 +58,7 @@ runner executes each selected case in its own Node subprocess and checks
 negative-test **error types and phases**. Script-goal cases retain `vm.Script`
 semantics; module-goal cases use esm-sync's parse/link/validate path before
 evaluation. Host or loader features that are unavailable are reported as
-*unsupported*, not passed or silently excluded.
+_unsupported_, not passed or silently excluded.
 
 Useful selection and reporting options:
 
@@ -77,6 +77,37 @@ pnpm test:conformance:run --filter module-code --limit 20 --report .cache/test26
 The conformance suite is separate from default Vitest because of its size.
 Its selection and error-phase assertions should not be weakened to conceal
 unsupported host capabilities or runtime failures.
+
+Completed, noncircular ESM cache hits keep the optimization that avoids scanning
+every export. Its correctness depends on publishing binding writes when they
+happen: loop heads and repeated writes within the same function are now covered
+by named-import regressions. A deterministic check counts binding refreshes on
+cache hits instead of imposing a timing ratio on CI machines.
+
+Source-phase imports of explicit `.source` resources return opaque, branded
+`ModuleSource` objects backed by strictly parsed JavaScript source records.
+Static `import source value from "./module.source"` and dynamic
+`import.source("./module.source")` share a source cache without linking dependencies
+or executing module bodies. Re-exports retain the source binding's identity.
+Ordinary `.js`/`.mjs` Source Text Modules still reject source-phase imports as
+required by the pinned specification. The Test262-only host maps `<module source>`
+to a real parsed fixture and exposes that loader's `AbstractModuleSource`
+intrinsic to the assertions.
+
+Imports with `with { type: "bytes" }` return a `Uint8Array` backed by a native
+immutable `ArrayBuffer`. Text, bytes, source and evaluated modules have distinct
+cache identities, including URL query strings and fragments. Bytes imports
+reject on hosts without native immutable buffers; no mutable substitute is used.
+The runner probes capabilities in a subprocess with the same flags as each case
+worker (`--harmony`), so features enabled only in the workers are still tested.
+
+Of the nine previously unsupported cases, the three source-binding cases now
+run on every supported development Node version. The five bytes cases also run
+on Node 26 with the worker flags; Node 22 and 24 still report a missing immutable
+buffer capability. The remaining private-field case requires the host to reject
+adding private fields to a nonextensible namespace Proxy. V8 still permits that
+operation, including with its private-field restriction flag, so the exact Proxy
+operation remains capability-gated rather than weakening the assertion.
 
 ## External host scenarios
 

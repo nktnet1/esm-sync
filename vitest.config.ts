@@ -29,7 +29,8 @@ const runtimeTests = [
   "test262-deferred-errors",
   "test262-fixture-loading",
   "test262-instantiation",
-  "top-level-await"
+  "top-level-await",
+  "value-imports"
 ].map((name) => `test/vitest/${name}.test.ts`)
 
 // Loader-interception tests execute through native-suites.test.ts in real

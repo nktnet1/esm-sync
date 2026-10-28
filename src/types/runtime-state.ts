@@ -14,6 +14,7 @@ export interface RuntimeMethods {
   compileEval(content: unknown): unknown
   compileGlobalEval(content: unknown): unknown
   importDeferred(request: string, setters: SetterArgs, isDynamic?: boolean): Entry
+  importSource(request: string, setters: SetterArgs, moduleType?: string): Entry
   dynamicSourceImport(request: unknown, options?: unknown): Promise<unknown>
   dynamicDeferImport(request: unknown, options?: unknown): Promise<unknown>
   dynamicImport(request: unknown, options?: unknown, phase?: string): Promise<unknown>
@@ -58,4 +59,5 @@ export interface RuntimeState extends RuntimeMethods {
   w: RuntimeMethods["import"]
   x: RuntimeMethods["addExportGetters"]
   y: RuntimeMethods["importDeferred"]
+  z: RuntimeMethods["importSource"]
 }

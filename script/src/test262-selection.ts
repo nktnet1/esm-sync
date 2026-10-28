@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process"
+import test262NodeFlags = require("./test262-node-flags.js")
+
 interface CaseInfo {
   relativePath: string
   skippedReason?: string | undefined
@@ -75,63 +78,29 @@ function isGeneratedGrammarCase({
   return !/\bassert\b|\$DONE\b|\bthrow\b/.test(body)
 }
 
-// Text imports are a Node host capability, not an esm-sync loader feature.
-// Exercise the host's actual import-attribute handling instead of inferring
-// support from the Node version or from the existence of an experimental flag.
-async function supportsNativeTextImports() {
-  try {
-    const specifier = "data:application/json,%22test262-text-probe%22"
-    await import(specifier, { with: { type: "text" } })
-    return true
-  } catch (error) {
-    // These errors mean the host cannot load this resource as a text module.
-    // Other failures (including unexpected loader errors) must not be hidden
-    // by an unsupported classification.
-    if (
-      (error as { code?: unknown } | null)?.code === "ERR_IMPORT_ATTRIBUTE_UNSUPPORTED" ||
-      (error as { code?: unknown } | null)?.code === "ERR_UNKNOWN_MODULE_FORMAT"
-    ) {
-      return false
-    }
-    throw error
-  }
-}
-
-// Test262 feature tags describe engine capabilities, not promises made by the
-// loader. Probe only capabilities whose absence is known to invalidate cases.
-async function detectHostFeatures() {
-  const immutableDescriptor = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "immutable")
-  const immutableArrayBuffer =
-    typeof immutableDescriptor?.get === "function" &&
-    typeof Reflect.get(ArrayBuffer.prototype, "transferToImmutable") === "function"
-
-  let nonextensiblePrivate = false
-  try {
-    // Using Function keeps the runner parseable on engines without private
-    // fields, and tests the operation used by Test262, not just syntax.
-    const addPrivateField = new Function(
-      "target",
-      "class Marker extends function (value) { return value } { #brand = true }; return new Marker(target)"
+async function detectHostFeatures(): Promise<Record<string, boolean>> {
+  // The runner itself need not have --harmony. Probe in a fresh process using
+  // the actual worker flags rather than accidentally skipping supported cases.
+  const result: unknown = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [...test262NodeFlags, require.resolve("./test262-host-probe.js")],
+      { encoding: "utf8", timeout: 10_000 }
     )
-    const target = new Proxy(Object.preventExtensions(Object.create(null) as object), {})
-    addPrivateField(target)
-  } catch (error) {
-    nonextensiblePrivate = error instanceof TypeError
+  )
+  if (result === null || typeof result !== "object") {
+    throw new Error("Invalid Test262 host capability probe result")
   }
-
-  return {
-    "immutable-arraybuffer": immutableArrayBuffer,
-    "nonextensible-applies-to-private": nonextensiblePrivate,
-    "import-text": await supportsNativeTextImports()
+  const record = result as Record<string, unknown>
+  if (Object.values(record).some((value) => typeof value !== "boolean")) {
+    throw new Error("Invalid Test262 host capability probe result")
   }
+  return result as Record<string, boolean>
 }
 
-// Source-phase imports can be parsed, and unsupported runtime requests can
-// reject correctly, but esm-sync does not expose a ModuleSource object. This
-// loader capability is intentionally separate from native V8/Node features.
-// Update the declaration when the loader implements ModuleSource bindings.
+// These are loader capabilities, independent of the host's engine features.
 function detectLoaderFeatures() {
-  return { "source-phase-imports-module-source": false }
+  return { "source-phase-imports-module-source": true, "import-bytes": true }
 }
 
 function getUnsupportedFeatures(
@@ -156,7 +125,7 @@ function getUnsupportedHostFeatures(
 
 // The ModuleSource feature tag also occurs on syntax-only cases which do
 // not read module source bindings. Keep those parsing cases runnable even
-// though the loader cannot provide a ModuleSource value at runtime.
+// when a loader cannot provide a ModuleSource value at runtime.
 function getUnsupportedLoaderFeatures(
   {
     features,

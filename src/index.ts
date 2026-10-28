@@ -15,6 +15,7 @@ import Loader from "./loader.js"
 import Module from "./module.js"
 import Package from "./package.js"
 import esmParseLoad from "./module/esm/parse-load.js"
+import moduleSource from "./module/esm/module-source.js"
 import RealModule from "./real/module.js"
 
 import errors from "./errors.js"
@@ -47,6 +48,12 @@ const { safeGlobal, unsafeGlobal } = shared
 // same loader for evaluation. Keep this private to test builds; applications
 // continue using the unchanged public require() API.
 if (process.env.ESM_SYNC_TEST_BUILD) {
+  shared.module.test262SourceHost = {
+    AbstractModuleSource: moduleSource.AbstractModuleSource,
+    register(request, filename) {
+      moduleSource.fixtures.set(request, realpath(filename) || filename)
+    }
+  }
   shared.module.test262Load = (filename, parent, linkOnly) => {
     // Test262's `module` flag must apply even to syntax-free .js fixtures.
     // Scope mode:all to the test graph rather than the harness or host modules.

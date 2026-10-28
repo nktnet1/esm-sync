@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
 import { createRequire } from "node:module"
 import { describe, it } from "vitest"
 
@@ -271,6 +272,21 @@ describe("Test262 unsupported engine feature classification", () => {
     assert.equal(typeof features["immutable-arraybuffer"], "boolean")
     assert.equal(typeof features["nonextensible-applies-to-private"], "boolean")
     assert.equal(typeof features["import-text"], "boolean")
+
+    const flags = require("../../dist/script/test262-node-flags.js") as string[]
+    const immutable = execFileSync(
+      process.execPath,
+      [
+        ...flags,
+        "-e",
+        `
+try { process.stdout.write(String(new ArrayBuffer(0).transferToImmutable().immutable)) }
+catch { process.stdout.write('false') }
+`
+      ],
+      { encoding: "utf8" }
+    )
+    assert.equal(features["immutable-arraybuffer"], immutable === "true")
   })
 
   it("uses esm-sync text imports in both source goals and parse-only cases", () => {
@@ -339,9 +355,11 @@ describe("Test262 unsupported engine feature classification", () => {
     )
   })
 
-  it("gates only loader ModuleSource requirements, not source-phase syntax cases", () => {
-    const loaderFeatures = detectLoaderFeatures()
-    assert.equal(loaderFeatures["source-phase-imports-module-source"], false)
+  it("declares implemented loader features and can classify an unavailable loader", () => {
+    const implemented = detectLoaderFeatures()
+    assert.equal(implemented["source-phase-imports-module-source"], true)
+    assert.equal(implemented["import-bytes"], true)
+    const loaderFeatures = { "source-phase-imports-module-source": false }
     assert.deepEqual(getUnsupportedFeatures(["source-phase-imports"], loaderFeatures), [])
     assert.deepEqual(
       getUnsupportedFeatures(

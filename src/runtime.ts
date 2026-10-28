@@ -43,6 +43,7 @@ import { setImmediate } from "./safe/timers.js"
 import shared from "./shared.js"
 import toExternalError from "./util/to-external-error.js"
 import toExternalFunction from "./util/to-external-function.js"
+import importValue from "./module/esm/import-value.js"
 
 const {
   ERROR_GETTER,
@@ -551,11 +552,6 @@ const Runtime: RuntimeMethods & {
 
       const load = () => {
         try {
-          // This loader has no JavaScript ModuleSource representation, so
-          // source-phase imports reject with SyntaxError (as permitted by the
-          // Source Phase Imports host contract). Deferred module evaluation
-          // requires a linked-but-unevaluated module graph: do not fall back
-          // to eager import(), which would run side effects prematurely.
           if (phase === "defer") {
             let namespace: unknown
             const imported = Runtime.importDeferred.call(
@@ -587,7 +583,22 @@ const Runtime: RuntimeMethods & {
             return
           }
           if (phase === "source") {
-            throw new ExSyntaxError("Module source phase is unavailable")
+            Runtime.importSource.call(
+              this,
+              specifier,
+              [
+                [
+                  "default",
+                  null,
+                  (value) => {
+                    resolvePromise(value)
+                    return true
+                  }
+                ]
+              ],
+              moduleType
+            )
+            return
           }
 
           let lastValue: unknown
@@ -690,6 +701,7 @@ const Runtime: RuntimeMethods & {
     runtime.globalEval = boundGlobalEval
     runtime.import = Runtime.import
     runtime.importDeferred = Runtime.importDeferred
+    runtime.importSource = Runtime.importSource
     runtime.initBindings = Runtime.initBindings
     runtime.resumeChildren = Runtime.resumeChildren
     runtime.run = Runtime.run
@@ -725,6 +737,7 @@ const Runtime: RuntimeMethods & {
     runtime.w = runtime.import
     runtime.x = runtime.addExportGetters
     runtime.y = runtime.importDeferred
+    runtime.z = runtime.importSource
 
     return (entry.runtime = runtime)
   },
@@ -733,6 +746,10 @@ const Runtime: RuntimeMethods & {
   },
   import(request, setterArgsList, moduleType) {
     return esmImport(request, this.entry, setterArgsList, false, moduleType)
+  },
+  importSource(request, setterArgsList, moduleType) {
+    if (moduleType !== void 0) throw new ExSyntaxError("Module source phase requires JavaScript")
+    return importValue(request, this.entry, setterArgsList, "source")
   },
   initBindings(names) {
     this.entry.updateBindings(names)

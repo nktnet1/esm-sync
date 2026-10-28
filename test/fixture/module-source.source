@@ -1,0 +1,2 @@
+// A real source record for Test262's host-defined <module source> specifier.
+export {}
