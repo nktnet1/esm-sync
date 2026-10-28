@@ -39,6 +39,26 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/843
+    it("reports the original zero-width-space source as a syntax error", async ({ expect }) => {
+      await withFiles(
+        { "test.js": "import path from 'path'\n\u200b\n\nexport default {}\n\n" },
+        async (directory) => {
+          const result = await runNode(
+            ["--max-old-space-size=96", "-r", "../index.js", path.join(directory, "test.js")],
+            esmEnv,
+            loaderOptions,
+            { cacheNamespace: "upstream-zero-width-space", timeout: 5_000 }
+          )
+          expect(result.exitCode, result.stderr).toBe(1)
+          expect(result.stdout).toBe("")
+          expect(result.stderr).toMatch(/SyntaxError:/)
+          expect(result.stderr).toContain("test.js:2")
+          expect(result.stderr).not.toMatch(/heap out of memory|Allocation failed/i)
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/926
     it("parses optional chaining when eval occurs in comments or strings", async ({ expect }) => {
       await withFiles(

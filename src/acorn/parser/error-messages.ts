@@ -33,6 +33,8 @@ function init() {
   const PARSER_IMPORT_EXPORT_OUTSIDE_MODULE =
     "'import' and 'export' may appear only with 'sourceType: module'"
   const PARSER_INVALID_ESCAPED_RESERVED_WORD = "Escape sequence in keyword "
+  const PARSER_USING_INVALID_LEVEL =
+    "Using declaration cannot appear in the top level when source type is `script` or in the bare case statement"
 
   const messageLookup = new Set([
     ILLEGAL_AWAIT_IN_NON_ASYNC_FUNCTION,
@@ -73,7 +75,7 @@ function init() {
     enable(parser: AcornParser) {
       parser.parseExprList = parseExprList
       parser.raise = raise
-      parser.raiseRecoverable = raise
+      parser.raiseRecoverable = raiseRecoverable
       parser.unexpected = unexpected
 
       return parser
@@ -130,7 +132,18 @@ function init() {
     return elements
   }
 
-  function raise(this: AcornParser, pos: number, message: string): void {
+  function raise(
+    this: AcornParser,
+    pos: number,
+    message: string,
+    recoverable: boolean = false
+  ): void {
+    // Resource-scope lowering supports these declarations even where Acorn
+    // rejects their placement. This semantic check does not stall tokenization.
+    if (message === PARSER_USING_INVALID_LEVEL) {
+      return
+    }
+
     if (replacementMap.has(message)) {
       message = replacementMap.get(message)!
     } else if (
@@ -142,11 +155,21 @@ function init() {
       message = message.replace(PARSER_DUPLICATE_EXPORT, ENGINE_DUPLICATE_EXPORT)
     } else if (message.startsWith(PARSER_INVALID_ESCAPED_RESERVED_WORD)) {
       message = INVALID_ESCAPED_RESERVED_WORD
-    } else if (!messageLookup.has(message) && !message.startsWith(UNEXPECTED_TOKEN)) {
+    } else if (
+      recoverable &&
+      !messageLookup.has(message) &&
+      !message.startsWith(UNEXPECTED_TOKEN)
+    ) {
       return
     }
 
     throw new errors.SyntaxError(this, pos, message)
+  }
+
+  function raiseRecoverable(this: AcornParser, pos: number, message: string): void {
+    // Other recoverable validation errors may still be deferred to V8.
+    // Returning from a fatal tokenizer error can leave its position unchanged.
+    raise.call(this, pos, message, true)
   }
 
   function unexpected(this: AcornParser, pos?: number): never {
