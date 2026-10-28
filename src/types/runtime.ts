@@ -174,6 +174,7 @@ export interface SharedState {
   }
   module: ModuleRegistry & { safeInspector?: { console?: unknown } }
   moduleState: {
+    configuring: boolean
     instantiating: boolean
     parsing: boolean
     requireDepth: number

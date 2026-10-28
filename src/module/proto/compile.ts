@@ -65,6 +65,14 @@ const compile = maskFunction(function (
   const { state } = entry
   const isInitial = state === STATE_INITIAL
 
+  // Executable config may load before the extension hooks are installed.
+  // Keep its file entry and link/evaluate state, rather than treating it as
+  // newly supplied CommonJS content and resetting it after the linking pass.
+  if (shared.moduleState.configuring && !entry.running) {
+    entry._ranthruCompile = true
+    return _compile(compile, entry, content, filename)
+  }
+
   if (
     entry.package.options.mode !== MODE_STRICT &&
     entry.extname !== ".mjs" &&

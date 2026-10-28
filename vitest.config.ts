@@ -21,6 +21,7 @@ const runtimeTests = [
   "main-hook",
   "native-suites",
   "optional-native",
+  "package-config",
   "repl-hook",
   "require-bindings",
   "resolution-safety",

@@ -579,7 +579,7 @@ function readInfo(dirPath: string, state: PackageInfoState): Package | null {
   if (optionsFound) {
     options = parseJSON6(options)
   } else {
-    optionsPath = findPath(optionsPath, emptyArray, false, esmrcExts)
+    optionsPath = findPath(optionsPath, emptyArray, false, void 0, esmrcExts)
   }
 
   const { forceOptions } = state
@@ -592,21 +592,32 @@ function readInfo(dirPath: string, state: PackageInfoState): Package | null {
     if (isExtJSON(optionsPath)) {
       options = readJSON6(optionsPath)
     } else {
-      const { cache } = Loader.state.package
+      const pkgState = Loader.state.package
+      const { cache, default: defaultPkg } = pkgState
       const { moduleState } = shared
-      const { parsing } = moduleState
+      const { configuring, parsing } = moduleState
 
       pkg = new Package(dirPath, RANGE_ALL, {
         cache: Package.createOptions(forceOptions).cache
       })
 
       moduleState.parsing = false
+      moduleState.configuring = true
       cache.set(dirPath, pkg)
+
+      // Config code and its dependencies can compile before moduleHook has
+      // installed the default package. Give that bootstrap graph a fallback,
+      // then restore the captured state even when evaluation or validation fails.
+      if (defaultPkg === null) {
+        pkgState.default = pkg
+      }
 
       try {
         pkg.options = Package.createOptions(esmParseLoad(optionsPath, null).module.exports)
       } finally {
         cache.set(dirPath, null)
+        pkgState.default = defaultPkg
+        moduleState.configuring = configuring
         moduleState.parsing = parsing
       }
     }
