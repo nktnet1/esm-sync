@@ -513,7 +513,14 @@ function tryRun(
 }
 
 function useAsync(entry: Entry) {
-  return entry.package.options.await && shared.support.await && entry.extname !== ".mjs"
+  // Enabling legacy await support must not allocate an async wrapper and a
+  // promise for every ordinary CommonJS dependency in an application.
+  return (
+    entry.package.options.await &&
+    shared.support.await &&
+    entry.extname !== ".mjs" &&
+    entry.compileData!.firstAwaitOutsideFunction !== null
+  )
 }
 
 function useSourceMap(entry: Entry) {

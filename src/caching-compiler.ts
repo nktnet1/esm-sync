@@ -297,7 +297,7 @@ function init() {
             firstReturnOutsideFunction === null ? null : deflateLineInfo(firstReturnOutsideFunction)
 
           if (sourceType === SOURCE_TYPE_SCRIPT) {
-            if (transforms !== 0) {
+            if (transforms !== 0 || firstAwaitOutsideFunction !== null) {
               meta = [
                 -1,
                 -1,

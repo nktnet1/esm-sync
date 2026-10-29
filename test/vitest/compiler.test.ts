@@ -125,6 +125,64 @@ describe("compiler tests", () => {
     }
   })
 
+  it("recognizes await-only modules without imports or exports", () => {
+    for (const code of [
+      "await Promise.resolve(42)",
+      "const value = await Promise.resolve(42)",
+      "for await (const value of [42]) {}",
+      "await using resource = globalThis.resource"
+    ]) {
+      const result = Compiler.compile(code, { sourceType: UNAMBIGUOUS, cjsVars: true })
+      expect(result.sourceType, code).toBe(MODULE)
+      expect(result.firstAwaitOutsideFunction, code).not.toBeNull()
+      expect(result.transforms & 1024, code).toBe(1024)
+      expect(result.code, code).toContain("yield")
+    }
+  })
+
+  it("preserves scripts with await identifiers and nested awaits", () => {
+    for (const sourceType of [SCRIPT, UNAMBIGUOUS]) {
+      for (const code of [
+        "var await = 42; module.exports = await",
+        "function read(await) { return await }; module.exports = read(42)",
+        "module.exports = { await: 42 }",
+        "async function read() { return await Promise.resolve(42) }; module.exports = read",
+        'module.exports = "await is text"',
+        "// await is a comment\nmodule.exports = require('node:path')"
+      ]) {
+        const result = Compiler.compile(code, { sourceType, cjsVars: true })
+        expect(result.sourceType, code).toBe(SCRIPT)
+        expect(result.firstAwaitOutsideFunction, code).toBeNull()
+        expect(result.code, code).toBe(code)
+        expect(result.transforms, code).toBe(0)
+      }
+    }
+  })
+
+  it("retains the script goal for legacy await with unshadowed CommonJS exports", () => {
+    for (const code of [
+      "await Promise.resolve(); exports.value = 42",
+      "await Promise.resolve(); module.exports = 42"
+    ]) {
+      const result = Compiler.compile(code, { sourceType: UNAMBIGUOUS, cjsVars: false })
+      expect(result.sourceType, code).toBe(SCRIPT)
+      expect(result.firstAwaitOutsideFunction, code).not.toBeNull()
+      expect(result.transforms, code).toBe(0)
+      expect(result.code, code).toBe(code)
+    }
+    for (const code of [
+      "const exports = {}; await Promise.resolve(); exports.value = 42",
+      "const module = {}; await Promise.resolve(); module.exports = 42",
+      'await Promise.resolve(); console.log("module.exports")',
+      "await Promise.resolve(); const object = {exports: 42}",
+      "await Promise.resolve(); globalThis.object.exports = 42",
+      "await Promise.resolve(); function read(exports) { return exports.value }",
+      "await Promise.resolve(); { const module = {}; module.exports = 42 }"
+    ]) {
+      expect(Compiler.compile(code, { sourceType: UNAMBIGUOUS }).sourceType, code).toBe(MODULE)
+    }
+  })
+
   it('should support the "use module" directive', () => {
     const datas = [
       { code: "'use module';\"use script\";import'a'" },

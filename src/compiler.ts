@@ -97,13 +97,16 @@ function init() {
       const possibleExportIndexes = findIndexes(code, ["export"])
       const possibleEvalIndexes = findIndexes(code, ["eval"])
       const possibleImportExportIndexes = findIndexes(code, ["import"])
-      const possibleRequireIndexes = findIndexes(code, ["require"])
+      const possibleAwaitIndexes = findIndexes(code, ["await"])
 
+      // CommonJS require calls need no rewriting by themselves. Avoid parsing
+      // entire dependency graphs just to rediscover that they are scripts.
+      // Bare top-level await still needs parsing, even without import/export.
       const possibleChanges =
         possibleExportIndexes.length !== 0 ||
         possibleEvalIndexes.length !== 0 ||
         possibleImportExportIndexes.length !== 0 ||
-        possibleRequireIndexes.length !== 0
+        possibleAwaitIndexes.length !== 0
 
       if (
         !possibleChanges &&
@@ -136,6 +139,15 @@ function init() {
 
         try {
           ast = Parser.parse(code, parserOptions)
+          threw = false
+        } catch {}
+      }
+
+      // In scripts, await can also be an ordinary identifier. Scanning for
+      // await must not turn previously untouched CommonJS into a syntax error.
+      if (threw && sourceType === SOURCE_TYPE_SCRIPT && possibleAwaitIndexes.length !== 0) {
+        try {
+          ast = Parser.parse(code, { ...parserOptions, allowAwaitOutsideFunction: false })
           threw = false
         } catch {}
       }
@@ -183,7 +195,21 @@ function init() {
       const transformsImportMeta = (importExportTransforms & TRANSFORMS_IMPORT_META) !== 0
 
       if (sourceType === SOURCE_TYPE_UNAMBIGUOUS) {
-        if (transformsExport || transformsImportMeta || transformsImport) {
+        const staticModule = transformsExport || transformsImportMeta || transformsImport
+        if (!staticModule && top.firstAwaitOutsideFunction !== null) {
+          // Legacy await scripts can still publish CommonJS exports, even with
+          // cjs.vars disabled for ESM. Keep their existing script semantics.
+          requireVisitor.visit(rootPath, {
+            possibleIndexes: findIndexes(
+              code,
+              ["exports", "module"].filter((name) => !topIdentifiers.has(name))
+            )
+          })
+        }
+        if (
+          staticModule ||
+          (top.firstAwaitOutsideFunction !== null && !requireVisitor.foundCJSExports)
+        ) {
           sourceType = SOURCE_TYPE_MODULE
         } else {
           sourceType = SOURCE_TYPE_SCRIPT

@@ -1,9 +1,32 @@
 # Tooling and performance
 
 The integration fixtures run in real Node subprocesses in
-`test/vitest/fork-tooling-performance.test.ts`. CI runs this file in the
+`test/vitest/fork-tooling-performance.test.ts` and
+`test/vitest/tooling-original-reproductions.test.ts`. CI runs these files in the
 **tooling** project on Ubuntu/Node 24. The installed Jest version is **26.6.3**;
 the installed protobufjs version used by the regression is **7.6.6**.
+
+## What the previous patch fixed (v1.0.3)
+
+- **#779:** The executing Jest realm's intrinsic eval retains lexical `require`
+  for protobuf-style optional filesystem discovery; custom eval stays intact.
+- **#875 / #706:** The package supplies Jest `process` / `getCacheKey` methods,
+  preserves configured globals and lexical `jest`, and supports cold/warm
+  transform caches and changed dependencies with installed Jest 26.
+- **#844, partially:** Bootstrap uses its own bytecode slice, rejects invalid
+  metadata, replaces rejected V8 bytecode immediately, and memoizes missing
+  package manifests. The benchmark gained graph sizing and loader selection.
+
+That patch also tested a small Babel alias-rewrite fixture with preserved ESM.
+It did not run the original module-resolver package or a full Log4brains CLI.
+
+## Validation (v1.0.4)
+
+Local validation used the supplied Biome binary and the full TypeScript checks.
+On Linux/Node 24.21.0, development and production builds each passed all 54 test
+files and 1,531 tests. The compiler, top-level await, tooling, and original-report
+regression files also passed all 115 checks on Node 22.23.4 and Node 26.12.0 in
+both build modes, with each runtime's native await bridge built.
 
 ## Startup and compiler caches (#844)
 
@@ -44,16 +67,61 @@ An illustrative development-build comparison on Linux/Node 24.21.0, using the
 same host, 256-module graph, and seven iterations per build, produced these
 medians in milliseconds:
 
-| Build                     | Native | esmCold | esmWarm |
-| ------------------------- | -----: | ------: | ------: |
-| Supplied `08490c57`       | 102.46 |  368.38 |  264.04 |
-| Cache fixes in this patch |  91.90 |  322.88 |  217.80 |
+| Build               | Native | esmCold | esmWarm |
+| ------------------- | -----: | ------: | ------: |
+| Supplied `08490c57` | 102.46 |  368.38 |  264.04 |
+| v1.0.3 cache fixes  |  91.90 |  322.88 |  217.80 |
 
 The changing native baseline demonstrates measurement noise. These figures are
 not CI thresholds or a promised speedup. The original application's reported
 10-to-30-second regression still needs its application graph and equivalent
 before/after measurements; fixing these cache faults does not establish that
 application's startup time.
+
+## CommonJS loading and application measurements (v1.0.4)
+
+Ordinary CommonJS `require` calls do not need source rewriting. The compiler now
+returns those scripts without constructing an AST when no import, export,
+eval, or await candidate is present. With the legacy `await` option enabled,
+only scripts with actual top-level await get an async wrapper; ordinary
+CommonJS dependencies no longer allocate a wrapper promise for that option.
+Script bindings named `await`, strings/comments, and nested async functions have
+regression coverage against the intended script/module goals.
+
+An illustrative Linux/Node 24.21.0 development-build comparison loaded the
+installed **Execa 5.1.1 dependency graph**, which is within Log4brains' declared
+Execa range, with `await: true`. Nine iterations per build produced these
+medians in milliseconds:
+
+| Build                         | Native | esmCold | esmWarm |
+| ----------------------------- | -----: | ------: | ------: |
+| v1.0.3                        |  69.45 |  146.37 |  117.51 |
+| v1.0.4 CommonJS/cache changes |  73.87 |  131.72 |  120.47 |
+
+These measure that dependency graph. They do not establish a full Log4brains
+startup result or a consistent warm-start improvement.
+
+The benchmark now also accepts an existing, built application entry:
+
+```sh
+pnpm benchmark:startup --entry=/path/to/log4brains/packages/global-cli/dist/index.js --cwd=/path/to/log4brains --node-arg=--openssl-legacy-provider --iterations=7 --json -- --version
+```
+
+`--entry` / `--cwd` select canonical existing paths; arguments after `--` reach
+the application. Repeat `--node-arg` for Node runtime flags needed in both the
+native and loader cases. `--await` enables the legacy loader option for a
+comparison. Existing `NODE_OPTIONS` are cleared in child processes so an
+inherited loader cannot contaminate the native baseline. Child exit status and
+matching stdout are checked; use a deterministic, terminating CLI command such
+as `--help` or `--version`. A live server/readiness benchmark is not implemented.
+
+The uploaded Log4brains **1.1.0 develop source** uses microbundle's CommonJS
+`dist/index.js` entry. Its `packages/global-cli/src/log4brains` launcher spawns
+that entry with an OpenSSL option and does not preload esm. Benchmark the actual
+JS entry to include the loader in the measured process. The uploaded ZIP has no
+built packages or installed dependency tree; its full CLI has not been built
+or executed here. The original 2020 startup report remains a separate runtime
+verification task.
 
 ## Jest transformer (#875, #706)
 
@@ -108,22 +176,49 @@ were not supplied; this covers the reported eval/filesystem failure mechanism.
 
 ## Babel aliases and top-level await (#810)
 
-Babel must preserve import/export and top-level await for esm-sync to link and
-evaluate the graph. Register Babel before creating the loader factory, use
-`@babel/preset-env` with **`modules: false`**, and use `.js` sources handled by the
-registered extension hook. Configure the alias plugin in that Babel pipeline.
+The supplied original reproduction contains an await-only `src/database.js`:
+its two-second sleep has no import/export statement. Previously, that file could
+be classified as CommonJS and loading could return before the delay completed.
+Unambiguous `.js` input with real top-level await and no CommonJS exports now uses module evaluation,
+including side-effect-only dependencies and top-level for-await loops. The
+runtime regression retains the original two-second delay and checks event
+ordering, repeated loads, and rejection identity without timing thresholds.
+Legacy await scripts with unshadowed `exports` or `module` retain their script
+goal and CommonJS bindings, including when `cjs.vars` is disabled for ESM. Their
+await metadata survives warm caches even when no source rewrite is needed.
 
-A real `@babel/register` regression rewrites an aliased import and re-export,
-then loads a dependency with top-level await and awaits its value in the
-importer. It passes in cold and warm loader processes. Its small fixture plugin
-performs the source rewrite; **the original `babel-plugin-module-resolver`
-package and repository were not available and were not run**. That exact
-integration therefore remains open in the roadmap.
+Babel can produce either CommonJS or preserved ESM. The extension hook now
+selects the compiler cache from the **transformed source content**, including
+package options and filename, before reusing classification or bytecode. A
+previous CommonJS transform cannot poison a subsequent preserved-ESM run with
+the same source-file timestamp. The compiler cache version is incremented to
+invalidate earlier classifications. Already-lowered recursive compilation keeps
+its source identity. Missing transformed cache files trigger recompilation,
+even when their classification and bytecode remain in the metadata index.
+
+Preloads and later loader factories can also share module records across
+bundle evaluations. Their await marker now uses a versioned symbol-registry key,
+so the evaluating factory recognizes valid await tokens created by the loading
+factory. Import finalization passes its loader through the inherited require,
+avoiding duplicate records across factory caches while preserving require
+interception, mock selection, and instrumentation hooks.
+
+Installed `@babel/register` / `@babel/preset-env` regressions exercise both
+CommonJS output and `modules: false`, both preload orders, direct entry launches
+and later factories, cold/warm runs, and configuration changes in both
+directions. They check evaluation order and a single execution. Keeping
+`modules: false` preserves
+ESM linking semantics; it is no longer the sole tested module-output setting.
+The earlier alias-rewrite fixture remains covered.
+
+The original source archive does **not** include the installed
+`babel-plugin-module-resolver` **3.2.x** dependency or its dependencies. The
+Express application with that exact plugin has not been executed. That complete
+integration remains open until its runtime dependency tree is available.
 
 The separate `module-alias` fixture confirms that a CommonJS alias can coexist
-with an unrelated ESM graph. It does not make CommonJS-only aliases part of
-strict ESM resolution. Node `#imports` mappings through the fork are also not
-established as supported by these fixtures.
+with an unrelated ESM graph. CommonJS-only aliases and Node `#imports` through
+the fork are not established as strict ESM aliases by these fixtures.
 
 ## `mainFields` and TypeScript hooks (#794)
 

@@ -1,5 +1,6 @@
 import moduleGenerator from "./module/internal/module-generator.js"
 import type { NullableProxyHandler } from "./own/proxy.js"
+import type esmLoad from "./module/esm/load.js"
 import readProperty from "./util/read-property.js"
 type NamespaceHandler = NullableProxyHandler<Namespace>
 import Reflect from "./reflection.js"
@@ -127,7 +128,7 @@ class Entry {
   declare _partialMutableNamespace: Namespace
   declare _partialNamespace: Namespace
   declare _passthruCompile: boolean
-  declare _passthruRequire: boolean
+  declare _passthruRequire: false | typeof esmLoad
   declare _ranthruCompile: boolean
   declare _validation: Map<string, boolean>
   declare basename: string | null
@@ -473,19 +474,7 @@ class Entry {
     })
 
     // The source compilation data of the module.
-    setDeferred(this, "compileData", () => {
-      const compileData = CachingCompiler.from(this)
-
-      if (compileData !== null && compileData.transforms !== 0) {
-        const content = readFile(this.package.cachePath + sep + this.cacheName, "utf8")
-
-        if (content !== null) {
-          compileData.code = content
-        }
-      }
-
-      return compileData
-    })
+    setDeferred(this, "compileData", () => this.readCompileData())
 
     // The mutable namespace object that ESM importers receive.
     setDeferred(this, "completeMutableNamespace", () => {
@@ -768,6 +757,35 @@ class Entry {
     })
 
     return this
+  }
+
+  readCompileData() {
+    const compileData = CachingCompiler.from(this)
+    if (compileData !== null && compileData.transforms !== 0) {
+      const content = readFile(this.package.cachePath + sep + this.cacheName, "utf8")
+      // Expiration can remove an older transform while its metadata remains in
+      // the blob index. Recompile instead of executing raw source with cached
+      // module classification and offsets from that missing transform.
+      if (content === null) return null
+      compileData.code = content
+    }
+    return compileData
+  }
+
+  updateSource(content: string) {
+    const pkg = this.package
+    const cacheName = getCacheName(content, {
+      cachePath: pkg.cachePath,
+      filename: this.filename,
+      packageOptions: pkg.options
+    })
+    if (cacheName === this.cacheName) return
+    // A Babel/TypeScript hook may change the module goal without changing the
+    // original file's mtime. Let the hook run before selecting compiled data.
+    this.cacheName = cacheName
+    this.runtimeName = encodeId("_" + getCacheStateHash(cacheName).slice(0, 3))
+    this.type = TYPE_CJS
+    this.compileData = this.readCompileData()
   }
 
   updateFilename(filename?: string | boolean, force?: boolean) {

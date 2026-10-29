@@ -14,7 +14,6 @@ import RealModule from "../../real/module.js"
 
 import _load from "../internal/load.js"
 import errors from "../../errors.js"
-import esmLoad from "../esm/load.js"
 import has from "../../util/has.js"
 import maskFunction from "../../util/mask-function.js"
 import shared from "../../shared.js"
@@ -38,8 +37,9 @@ const load = maskFunction(function (
   const parentEntry = Entry.get(parent)
 
   if (parentEntry !== null && parentEntry._passthruRequire) {
+    const load = parentEntry._passthruRequire
     parentEntry._passthruRequire = false
-    return esmLoad(request, parent, isMain).module.exports
+    return load(request, parent, isMain).module.exports
   }
 
   const parentIsStrict = parentEntry !== null && parentEntry.package.options.mode === MODE_STRICT

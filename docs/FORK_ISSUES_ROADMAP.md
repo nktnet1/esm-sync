@@ -26,8 +26,8 @@ The verified fixture behaviour and remaining gaps are recorded in
 Node subprocesses with the fork's installed tooling, rather than claiming
 compatibility with versions or applications we have not exercised.
 
-- [#844](https://github.com/standard-things/esm/issues/844) — Bootstrap bytecode slicing, immediate regeneration of rejected caches, and package-manifest miss caching are fixed. Deterministic cache regressions and a scalable before/after benchmark cover those faults. The original application's startup regression still needs its graph and measurements.
-- [#810](https://github.com/standard-things/esm/issues/810) — Babel alias rewriting with `modules: false`, transitive top-level await, and warm caches now has a real register-hook regression. The original `babel-plugin-module-resolver` package/repository was not supplied, so its exact integration remains unverified. CommonJS-only aliases and Node `#imports` are not claimed as strict ESM aliases.
+- [#844](https://github.com/standard-things/esm/issues/844) — Bootstrap cache faults were fixed in v1.0.3. The follow-up removes require-only AST parsing and unnecessary legacy-await wrappers, adds built-application benchmarking, and measures the available Execa dependency graph. The uploaded Log4brains 1.1.0 source has no built packages/dependency tree; its current launcher does not preload esm, so a full application startup comparison remains unverified.
+- [#810](https://github.com/standard-things/esm/issues/810) — The supplied await-only database source exposed early-return sequencing; module-goal detection is fixed. Transformed-source cache keys and stable cross-factory await tokens fix Babel output/configuration transitions. Regressions cover both module outputs, preload orders, and cold/warm caches. The original module-resolver 3.2.x runtime dependency tree is still missing, so that exact Express integration remains unverified.
 
 ### Other runtimes and execution contexts
 

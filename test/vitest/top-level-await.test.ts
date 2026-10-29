@@ -1,10 +1,25 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { describe, it, type TestContext } from "vitest"
 import { runNode, testEnvironments } from "./helpers/run-node.ts"
 
 const fixtures = {
+  // #810's database.js has no import/export: keep its original two-second
+  // await, then append observations so ordering can be checked without timing.
+  "bare-database.js": `const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+await sleep(2000)
+globalThis.__bareEvents.push('database:ready')
+`,
+  "bare-parent.js": `import './bare-database.js'
+globalThis.__bareEvents.push('parent:ready')
+export const ready = true
+`,
+  "bare-rejected.js": "await Promise.reject(globalThis.__bareFailure)\n",
+  "bare-for-await.js": `for await (const value of [Promise.resolve(20),22]) {
+  globalThis.__bareSum += value
+}
+`,
   "direct.mjs": `export let count = await Promise.resolve(40)
 export function increment() { count++ }
 export async function later() { return await Promise.resolve(8) }
@@ -154,7 +169,9 @@ await Promise.reject(globalThis.__failure)
 async function withFixtures(run: (directory: string) => Promise<void>) {
   // Keep short-lived fixtures outside workspace watchers/synchronizers, which
   // can recreate files while recursive cleanup is removing the directory.
-  const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-top-level-await-"))
+  const directory = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), "esm-sync-top-level-await-"))
+  )
 
   try {
     await Promise.all(
@@ -327,6 +344,30 @@ const ns = load('io.mjs')
 assert.match(ns.file, /export const value = 21/)
 assert.equal(ns.network, 'loopback:ok')
 console.log('io:ok')
+`
+      )
+    })
+
+    it("completes await-only .js dependencies before their importers, including loops and cached failures", async ({
+      expect
+    }) => {
+      await scenario(
+        expect,
+        "bare-await",
+        `
+globalThis.__bareEvents = []
+assert.equal(load('bare-parent.js').ready, true)
+const database = load('bare-database.js')
+assert.strictEqual(database, load('bare-database.js'))
+assert.deepEqual(globalThis.__bareEvents, ['database:ready', 'parent:ready'])
+globalThis.__bareSum = 0
+load('bare-for-await.js')
+assert.equal(globalThis.__bareSum, 42)
+const failure = globalThis.__bareFailure = new Error('bare await failed')
+for (let index = 0; index < 2; index++) {
+  assert.throws(() => load('bare-rejected.js'), received => received === failure)
+}
+console.log('bare-await:ok')
 `
       )
     })

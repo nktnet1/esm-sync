@@ -4,6 +4,7 @@ import type { VisitorOptions, ShadowedMap } from "../types/visitor.js"
 type Options = Pick<VisitorOptions, "possibleIndexes">
 import Visitor from "../visitor.js"
 
+import isBindingIdentifier from "../parse/is-binding-identifier.js"
 import isShadowed from "../parse/is-shadowed.js"
 import shared from "../shared.js"
 
@@ -12,10 +13,25 @@ function init() {
 
   class RequireVisitor extends Visitor<Options> {
     found = false
+    foundCJSExports = false
 
     reset(options?: Options) {
       this.options = options
       this.found = false
+      this.foundCJSExports = false
+    }
+
+    visitIdentifier(path: InstanceType<typeof FastPath<Extract<AstNode, { type: "Identifier" }>>>) {
+      const node = path.getValue()
+      if (node.name !== "exports" && node.name !== "module") return
+      const parent = path.getParentNode()
+      if (
+        parent !== null &&
+        isBindingIdentifier(node, parent) &&
+        !isShadowed(path, node.name, shadowedMap)
+      ) {
+        this.foundCJSExports = true
+      }
     }
 
     visitCallExpression(
