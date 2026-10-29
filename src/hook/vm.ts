@@ -62,8 +62,10 @@ const { CHECK, EVAL, FLAGS, HAS_INSPECTOR, INTERNAL, REPL } = ENV
 
 const { ERR_INVALID_ARG_TYPE } = errors
 
-function hook(vm: typeof import("node:vm")) {
+function hook(vm: typeof import("node:vm"), programmaticREPL = false) {
   let entry: Entry
+  let replEvaluationDepth = 0
+  const replEntries = new WeakMap<import("node:repl").REPLServer, Entry>()
 
   function transpile(content: string) {
     const cacheName = getCacheName(content)
@@ -134,6 +136,10 @@ function hook(vm: typeof import("node:vm")) {
     createScript: typeof vm.createScript,
     [content, scriptOptions]: [string, (string | ScriptOptions)?]
   ) {
+    if (programmaticREPL && replEvaluationDepth === 0) {
+      return Reflect.apply(createScript, this, [content, scriptOptions])
+    }
+
     const options = assign({}, typeof scriptOptions === "object" ? scriptOptions : {})
     options.produceCachedData = true
 
@@ -235,23 +241,36 @@ function hook(vm: typeof import("node:vm")) {
       REPLServer.prototype.createContext = proxyWrap(
         createContext,
         function (this: import("node:repl").REPLServer) {
-          REPLServer.prototype.createContext = createContext
+          if (!programmaticREPL) {
+            REPLServer.prototype.createContext = createContext
+          }
 
           const server = this
           const originalEval = server.eval
 
-          if (semver.gte(safeProcess.versions.node, "18.0.0")) {
+          if (
+            semver.gte(safeProcess.versions.node, "18.0.0") &&
+            (!programmaticREPL || !replEntries.has(server))
+          ) {
             ;(server as { eval: typeof originalEval }).eval = function (
               cmd,
               context,
               filename,
               callback
             ) {
+              if (programmaticREPL) {
+                entry = replEntries.get(this)!
+                replEvaluationDepth++
+              }
               try {
-                const { code } = transpile(cmd)
-                return originalEval.call(this, code, context, filename, callback)
-              } catch (_e) {
-                return originalEval.call(this, cmd, context, filename, callback)
+                try {
+                  const { code } = transpile(cmd)
+                  return originalEval.call(this, code, context, filename, callback)
+                } catch (_e) {
+                  return originalEval.call(this, cmd, context, filename, callback)
+                }
+              } finally {
+                if (programmaticREPL) replEvaluationDepth--
               }
             }
           }
@@ -308,6 +327,7 @@ function hook(vm: typeof import("node:vm")) {
           })
 
           setupEntry(mod)
+          if (programmaticREPL) replEntries.set(server, entry)
           return context
         }
       )
@@ -360,7 +380,7 @@ function hook(vm: typeof import("node:vm")) {
     setupCheck()
   } else if (EVAL) {
     setupEval()
-  } else if (REPL) {
+  } else if (REPL || programmaticREPL) {
     setupREPL()
   }
 }

@@ -38,6 +38,22 @@ for (const esmEnv of testEnvironments) {
       )
     })
 
+    it("supports static imports in a programmatically started REPL", async () => {
+      const { exitCode, stdout, stderr } = await runNode(
+        ["-r", "../index.js", "./fixture/repl-hook/driver.cjs"],
+        esmEnv,
+        {
+          ESM_OPTIONS: "{cjs:false,mode:'auto'}",
+          ESM_SYNC_REPL_CASE: "custom"
+        },
+        { cacheNamespace: "repl-hook" }
+      )
+
+      expect(exitCode, stderr).toBe(0)
+      expect(stderr).toBe("")
+      expect(stdout, stdout).toContain("ESM_SYNC_REPL_OK:custom\n")
+    })
+
     for (const [scenario, description] of scenarios) {
       it(description, async () => {
         const { exitCode, stdout, stderr } = await runNode(
