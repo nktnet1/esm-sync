@@ -1,0 +1,7 @@
+name: esm-sync CodeQL
+
+# Some fixtures intentionally contain invalid JavaScript to test parser errors.
+paths-ignore:
+  - "test/fixture/**"
+  - "test/packed/deferred.mjs"
+  - "test/output/import-meta/actual.mjs"

@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url"
 import { runNode, testPath } from "./run-node.ts"
 
 const require = createRequire(import.meta.url)
+const nycCLI = require.resolve("nyc/bin/nyc.js")
 export const coverageLoader = path.resolve(testPath, "../esm.js")
-export const nycCLI = require.resolve("nyc/bin/nyc.js")
 export const tsNodeRegister = require.resolve("ts-node/register")
 export const mochaCLI = require.resolve("mocha/bin/_mocha")
 export const proxyquirePath = require.resolve("proxyquire")

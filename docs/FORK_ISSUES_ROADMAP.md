@@ -11,45 +11,51 @@ on the two application reproductions.
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
 | Investigate                                   |      6 |
-| Documentation follow-ups                      |      4 |
-| Already covered                               |     50 |
+| Documentation follow-ups                      |      0 |
+| Already covered                               |     54 |
 | Not planned                                   |     23 |
 | **Total**                                     | **83** |
 
 ## Verified application integration
 
-- [#810 - Babel aliases and top-level await](https://github.com/standard-things/esm/issues/810): **fixed for the supported native-bridge startup path**. The physical root `esm.js`/`index.js` shims were not recognised as preloads because their metadata paths retained `dist/../`. Resolving those paths installs the same hooks as the generated entry. The unchanged original Express/Babel configuration passes checks for single database evaluation and database completion before `listen()`, followed by the expected HTTP response. Verification covers both preload orders and disabled/cold/warm caches. Timer awaits on Node 20 remain outside the native bridge's supported range and fail explicitly; this does not extend legacy timer-await support. See the [verification evidence](tooling-and-performance.md#810-babel-aliases-and-top-level-await).
+- **Babel aliases and top-level await** - [https://github.com/standard-things/esm/issues/810](https://github.com/standard-things/esm/issues/810). **Fixed for the supported native-bridge startup path**. The physical root `esm.js`/`index.js` shims were not recognised as preloads because their metadata paths retained `dist/../`. Resolving those paths installs the same hooks as the generated entry. The unchanged original Express/Babel configuration passes checks for single database evaluation and database completion before `listen()`, followed by the expected HTTP response. Verification covers both preload orders and disabled/cold/warm caches. Timer awaits on Node 20 remain outside the native bridge's supported range and fail explicitly. This does not extend legacy timer-await support. See the [verification evidence](tooling-and-performance.md#babel-aliases-and-top-level-await).
 
-- [#844 - Startup performance](https://github.com/standard-things/esm/issues/844): **resolved**. Canonical production builds verify the historical Log4brains CLI and complete preview HTTP readiness. v1.0.11 reduced repeated CommonJS stack checks and captured bytecode after initialisation; v1.0.12 reduces retained warm-cache compilation state while preserving cold compilation and bytecode capture. See the [release measurements](tooling-and-performance.md#lower-startup-memory-v1012).
+- **Startup performance** - [https://github.com/standard-things/esm/issues/844](https://github.com/standard-things/esm/issues/844). **Resolved**. Canonical production builds verify the historical Log4brains CLI and complete preview HTTP readiness. v1.0.11 reduced repeated CommonJS stack checks and captured bytecode after initialisation. v1.0.12 reduces retained warm-cache compilation state while preserving cold compilation and bytecode capture. See the [release measurements](tooling-and-performance.md#lower-startup-memory-v1012).
 
 ## Active investigations
 
 ### Host-specific reports needing a reproduction or scope decision
 
-- [#915](https://github.com/standard-things/esm/issues/915): VS Code extension-host ESM loading.
-- [#867](https://github.com/standard-things/esm/issues/867): Electron renderer module loading.
-- [#817](https://github.com/standard-things/esm/issues/817): Electron dynamic imports versus native-addon failures.
-- [#691](https://github.com/standard-things/esm/issues/691): Electron renderer error stacks.
-- [#854](https://github.com/standard-things/esm/issues/854): Custom REPL import hooks.
-- [#886](https://github.com/standard-things/esm/issues/886): `vm.runInThisContext` is script-goal; module loading there would be a separate feature.
+- VS Code extension-host ESM loading. Upstream report: [https://github.com/standard-things/esm/issues/915](https://github.com/standard-things/esm/issues/915).
+- Electron renderer module loading. Upstream report: [https://github.com/standard-things/esm/issues/867](https://github.com/standard-things/esm/issues/867).
+- Electron dynamic imports versus native-addon failures. Upstream report: [https://github.com/standard-things/esm/issues/817](https://github.com/standard-things/esm/issues/817).
+- Electron renderer error stacks. Upstream report: [https://github.com/standard-things/esm/issues/691](https://github.com/standard-things/esm/issues/691).
+- Custom REPL import hooks. Upstream report: [https://github.com/standard-things/esm/issues/854](https://github.com/standard-things/esm/issues/854).
+- `vm.runInThisContext` is script-goal. Module loading there would be a separate feature. Upstream report: [https://github.com/standard-things/esm/issues/886](https://github.com/standard-things/esm/issues/886).
 
-## Documentation follow-ups
+## Completed documentation follow-ups
 
-- [#885](https://github.com/standard-things/esm/issues/885): Explain `cjs.dedefault` with an example.
-- [#873](https://github.com/standard-things/esm/issues/873): Document Mocha preloads versus a setup-file loader factory.
-- [#865](https://github.com/standard-things/esm/issues/865): Explain global-reference rewriting for contributors.
-- [#838](https://github.com/standard-things/esm/issues/838): Provide native Node ESM migration guidance.
+All four reports now have documentation coverage in this fork. The examples
+were checked against the release runtime, Mocha 8.4.0, and native Node ESM.
+This records local completion rather than changes to the upstream issue tracker.
+
+| Report                                                                                                 | Documentation                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| [https://github.com/standard-things/esm/issues/885](https://github.com/standard-things/esm/issues/885) | [`cjs.dedefault`: examples and export-shape boundaries](interop-and-migration.md#commonjs-default-export-unwrapping)           |
+| [https://github.com/standard-things/esm/issues/873](https://github.com/standard-things/esm/issues/873) | [Mocha preloads and configured factory entry points](interop-and-migration.md#mocha-preloads-and-factory-entry-points)         |
+| [https://github.com/standard-things/esm/issues/865](https://github.com/standard-things/esm/issues/865) | [Contributor guide to global-reference rewriting](MAINTAINER_GUIDE.md#global-reference-rewriting)                              |
+| [https://github.com/standard-things/esm/issues/838](https://github.com/standard-things/esm/issues/838) | [Native Node ESM migration and asynchronous startup](interop-and-migration.md#migrating-a-consumer-project-to-native-node-esm) |
 
 ## Triaged, not currently actionable
 
-The following **50** reports are classified _already covered_ by an existing
+The following **54** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
 931, 926, 924, 922, 921, 918, 916, 914, 913, 910, 909, 904, 900, 898, 897,
-896, 888, 887, 880, 879, 876, 875, 874, 872, 868, 866, 864, 863, 855, 852,
-846, 844, 843, 841, 839, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
+896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 866, 865, 864, 863, 855, 852,
+846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706.
 
 The following **23** reports are _not planned_: they concern external tooling,
