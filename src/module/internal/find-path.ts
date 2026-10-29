@@ -19,9 +19,12 @@ import isAbsolute from "../../path/is-absolute.js"
 import isExtJS from "../../path/is-ext-js.js"
 import isExtMJS from "../../path/is-ext-mjs.js"
 import isSep from "../../path/is-sep.js"
+import isRelative from "../../path/is-relative.js"
 import keys from "../../util/keys.js"
 import readPackage from "./read-package.js"
-import resolveExports from "./resolve-exports.js"
+import { resolvePackageExports } from "./package-exports.js"
+import type { ExportsMode } from "./resolve-exports.js"
+import decodeURIComponent from "../../util/decode-uri-component.js"
 import realpath from "../../fs/realpath.js"
 import shared from "../../shared.js"
 import statFast from "../../fs/stat-fast.js"
@@ -48,11 +51,13 @@ function findPath(
   paths: string[],
   isMain: boolean = false,
   fields: string[] | undefined = void 0,
-  exts: string[] | undefined = void 0
+  exts: string[] | undefined = void 0,
+  mode: ExportsMode = "require"
 ) {
   const pathsLength = paths.length
 
-  let cacheKey = request + "\0" + (pathsLength === 1 ? paths[0] : GenericArray.join(paths)) + "\0"
+  let cacheKey =
+    mode + "\0" + request + "\0" + (pathsLength === 1 ? paths[0] : GenericArray.join(paths)) + "\0"
 
   if (fields !== void 0) {
     cacheKey += fields.length === 1 ? fields[0] : fields.join()
@@ -117,6 +122,16 @@ function findPath(
       continue
     }
 
+    // Export maps are authoritative even when an unexported file, main field,
+    // or directory index happens to exist at the legacy lookup location.
+    if (!isAbs) {
+      const exported = resolvePackageExports(request, curPath, mode, isMain)
+      if (exported !== undefined) {
+        cache.set(cacheKey, exported)
+        return exported
+      }
+    }
+
     let thePath = curPath
 
     if (useRealpath) {
@@ -132,7 +147,10 @@ function findPath(
         thePath += sep + request
       }
     } else {
-      thePath = resolve(thePath, request)
+      thePath = resolve(
+        thePath,
+        mode === "import" && !isRelative(request) ? decodeURIComponent(request) : request
+      )
     }
 
     let rc = -1
@@ -273,17 +291,6 @@ function tryPackage(
     foundPath = tryField(dirPath, fieldValue, exts, isMain)
 
     if (foundPath !== "" && (field === "main" || !isExtMJS(foundPath))) {
-      return foundPath
-    }
-  }
-
-  // ! This is a very simplified implementation of finding the correct
-  // ! CJS entry point. It does not support the `exports` field full
-  // ! functionality; added to address JSDOM issue
-  // ! https://github.com/wallabyjs/quokka/issues/928
-  if (json.exports) {
-    foundPath = resolveExports(json.exports, dirPath, request.substring(dirPath.length + 1))
-    if (foundPath !== "" && !isExtMJS(foundPath)) {
       return foundPath
     }
   }

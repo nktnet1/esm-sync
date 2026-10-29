@@ -16,6 +16,7 @@ import builtinLookup from "../../builtin-lookup.js"
 import bundledLookup from "../../bundled-lookup.js"
 import { dirname } from "../../safe/path.js"
 import errors from "../../errors.js"
+import { resolveSelfExports } from "../internal/package-exports.js"
 import isAbsolute from "../../path/is-absolute.js"
 import isObject from "../../util/is-object.js"
 import isRelative from "../../path/is-relative.js"
@@ -105,7 +106,9 @@ const resolveFilename = maskFunction(function (
     paths = Module._resolveLookupPaths(request, parent, true)
   }
 
-  let foundPath = Module._findPath(request, paths ?? [], isMain)
+  let foundPath: string | false =
+    (!isPath && resolveSelfExports(request, fromPath!, "require", isMain)) ||
+    Module._findPath(request, paths ?? [], isMain)
 
   if (foundPath === false) {
     foundPath = ""

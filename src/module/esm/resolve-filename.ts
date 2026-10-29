@@ -17,6 +17,8 @@ import decodeURIComponent from "../../util/decode-uri-component.js"
 import emptyArray from "../../util/empty-array.js"
 import errors from "../../errors.js"
 import findPath from "../internal/find-path.js"
+import { resolveSelfExports, isPackageExportsError } from "../internal/package-exports.js"
+import type { ExportsMode } from "../internal/resolve-exports.js"
 import getFilePathFromURL from "../../util/get-file-path-from-url.js"
 import hasEncodedSep from "../../path/has-encoded-sep.js"
 import isAbsolute from "../../path/is-absolute.js"
@@ -47,7 +49,7 @@ const {
 const localhostRegExp = /^\/\/localhost\b/
 const queryHashRegExp = /[?#]/
 
-const strictExts = [".mjs", ".js", ".json", ".node"]
+const strictExts = [".mjs", ".js", ".cjs", ".json", ".node"]
 const strictFields = ["main"]
 const strictExtsLookup = new Set(strictExts)
 
@@ -56,7 +58,8 @@ function resolveFilename(
   parent: ModuleRecord | null | undefined,
   isMain: boolean = false,
   options: { paths?: string[] } | undefined = void 0,
-  allowUnknownExtension = false
+  allowUnknownExtension = false,
+  mode: ExportsMode = "import"
 ) {
   if (request.startsWith("node:")) {
     request = request.substr(5)
@@ -109,7 +112,9 @@ function resolveFilename(
       "\0" +
       (isMain ? "1" : "") +
       "\0" +
-      (allowUnknownExtension ? "1" : "0")
+      (allowUnknownExtension ? "1" : "0") +
+      "\0" +
+      mode
 
     const cached = cache.get(cacheKey)
 
@@ -146,7 +151,16 @@ function resolveFilename(
     }
 
     if (foundPath !== "") {
-      foundPath = _resolveFilename(foundPath, parent, isMain, options, emptyArray, emptyArray, true)
+      foundPath = _resolveFilename(
+        foundPath,
+        parent,
+        isMain,
+        options,
+        emptyArray,
+        emptyArray,
+        true,
+        mode
+      )
     }
   } else if (isPath) {
     const suffixIndex = request.search(queryHashRegExp)
@@ -162,19 +176,20 @@ function resolveFilename(
       }
 
       pathname = decodeURIComponent(pathname)
-      foundPath = findPath(pathname, paths, isMain, fields, exts)
+      foundPath = findPath(pathname, paths, isMain, fields, exts, mode)
     }
   } else if (!hasEncodedSep(request)) {
-    const decoded = decodeURIComponent(request)
-
     // Prevent resolving non-local dependencies:
     // https://github.com/nodejs/node-eps/blob/master/002-es-modules.md#432-removal-of-non-local-dependencies
     const skipGlobalPaths = !cjsPaths
 
     const exts: string[] | undefined = cjsPaths ? void 0 : strictExts
 
-    foundPath = _resolveFilename(decoded, parent, isMain, options, fields, exts, skipGlobalPaths)
+    foundPath =
+      resolveSelfExports(request, fromPath!, mode, isMain) ??
+      _resolveFilename(request, parent, isMain, options, fields, exts, skipGlobalPaths, mode)
 
+    const decoded = decodeURIComponent(request)
     if (foundPath === "" && builtinLookup.has(decoded)) {
       if (cache !== void 0) {
         cache.set(cacheKey!, decoded)
@@ -239,7 +254,8 @@ function _resolveFilename(
   options: { paths?: string[] } | undefined = void 0,
   fields: string[] | undefined = void 0,
   exts: string[] | undefined = void 0,
-  skipGlobalPaths: boolean = false
+  skipGlobalPaths: boolean = false,
+  mode: ExportsMode = "import"
 ) {
   let paths: string[] | null
 
@@ -253,7 +269,7 @@ function _resolveFilename(
     }
   }
 
-  return findPath(request, paths, isMain, fields, exts)
+  return findPath(request, paths, isMain, fields, exts, mode)
 }
 
 function maybeMaskStackTrace(error: unknown, parentEntry: Entry | null) {
@@ -311,7 +327,9 @@ function tryLegacyResolveFilename(
 ) {
   try {
     return Module._resolveFilename(request, parent, isMain, options)
-  } catch {}
+  } catch (error) {
+    if (isPackageExportsError(error)) throw error
+  }
 
   return ""
 }

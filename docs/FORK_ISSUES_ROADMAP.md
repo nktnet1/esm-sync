@@ -4,19 +4,16 @@ A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues
 
 | Status                |  Count |
 | --------------------- | -----: |
-| Fix confirmed bugs    |      5 |
+| Fix confirmed bugs    |      3 |
 | Investigate           |     19 |
 | Improve documentation |      4 |
-| Already covered       |     32 |
+| Already covered       |     34 |
 | Not planned           |     23 |
 | **Total**             | **83** |
 
 ## Fix next
 
-### High priority: crashes and incorrect module behaviour
-
-- [#924](https://github.com/standard-things/esm/issues/924) — Package `exports` support needs correct `import`/`require` conditions and `.cjs` targets.
-- [#863](https://github.com/standard-things/esm/issues/863) — Package `exports` maps must block access to unexported subpaths. Address alongside #924.
+The high-priority crash and module-behaviour fixes are complete.
 
 ### Next: observable compatibility bugs
 
@@ -71,6 +68,7 @@ These have an existing fix, supported behaviour, or an explanation that requires
 
 - [#931](https://github.com/standard-things/esm/issues/931) — Modern Node filesystem-internal changes are handled; basic loader checks pass.
 - [#926](https://github.com/standard-things/esm/issues/926) — Optional chaining works alongside `eval` text.
+- [#924](https://github.com/standard-things/esm/issues/924) — Package exports take precedence over legacy entry points, select conditions in declaration order, and support `.cjs` targets. The reported `remotion/version` require and broader import/require, cache, and validation cases have regression coverage.
 - [#922](https://github.com/standard-things/esm/issues/922) — Synchronous CommonJS-to-ESM loading is supported through the loader factory.
 - [#921](https://github.com/standard-things/esm/issues/921) — The syntax failure is covered; imports normally evaluate top-level code.
 - [#918](https://github.com/standard-things/esm/issues/918) — Optional chaining is supported.
@@ -92,6 +90,7 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#868](https://github.com/standard-things/esm/issues/868) — Loading `"type": "module"` packages from CommonJS works.
 - [#866](https://github.com/standard-things/esm/issues/866) — Optional chaining is supported.
 - [#864](https://github.com/standard-things/esm/issues/864) — Migration options and module boundaries are supported.
+- [#863](https://github.com/standard-things/esm/issues/863) — Legacy folder maps support root and nested exports, while null and unexported subpaths remain blocked. The reported `"./": "./dist/"` mapping has a dedicated upstream regression; modern patterns and boundary checks have separate coverage.
 - [#855](https://github.com/standard-things/esm/issues/855) — The earlier `"type": "module"` warning is not reproduced.
 - [#846](https://github.com/standard-things/esm/issues/846) — Module binding discovery follows `var` through nested statements without crossing function or class boundaries. The reported export and broader hoisting, destructuring, scope, and live-binding cases have regression coverage.
 - [#843](https://github.com/standard-things/esm/issues/843) — Invalid zero-width tokens report a syntax error instead of resuming tokenization; the original source and broader tokenizer cases have regression coverage.

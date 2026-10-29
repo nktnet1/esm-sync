@@ -86,6 +86,12 @@ function init() {
     | "ERR_INVALID_ARG_TYPE"
     | "ERR_INVALID_ARG_VALUE"
     | "ERR_INVALID_PROTOCOL"
+    | "ERR_INVALID_PACKAGE_CONFIG"
+    | "ERR_INVALID_PACKAGE_TARGET"
+    | "ERR_INVALID_MODULE_SPECIFIER"
+    | "ERR_PACKAGE_PATH_NOT_EXPORTED"
+    | "ERR_MODULE_NOT_FOUND"
+    | "ERR_UNSUPPORTED_DIR_IMPORT"
     | "ERR_MODULE_RESOLUTION_LEGACY"
     | "ERR_REQUIRE_ESM"
     | "ERR_UNKNOWN_FILE_EXTENSION",
@@ -109,6 +115,44 @@ function init() {
   addNodeError("ERR_INVALID_ARG_TYPE", invalidArgType, ExTypeError)
   addNodeError("ERR_INVALID_ARG_VALUE", invalidArgValue, ExError)
   addNodeError("ERR_INVALID_PROTOCOL", invalidProtocol, ExError)
+  addNodeError(
+    "ERR_INVALID_PACKAGE_CONFIG",
+    (filename, reason) => "Invalid package config " + filename + ": " + reason,
+    ExError
+  )
+  addNodeError(
+    "ERR_INVALID_PACKAGE_TARGET",
+    (filename, key, target) =>
+      "Invalid package target " +
+      inspectTrunc(target) +
+      " for " +
+      toStringLiteral(key) +
+      " in " +
+      filename,
+    ExError
+  )
+  addNodeError(
+    "ERR_INVALID_MODULE_SPECIFIER",
+    (request, reason, filename) =>
+      "Invalid module " + toStringLiteral(request) + " " + reason + " in " + filename,
+    ExTypeError
+  )
+  addNodeError(
+    "ERR_PACKAGE_PATH_NOT_EXPORTED",
+    (filename, key) =>
+      "Package subpath " + toStringLiteral(key) + ' is not defined by "exports" in ' + filename,
+    ExError
+  )
+  addNodeError(
+    "ERR_MODULE_NOT_FOUND",
+    (filename) => "Cannot find module " + toStringLiteral(filename),
+    ExError
+  )
+  addNodeError(
+    "ERR_UNSUPPORTED_DIR_IMPORT",
+    (filename) => "Directory import " + toStringLiteral(filename) + " is not supported",
+    ExError
+  )
   addNodeError("ERR_MODULE_RESOLUTION_LEGACY", moduleResolutionLegacy, ExError)
   addNodeError("ERR_REQUIRE_ESM", requireESM, ExError)
   addNodeError("ERR_UNKNOWN_FILE_EXTENSION", unknownFileExtension, ExError)

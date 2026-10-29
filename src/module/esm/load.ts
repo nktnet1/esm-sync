@@ -11,6 +11,7 @@ import _load from "../internal/load.js"
 import builtinLookup from "../../builtin-lookup.js"
 import { dirname } from "../../safe/path.js"
 import dualResolveFilename from "../internal/dual-resolve-filename.js"
+import type { ExportsMode } from "../internal/resolve-exports.js"
 import getURLFromFilePath from "../../util/get-url-from-file-path.js"
 import getURLQueryFragment from "../../util/get-url-query-fragment.js"
 import has from "../../util/has.js"
@@ -29,7 +30,8 @@ function load(
   parent: ModuleRecord | null | undefined,
   isMain: boolean = false,
   preload: ((entry: Entry) => void) | undefined = void 0,
-  deferErrored = false
+  deferErrored = false,
+  mode: ExportsMode = "import"
 ) {
   const { parsing } = shared.moduleState
   const parentEntry = Entry.get(parent)
@@ -40,9 +42,9 @@ function load(
   let filename: string
 
   if (parentEntry !== null && parentCJS!.paths && !parentIsMJS) {
-    filename = dualResolveFilename(request, parent, isMain)
+    filename = dualResolveFilename(request, parent, isMain, void 0, false, mode)
   } else {
-    filename = resolveFilename(request, parent, isMain)
+    filename = resolveFilename(request, parent, isMain, void 0, false, mode)
   }
 
   const fromPath = dirname(filename)

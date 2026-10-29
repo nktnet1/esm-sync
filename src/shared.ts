@@ -74,6 +74,7 @@ function init(): SharedState {
       moduleESMResolveFilename: new Map(),
       moduleInternalFindPath: new Map(),
       moduleInternalReadPackage: new Map(),
+      modulePackageExportsErrors: new WeakSet(),
       moduleStaticResolveFilename: new Map(),
       shimFunctionPrototypeToString: new WeakMap(),
       shimProcessBindingUtilGetProxyDetails: new Map(),

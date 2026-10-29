@@ -36,7 +36,7 @@ describe("literal package export patterns", () => {
     ).toBe(path.join(packagePath, "dist/leaf/leaf.cjs"))
   })
 
-  it("substitutes before checking array fallback files", async () => {
+  it("does not skip a valid array target merely because its file is missing", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "esm-sync-export-patterns-"))
     directories.push(directory)
     await mkdir(path.join(directory, "dist/leaf"), { recursive: true })
@@ -48,6 +48,13 @@ describe("literal package export patterns", () => {
         directory,
         "feature/leaf.js"
       )
+    ).toBe(path.join(directory, "missing/leaf/leaf.cjs"))
+    expect(
+      resolveExports(
+        { "./feature/*.js": ["invalid", { require: "./dist/*/*.cjs" }] },
+        directory,
+        "feature/leaf.js"
+      )
     ).toBe(filename)
   })
 
@@ -56,7 +63,9 @@ describe("literal package export patterns", () => {
     expect(resolveExports(exports, packagePath, "feature/leaf")).toBe(
       path.join(packagePath, "exact.cjs")
     )
-    expect(resolveExports({ "./feature": "./exact.cjs" }, packagePath, "feature-extra")).toBe("")
+    expect(() =>
+      resolveExports({ "./feature": "./exact.cjs" }, packagePath, "feature-extra")
+    ).toThrow(expect.objectContaining({ code: "ERR_PACKAGE_PATH_NOT_EXPORTED" }))
   })
 
   it("rejects nonmatching, overlapping, and multiple-wildcard keys", () => {
@@ -66,10 +75,12 @@ describe("literal package export patterns", () => {
       ["./ab*bc", "abc"],
       ["./feature/**", "feature/leaf"]
     ] as const)
-      expect(resolveExports({ [key]: "./dist/*.cjs" }, packagePath, subpath)).toBe("")
+      expect(() => resolveExports({ [key]: "./dist/*.cjs" }, packagePath, subpath)).toThrow(
+        expect.objectContaining({ code: "ERR_PACKAGE_PATH_NOT_EXPORTED" })
+      )
   })
 
-  it("preserves unconditional targets and CommonJS condition priority", () => {
+  it("preserves unconditional targets and condition insertion order", () => {
     expect(resolveExports("./literal*.cjs", packagePath, "")).toBe(
       path.join(packagePath, "literal*.cjs")
     )
@@ -80,6 +91,39 @@ describe("literal package export patterns", () => {
         ""
       )
     ).toBe(path.join(packagePath, "require.cjs"))
+    expect(resolveExports({ node: "./node.cjs", require: "./require.cjs" }, packagePath, "")).toBe(
+      path.join(packagePath, "node.cjs")
+    )
+    expect(
+      resolveExports(
+        { require: "./require.cjs", import: "./import.mjs" },
+        packagePath,
+        "",
+        "import"
+      )
+    ).toBe(path.join(packagePath, "import.mjs"))
+  })
+
+  it("uses the most specific pattern regardless of declaration order", () => {
+    for (const exports of [
+      { "./*": "./wrong.cjs", "./feature/*": "./also-wrong.cjs", "./feature/*.js": "./dist/*.cjs" },
+      { "./feature/*.js": "./dist/*.cjs", "./feature/*": "./also-wrong.cjs", "./*": "./wrong.cjs" }
+    ])
+      expect(resolveExports(exports, packagePath, "feature/leaf.js")).toBe(
+        path.join(packagePath, "dist/leaf.cjs")
+      )
+  })
+
+  it("keeps exact and null entries authoritative over folder and pattern mappings", () => {
+    expect(
+      resolveExports({ "./": "./dist/", "./public.js": "./exact.cjs" }, packagePath, "public.js")
+    ).toBe(path.join(packagePath, "exact.cjs"))
+    expect(() =>
+      resolveExports({ "./": "./dist/", "./private/": null }, packagePath, "private/secret.js")
+    ).toThrow(expect.objectContaining({ code: "ERR_PACKAGE_PATH_NOT_EXPORTED" }))
+    expect(() =>
+      resolveExports({ "./folder/": "./not-a-folder.cjs" }, packagePath, "folder/leaf.js")
+    ).toThrow(expect.objectContaining({ code: "ERR_INVALID_PACKAGE_TARGET" }))
   })
 })
 

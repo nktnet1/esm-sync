@@ -28,7 +28,7 @@ function parseLoad(
   moduleState.requireDepth += 1
   try {
     moduleState.parsing = true
-    let entry = load(request, parent, isMain)
+    let entry = load(request, parent, isMain, void 0, false, "require")
     moduleState.parsing = false
 
     // A public esmRequire performs a linking lookup first. That lookup must
@@ -60,7 +60,7 @@ function parseLoad(
       }
 
       if (!linkOnly) {
-        entry = load(request, parent, isMain)
+        entry = load(request, parent, isMain, void 0, false, "require")
       }
     }
     return entry

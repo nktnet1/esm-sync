@@ -146,6 +146,7 @@ export interface SharedState {
     moduleESMResolveFilename: Map<string, string>
     moduleInternalFindPath: Map<string, string>
     moduleInternalReadPackage: Map<string, Record<string, unknown> | null>
+    modulePackageExportsErrors: WeakSet<object>
     moduleStaticResolveFilename: Map<string, string>
     shimFunctionPrototypeToString: WeakMap<object, boolean>
     shimProcessBindingUtilGetProxyDetails: Map<unknown, boolean>
