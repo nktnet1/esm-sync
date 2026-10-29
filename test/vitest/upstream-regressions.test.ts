@@ -4,10 +4,17 @@ import path from "node:path"
 import { pathToFileURL } from "node:url"
 import { describe, it, type TestContext } from "vitest"
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
-import { runCoverage, tsNodeRegister, mochaCLI, proxyquirePath } from "./helpers/coverage.ts"
+import {
+  coverageFor,
+  runCoverage,
+  tsNodeRegister,
+  mochaCLI,
+  proxyquirePath
+} from "./helpers/coverage.ts"
 
 const loaderOptions = { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }
 const loaderPath = path.resolve(testPath, "../esm.js")
+const coverageTestTimeout = 180_000
 
 async function withFiles(
   files: Record<string, string>,
@@ -41,84 +48,96 @@ function checkSuccess(
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
     // https://github.com/standard-things/esm/issues/910
-    it("collects real NYC counters after an ordinary run has warmed the compiler cache", async (context) => {
-      const expect: TestContext["expect"] = context.expect
-      await withFiles(
-        {
-          "math.js":
-            "export function covered() { return 42 }\nexport function unused() { return 0 }\n",
-          "index.js": "import { covered } from './math.js'; console.log(covered())\n"
-        },
-        async (directory) => {
-          const options = { ESM_OPTIONS: "{cjs:true,mode:'auto',cache:'./esm-cache'}" }
-          checkSuccess(
-            expect,
-            await runNode(["-r", loaderPath, "index.js"], esmEnv, options, { cwd: directory }),
-            "42"
-          )
-          const result = await runCoverage(directory, esmEnv)
-          expect(result.exitCode, result.stderr).toBe(0)
-          const file = result.coverage[await realpath(path.join(directory, "math.js"))]
-          expect.assert(file, "NYC must see the source instead of reusing uninstrumented output")
-          expect(Object.values(file.f).sort()).toStrictEqual([0, 1])
-        }
-      )
-    })
+    it(
+      "collects real NYC counters after an ordinary run has warmed the compiler cache",
+      async (context) => {
+        const expect: TestContext["expect"] = context.expect
+        await withFiles(
+          {
+            "math.js":
+              "export function covered() { return 42 }\nexport function unused() { return 0 }\n",
+            "index.js": "import { covered } from './math.js'; console.log(covered())\n"
+          },
+          async (directory) => {
+            const options = { ESM_OPTIONS: "{cjs:true,mode:'auto',cache:'./esm-cache'}" }
+            checkSuccess(
+              expect,
+              await runNode(["-r", loaderPath, "index.js"], esmEnv, options, { cwd: directory }),
+              "42"
+            )
+            const result = await runCoverage(directory, esmEnv)
+            expect(result.exitCode, result.stderr).toBe(0)
+            const file = await coverageFor(result.coverage, path.join(directory, "math.js"))
+            expect.assert(file, "NYC must see the source instead of reusing uninstrumented output")
+            expect(Object.values(file.f).sort()).toStrictEqual([0, 1])
+          }
+        )
+      },
+      coverageTestTimeout
+    )
 
     // https://github.com/standard-things/esm/issues/852
-    it("calls the exported calc function through NYC, Mocha, ts-node, and the loader", async (context) => {
-      const expect: TestContext["expect"] = context.expect
-      await withFiles(
-        {
-          "calc.ts": "export const calc = (a: number, b: number): number => a + b\n",
-          "calc.test.ts":
-            "import { strictEqual } from 'node:assert'\nimport { calc } from './calc'\ndescribe('calc', () => it('adds', () => strictEqual(calc(1, 2), 3)))\n"
-        },
-        async (directory) => {
-          const result = await runCoverage(directory, esmEnv, {
-            entry: mochaCLI,
-            include: "calc.ts",
-            preloads: [tsNodeRegister, loaderPath],
-            args: ["--reporter=dot", "calc.test.ts"],
-            env: {
-              TS_NODE_SKIP_PROJECT: "true",
-              TS_NODE_TRANSPILE_ONLY: "true",
-              TS_NODE_COMPILER_OPTIONS: JSON.stringify({
-                module: "ESNext",
-                moduleResolution: "Bundler",
-                target: "ES2022"
-              })
-            }
-          })
-          expect(result.exitCode, result.stderr || result.stdout).toBe(0)
-          const file = result.coverage[await realpath(path.join(directory, "calc.ts"))]
-          expect.assert(file)
-          expect(Object.values(file.f)).toStrictEqual([1])
-        }
-      )
-    })
+    it(
+      "calls the exported calc function through NYC, Mocha, ts-node, and the loader",
+      async (context) => {
+        const expect: TestContext["expect"] = context.expect
+        await withFiles(
+          {
+            "calc.ts": "export const calc = (a: number, b: number): number => a + b\n",
+            "calc.test.ts":
+              "import { strictEqual } from 'node:assert'\nimport { calc } from './calc'\ndescribe('calc', () => it('adds', () => strictEqual(calc(1, 2), 3)))\n"
+          },
+          async (directory) => {
+            const result = await runCoverage(directory, esmEnv, {
+              entry: mochaCLI,
+              include: "calc.ts",
+              preloads: [tsNodeRegister, loaderPath],
+              args: ["--reporter=dot", "calc.test.ts"],
+              env: {
+                TS_NODE_SKIP_PROJECT: "true",
+                TS_NODE_TRANSPILE_ONLY: "true",
+                TS_NODE_COMPILER_OPTIONS: JSON.stringify({
+                  module: "ESNext",
+                  moduleResolution: "Bundler",
+                  target: "ES2022"
+                })
+              }
+            })
+            expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+            const file = await coverageFor(result.coverage, path.join(directory, "calc.ts"))
+            expect.assert(file)
+            expect(Object.values(file.f)).toStrictEqual([1])
+          }
+        )
+      },
+      coverageTestTimeout
+    )
 
     // https://github.com/standard-things/esm/issues/839
-    it("starts and instruments the .mjs entry supplied to nyc --require esm", async (context) => {
-      const expect: TestContext["expect"] = context.expect
-      await withFiles(
-        {
-          "ok.mjs":
-            "import { strictEqual } from 'node:assert'; strictEqual(1 + 1, 2); console.log('ok')\n"
-        },
-        async (directory) => {
-          const result = await runCoverage(directory, esmEnv, {
-            entry: "ok.mjs",
-            include: "ok.mjs"
-          })
-          expect(result.exitCode, result.stderr).toBe(0)
-          expect(result.stdout).toBe("ok\n")
-          const file = result.coverage[await realpath(path.join(directory, "ok.mjs"))]
-          expect.assert(file)
-          expect(Object.values(file.s).some((count) => count > 0)).toBe(true)
-        }
-      )
-    })
+    it(
+      "starts and instruments the .mjs entry supplied to nyc --require esm",
+      async (context) => {
+        const expect: TestContext["expect"] = context.expect
+        await withFiles(
+          {
+            "ok.mjs":
+              "import { strictEqual } from 'node:assert'; strictEqual(1 + 1, 2); console.log('ok')\n"
+          },
+          async (directory) => {
+            const result = await runCoverage(directory, esmEnv, {
+              entry: "ok.mjs",
+              include: "ok.mjs"
+            })
+            expect(result.exitCode, result.stderr).toBe(0)
+            expect(result.stdout).toBe("ok\n")
+            const file = await coverageFor(result.coverage, path.join(directory, "ok.mjs"))
+            expect.assert(file)
+            expect(Object.values(file.s).some((count) => count > 0)).toBe(true)
+          }
+        )
+      },
+      coverageTestTimeout
+    )
 
     // https://github.com/standard-things/esm/issues/805
     it("lets a later C mock replace the parsed B-to-C re-export after an A-to-B mock", async ({

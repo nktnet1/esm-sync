@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { runNode, testPath } from "./run-node.ts"
 
 const require = createRequire(import.meta.url)
@@ -21,6 +22,32 @@ export interface FileCoverage {
   b: Record<string, number[]>
   statementMap: Record<string, { start: { line: number } }>
   s: Record<string, number>
+}
+
+// Istanbul source-map remapping may spell the same file with forward slashes,
+// a different drive-letter case, or a file URL on Windows. Compare actual
+// filesystem identities, not JSON object keys; never accept a non-existent
+// source or coverage belonging to a different file.
+export async function coverageFor(
+  coverage: Record<string, FileCoverage>,
+  filename: string
+): Promise<FileCoverage> {
+  const expected = await realpath(filename)
+  for (const [reportedPath, file] of Object.entries(coverage)) {
+    let candidate: string
+    try {
+      candidate = reportedPath.startsWith("file:")
+        ? fileURLToPath(reportedPath)
+        : path.resolve(path.dirname(expected), reportedPath)
+    } catch {
+      continue
+    }
+    const actual = await realpath(candidate).catch(() => undefined)
+    if (actual === expected) return file
+  }
+  throw new Error(
+    `NYC did not report coverage for ${expected}; reported paths: ${JSON.stringify(Object.keys(coverage))}`
+  )
 }
 
 export async function withCompatibilityFiles(
@@ -79,7 +106,7 @@ export async function runCoverage(
     ],
     esmEnv,
     { ESM_OPTIONS: "{cjs:true,mode:'auto',cache:'./esm-cache'}", ...env },
-    { cwd: directory }
+    { cwd: directory, timeout: 90_000 }
   )
   let coverage: Record<string, FileCoverage> = {}
   try {
