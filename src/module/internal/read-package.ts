@@ -26,6 +26,7 @@ function init() {
     const jsonContent = readFile(jsonPath, "utf8")
 
     if (jsonContent === null || jsonContent === "") {
+      cache.set(cacheKey, null)
       return null
     }
 

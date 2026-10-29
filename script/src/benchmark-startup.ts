@@ -13,12 +13,18 @@ interface Timings {
 }
 
 const root = path.resolve(path.dirname(realpathSync(process.argv[1]!)), "../..")
-const loader = path.join(root, "dist/esm.js")
-const moduleCount = 16
+const defaultLoader = path.join(root, "dist/esm.js")
 
-function parseArguments(args: string[]): { iterations: number; json: boolean } {
+function parseArguments(args: string[]): {
+  iterations: number
+  json: boolean
+  moduleCount: number
+  loader: string
+} {
   let iterations = 5
   let json = false
+  let moduleCount = 16
+  let loader = defaultLoader
   for (const arg of args) {
     if (arg === "--json") {
       json = true
@@ -28,14 +34,21 @@ function parseArguments(args: string[]): { iterations: number; json: boolean } {
         throw new Error("--iterations must be an integer between 1 and 100")
       }
       iterations = value
+    } else if (arg.startsWith("--modules=")) {
+      moduleCount = Number(arg.slice("--modules=".length))
+      if (!Number.isInteger(moduleCount) || moduleCount < 1 || moduleCount > 1000) {
+        throw new Error("--modules must be an integer between 1 and 1000")
+      }
+    } else if (arg.startsWith("--loader=")) {
+      loader = realpathSync(path.resolve(arg.slice("--loader=".length)))
     } else {
       throw new Error(`Unknown argument: ${arg}`)
     }
   }
-  return { iterations, json }
+  return { iterations, json, moduleCount, loader }
 }
 
-function generateFixture(directory: string): void {
+function generateFixture(directory: string, moduleCount: number): void {
   for (const [kind, extension] of [
     ["native", "mjs"],
     ["loader", "js"]
@@ -56,7 +69,13 @@ function generateFixture(directory: string): void {
   }
 }
 
-function run(directory: string, kind: "native" | "loader", cache: string): number {
+function run(
+  directory: string,
+  kind: "native" | "loader",
+  cache: string,
+  loader: string,
+  moduleCount: number
+): number {
   const loaderMode = kind === "loader"
   const cwd = path.join(directory, kind)
   const args = loaderMode ? ["-r", loader, "index.js"] : ["index.mjs"]
@@ -100,20 +119,20 @@ function summarise(samples: number[]): Timings {
 }
 
 function main(): void {
-  const { iterations, json } = parseArguments(process.argv.slice(2))
+  const { iterations, json, moduleCount, loader } = parseArguments(process.argv.slice(2))
   if (!existsSync(loader)) throw new Error("Build esm-sync before running the benchmark")
 
   const directory = realpathSync(mkdtempSync(path.join(os.tmpdir(), "esm-sync-startup-")))
   const cache = path.join(directory, "esm-cache")
   const samples = { native: [] as number[], esmCold: [] as number[], esmWarm: [] as number[] }
   try {
-    generateFixture(directory)
+    generateFixture(directory, moduleCount)
     for (let index = 0; index < iterations; index++) {
-      samples.native.push(run(directory, "native", cache))
+      samples.native.push(run(directory, "native", cache, loader, moduleCount))
       rmSync(cache, { recursive: true, force: true })
-      samples.esmCold.push(run(directory, "loader", cache))
+      samples.esmCold.push(run(directory, "loader", cache, loader, moduleCount))
       if (!existsSync(cache)) throw new Error("esm-sync did not create the compiler cache")
-      samples.esmWarm.push(run(directory, "loader", cache))
+      samples.esmWarm.push(run(directory, "loader", cache, loader, moduleCount))
     }
   } finally {
     rmSync(directory, { recursive: true, force: true })
@@ -124,6 +143,7 @@ function main(): void {
     platform: process.platform,
     iterations,
     moduleCount,
+    loader: realpathSync(loader),
     timings: {
       native: summarise(samples.native),
       esmCold: summarise(samples.esmCold),

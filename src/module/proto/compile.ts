@@ -23,6 +23,7 @@ import createInlineSourceMap from "../../util/create-inline-source-map.js"
 import { dirname } from "../../safe/path.js"
 import getCacheName from "../../util/get-cache-name.js"
 import getSourceMappingURL from "../../util/get-source-mapping-url.js"
+import has from "../../util/has.js"
 import makeRequireFunction from "../internal/make-require-function.js"
 import maskFunction from "../../util/mask-function.js"
 import realProcess from "../../real/process.js"
@@ -201,6 +202,8 @@ const compile = maskFunction(function (
   const { unsafeGlobal } = shared
 
   const args = [exported, makeRequireFunction(this), this, filename, dirname(filename)]
+  const jest = has(entry, "jest")
+  if (jest) args.push(entry.jest)
 
   if (ELECTRON) {
     args.push(realProcess, unsafeGlobal)
@@ -231,6 +234,10 @@ const compile = maskFunction(function (
 
   if (isESM || useLegacyWrapper) {
     preparedContent = isESM ? staticWrap(preparedContent) : Module.wrap(preparedContent)
+    if (jest) {
+      // Keep Jest's per-file object lexical, just like its own CJS wrapper.
+      preparedContent = preparedContent.replace(/^(\(function\s*\([^)]*)(\))/, "$1,jest$2")
+    }
 
     const compiledScript = new realVM.Script(preparedContent, {
       cachedData,
@@ -243,11 +250,15 @@ const compile = maskFunction(function (
       ? compiledScript.runInContext(shared.unsafeContext, { filename })
       : compiledScript.runInThisContext({ filename })
   } else {
-    const compiledFunction = realVM.compileFunction(preparedContent, compileFunctionParams, {
-      cachedData,
-      filename,
-      produceCachedData: true
-    })
+    const compiledFunction = realVM.compileFunction(
+      preparedContent,
+      jest ? [...compileFunctionParams, "jest"] : compileFunctionParams,
+      {
+        cachedData,
+        filename,
+        produceCachedData: true
+      }
+    )
 
     compiledWrapper = compiledFunction
     script = compiledFunction

@@ -37,6 +37,7 @@ import shared from "./shared.js"
 import shimFunctionPrototypeToString from "./shim/function-prototype-to-string.js"
 import shimProcessBindingUtilGetProxyDetails from "./shim/process-binding-util-get-proxy-details.js"
 import vmHook from "./hook/vm.js"
+import runJest from "./jest.js"
 
 const { CHECK, CLI, EVAL, INTERNAL, PRELOADED, REPL, YARN_PNP } = ENV
 
@@ -65,7 +66,8 @@ if (process.env.ESM_SYNC_TEST_BUILD) {
   }
 }
 
-let exported: SharedState | ((mod: unknown, options?: unknown) => RuntimeRequire)
+type Factory = ((mod: unknown, options?: unknown) => RuntimeRequire) & { runJest?: typeof runJest }
+let exported: SharedState | Factory
 
 if (shared.inited && !shared.reloaded) {
   shimFunctionPrototypeToString.enable(unsafeGlobal)
@@ -115,6 +117,7 @@ if (shared.inited && !shared.reloaded) {
 
     return requireHook(mod as unknown as ModuleRecord)
   }
+  exported.runJest = runJest
 } else {
   exported = shared
   exported.inited = true

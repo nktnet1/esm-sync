@@ -23,6 +23,7 @@ function init() {
     "DataView",
     "Date",
     "Error",
+    "eval",
     "EvalError",
     "Float32Array",
     "Float64Array",
@@ -124,7 +125,16 @@ function init() {
 
     for (const name of possibleBuiltins) {
       if (has(context, name)) {
-        descriptors.set(name, Reflect.getOwnPropertyDescriptor(context, name)!)
+        const descriptor = Reflect.getOwnPropertyDescriptor(context, name)!
+        if (
+          name === "eval" &&
+          (typeof descriptor.value !== "function" ||
+            Function.prototype.toString.call(descriptor.value) !==
+              "function eval() { [native code] }")
+        ) {
+          continue
+        }
+        descriptors.set(name, descriptor)
 
         // Delete shadowed builtins to expose those of its realm.
         Reflect.deleteProperty(context, name)
@@ -155,6 +165,17 @@ function init() {
     ).runInContext(context)
 
     descriptors.forEach((descriptor, name) => {
+      // Direct eval only retains the caller's lexical scope when it is the
+      // intrinsic eval of the executing realm. A copied Jest/host eval turns
+      // protobufjs' eval("require") into an indirect, global evaluation.
+      if (name === "eval") {
+        Reflect.defineProperty(context, name, {
+          configurable: true,
+          value: Reflect.get(realmBuiltins as object, name),
+          writable: true
+        })
+        return
+      }
       Reflect.defineProperty(context, name, descriptor)
 
       const Builtin: unknown = Reflect.get(context, name)

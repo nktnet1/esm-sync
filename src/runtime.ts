@@ -733,7 +733,7 @@ const Runtime: RuntimeMethods & {
     runtime.s = runtime.resumeChildren
     runtime.t = runtime.assertUndeclared
     runtime.u = runtime.updateBindings
-    runtime.v = evalIndirect
+    runtime.v = shared.contextEval
     runtime.w = runtime.import
     runtime.x = runtime.addExportGetters
     runtime.y = runtime.importDeferred
