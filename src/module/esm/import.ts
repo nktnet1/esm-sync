@@ -3,6 +3,7 @@ import type { SetterArgs } from "../../types/runtime-state.js"
 import ENTRY from "../../constant/entry.js"
 
 import Entry from "../../entry.js"
+import Loader from "../../loader.js"
 import Module from "../../module.js"
 
 import dualResolveFilename from "../internal/dual-resolve-filename.js"
@@ -69,6 +70,26 @@ function esmImport(
       addChild(parentEntry, entry)
     } else if (!Object.is(entry.module.exports, exported)) {
       const { name } = entry
+      const replaced = entry
+
+      // Mocked exports own these bindings now. Leaving the parse-time setters
+      // on the original entry lets a later import overwrite the mock.
+      if (parentEntry.hasRequireInterception() && !parentEntry.circular && !replaced.circular) {
+        for (const [name, , setter] of setterArgsList) {
+          const setters = replaced.setters[name]
+          if (setters !== void 0)
+            replaced.setters[name] = setters.filter((value) => value !== setter)
+        }
+
+        // A mocked module may have been parsed but never executed. Do not let a
+        // later require reuse that abandoned linking record after cache reset.
+        if (replaced.state === STATE_PARSING_COMPLETED) {
+          const { scratchCache } = Loader.state.module
+          for (const key of Object.keys(scratchCache)) {
+            if (scratchCache[key] === replaced.module) delete scratchCache[key]
+          }
+        }
+      }
 
       entry = getEntryFrom(request, exported, parentEntry)
       addChild(parentEntry, entry, name!)
@@ -118,6 +139,10 @@ function esmImport(
     }
 
     entry._finalize = finalize
+    const name = entry.name!
+    const finalizers = parentEntry._childFinalizers[name]
+    if (finalizers === void 0) parentEntry._childFinalizers[name] = [finalize]
+    else finalizers.push(finalize)
   }
 
   if (

@@ -88,7 +88,11 @@ const compile = maskFunction(function (
       contentPackage = new Package("", PACKAGE_RANGE, options)
     }
 
+    // Extension transpilers may supply the source only after the linking
+    // pass. Keep setters already registered by importers of that entry.
+    const setters = entry.setters
     entry.initialize()
+    if (state === STATE_PARSING_COMPLETED) entry.setters = setters
     entry.cacheName = getCacheName(content)
     entry.package = contentPackage
     entry.runtimeName = shared.runtimeName

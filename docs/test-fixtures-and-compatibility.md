@@ -59,6 +59,14 @@ and console formatting and inspector events. Inspector tests use an ephemeral
 port (`--inspect=0`) and normalize only Node's startup URL. The linked upstream
 reports retain separate minimal cases in `upstream-regressions.test.ts`.
 
+`coverage-cache.test.ts` and `module-mocking.test.ts` also group independent cases
+with `describe.concurrent`. Each case owns its source files, compiler caches,
+and NYC output directories. Normal/coverage runs, warm-cache passes, and mock
+sessions remain ordered inside a case. The tests invoke real NYC, Mocha,
+Babel, ts-node, and proxyquire processes and assert original-source coverage counters
+and binding behaviour. See [Caching, coverage, and mocking](caching-coverage-and-mocking.md)
+for the cache settings and `.mjs` mocking boundary.
+
 ## Published package tests
 
 `pnpm test:packed --format=both` packs and installs the package in a disposable
