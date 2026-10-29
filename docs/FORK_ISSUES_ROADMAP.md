@@ -10,18 +10,21 @@ on the two active application reproductions.
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      8 |
+| Investigate                                   |      7 |
 | Documentation follow-ups                      |      4 |
-| Already covered                               |     48 |
+| Already covered                               |     49 |
 | Not planned                                   |     23 |
 | **Total**                                     | **83** |
+
+## Verified application integration
+
+- [#810 - Babel aliases and top-level await](https://github.com/standard-things/esm/issues/810): **fixed for the supported native-bridge startup path**. The physical root `esm.js`/`index.js` shims were not recognised as preloads because their metadata paths retained `dist/../`. Resolving those paths installs the same hooks as the generated entry. The unchanged original Express/Babel configuration passes checks for single database evaluation and database completion before `listen()`, followed by the expected HTTP response. Verification covers both preload orders and disabled/cold/warm caches. Timer awaits on Node 20 remain outside the native bridge's supported range and fail explicitly; this does not extend legacy timer-await support. See the [verification evidence](tooling-and-performance.md#810-babel-aliases-and-top-level-await).
 
 ## Active investigations
 
 ### Application integrations
 
-- [#810 - Babel aliases and top-level await](https://github.com/standard-things/esm/issues/810): **not resolved**. The canonical Acorn 8.19.0 production-test build passes the synthetic Babel output/preload-order tests in both cache modes. The original Express reproduction with `babel-plugin-module-resolver@3.2.0` and unchanged `.babelrc` still throws a top-level `await` syntax error when started through the canonical fork and `@babel/register`. An earlier run with an offline Acorn adapter appeared to wait correctly; it is not a substitute for the failing canonical path. Trace the extension-hook/module-goal decision, fix the original integration, and lock it with cold/warm regressions. The original `esm@3.2.25` can serve HTTP before its awaited two-second database initialization finishes.
-- [#844 - Startup performance](https://github.com/standard-things/esm/issues/844): **not resolved**. The canonical production and production-test builds pass, and the historical pre-PR #140 Log4brains CLI works. Seven release-build `--version` trials measured a warm median of **1,705 ms** for the fork versus **1,651 ms** for original `esm@3.2.25`. Three paired release-build preview readiness runs favoured the fork, but three production-test pairs favoured original `esm`. Cold timings and the original loader's baseline varied substantially. Profile and measure controlled release-build startup before drawing a performance conclusion; the original reporter's private 10-to-30-second server workload is unavailable. Closure may require a documented decision to limit scope to the reproducible Log4brains application.
+- [#844 - Startup performance](https://github.com/standard-things/esm/issues/844): **not resolved**. Ten controlled paired trials per workload used the canonical production release, private bootstrap/compiler caches, alternating loader order, and fixed CPU affinity. Warm CLI medians were **1,459 ms** for the fork and **1,397 ms** for original `esm@3.2.25`; warm HTTP readiness was **2,973 / 2,916 ms**. Cold HTTP readiness favoured the fork in all ten pairs (**6,983 / 8,439 ms** marginal medians). Repeated CPU profiles identify stack/error construction, file access, compilation, and GC as further investigation points. There is no demonstrated warm-start improvement, and the private 10-to-30-second server workload remains unavailable. See [controlled release evidence](tooling-and-performance.md#controlled-release-verification-v1010).
 
 ### Host-specific reports needing a reproduction or scope decision
 
@@ -41,14 +44,14 @@ on the two active application reproductions.
 
 ## Triaged, not currently actionable
 
-The following **48** reports are classified _already covered_ by an existing
+The following **49** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
 931, 926, 924, 922, 921, 918, 916, 914, 913, 910, 909, 904, 900, 898, 897,
 896, 888, 887, 880, 879, 876, 875, 874, 872, 868, 866, 864, 863, 855, 852,
-846, 843, 841, 839, 824, 821, 816, 813, 812, 809, 805, 798, 796, 794,
+846, 843, 841, 839, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706.
 
 The following **23** reports are _not planned_: they concern external tooling,

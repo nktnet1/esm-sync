@@ -5,6 +5,9 @@ import { babelPreset, babelRegister, withCompatibilityFiles } from "./helpers/co
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
 
 const loader = path.resolve(testPath, "../esm.js")
+const physicalLoaders = [loader, "esm.js", "index.js"].map((filename) =>
+  path.isAbsolute(filename) ? filename : path.resolve(testPath, "../..", filename)
+)
 const benchmark = path.resolve(testPath, "../../script/src/benchmark-startup.ts")
 
 for (const esmEnv of testEnvironments) {
@@ -33,10 +36,10 @@ console.log('ready')`
         },
         async (directory) => {
           for (const [transition, preserve] of ["false", "true", "false"].entries()) {
-            for (const preloads of [
-              [loader, "./babel.cjs"],
-              ["./babel.cjs", loader]
-            ]) {
+            for (const preloads of physicalLoaders.flatMap((filename) => [
+              [filename, "./babel.cjs"],
+              ["./babel.cjs", filename]
+            ])) {
               for (const entry of ["entry.js", "index.cjs"]) {
                 for (let index = 0; index < 2; index++) {
                   const result = await runNode(
@@ -59,7 +62,7 @@ console.log('ready')`
           }
         }
       )
-    }, 120_000)
+    }, 240_000)
 
     it("default-imports tslib-style CommonJS bundles that mark __esModule without exporting default", async ({
       expect

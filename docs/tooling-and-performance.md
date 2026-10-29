@@ -1,8 +1,8 @@
 # Open tooling and performance investigations
 
-This document retains only the evidence and next steps required to resolve
-upstream [#810](https://github.com/standard-things/esm/issues/810) and
-[#844](https://github.com/standard-things/esm/issues/844). Historical fixed
+This document retains verification of
+[#810](https://github.com/standard-things/esm/issues/810) and the open startup
+investigation for [#844](https://github.com/standard-things/esm/issues/844). Historical fixed
 issues are classified in the [roadmap](FORK_ISSUES_ROADMAP.md); their actual
 regression tests remain in `test/vitest/`.
 
@@ -53,7 +53,7 @@ previous temporary Acorn adapter, on Node 24.21.0:
 | `build --prod --test` |             520,813 bytes | `5b1da74647596f874101b4a4a4f4db9fb05d5d6727f3b8c49eb169e52da9b750` |
 | `build --prod`        |             520,495 bytes | `f5cde620400472b630d1726cc1beab266ba9ad70e2db09f13c212ef126bba19d` |
 
-### Benchmarks (Node 20.20.2, milliseconds)
+### Historical v1.0.8 measurements (Node 20.20.2, milliseconds)
 
 Seven paired `--version` trials, original `esm@3.2.25` versus the canonical
 **release** fork, measured:
@@ -84,45 +84,110 @@ The unmodified original loader's timings changed substantially across
 sessions, and three pairs per configuration cannot establish a reproducible
 speedup or regression. The original private server graph is unavailable.
 
-**Next:** Benchmark the release build under a controlled, isolated environment
-with more alternating, paired trials, explicit cold/warm cache isolation, and
-steady-state resource checks. Profile a repeatable warm-startup bottleneck
-before making code changes. If the original private server remains unavailable,
-explicitly decide whether the issue's scope may be closed against the
-reproducible Log4brains workload only. Do not claim the private 10-to-30-second
-report has been verified.
+### Controlled release verification (v1.0.10)
 
-The detailed evidence is available outside the repository in
-`issue-844-canonical-verification-results.json` and
-`issue-844-canonical-raw-benchmarks.zip`; attach them in a new work session.
+The new `benchmark:log4brains` command runs the unchanged historical CLI through
+its own `require("esm")` call. Each loader gets a separate staged bootstrap and
+compiler cache. The wrapper passes the cache path to the factory itself:
+`ESM_OPTIONS.cache` alone can be overridden by explicit factory/package options.
+Cold runs remove both caches; warm runs use the preceding cold run's caches in
+a fresh process. Cache-state assertions and identical response hashes are
+required. All 82 pre-existing application cache files remained byte-identical.
+
+Canonical Acorn **8.19.0**, built with Node **24.21.0**, produced the actual
+production release used here: **520,474 bytes**, SHA-256
+`239c874ac1fcc144e89b2f5b00d03b675f02851a7f8e9aed36f39dff05f75a0f`.
+Application processes used Node **20.20.2** on Linux x64, pinned to one CPU.
+No builds or test suites ran alongside the timing trials. Each workload ran
+**ten paired iterations**, alternating original/fork order in both cold and
+warm blocks: **80 measured processes** overall. OS filesystem caches were not
+flushed; “cold” refers to loader caches. The original loader is `esm@3.2.25`.
+
+| Workload               | Loader    | Cold median (ms) | Warm median (ms) |
+| ---------------------- | --------- | ---------------: | ---------------: |
+| CLI `--version`        | Original  |            3,537 |            1,397 |
+| CLI `--version`        | Fork      |            3,292 |            1,459 |
+| Preview HTTP readiness | Original  |            8,439 |            2,916 |
+| Preview HTTP readiness | Fork      |            6,983 |            2,973 |
+
+Median **paired** fork/original ratios were **0.940 cold / 1.051 warm** for the
+CLI and **0.824 cold / 1.011 warm** for preview. Cold preview favoured the fork
+in all ten pairs; warm preview favoured original in seven. These ratios are
+medians of per-pair ratios, not ratios of the marginal medians above.
+
+Preview measures spawn to the complete HTTP 200 body at `/`, from the child's
+own ephemeral port. All response hashes matched. The child then exits normally
+to flush cache metadata; shutdown is outside the readiness measurement. CPU
+usage, peak RSS, and load averages accompany every sample. Warm preview RSS
+was approximately **265.7–266.6 MiB** for original and **271.2–272.4 MiB** for the fork;
+about **8.7 GiB** was free at completion. This was a shared host with fixed CPU
+affinity, not a dedicated-machine or OS-cold benchmark.
+
+Separate CPU-profile runs captured three warm CLI and two warm preview starts
+per loader, plus their cold runs. Repeated fork profiles attribute roughly
+**40–42%** of CLI and **24–25%** of preview self samples to loader frames.
+Error construction (`src/error/construct-error.ts`), filesystem reads/stats,
+V8 function compilation, and garbage collection recur across profiles. Error
+construction alone accounts for about **2.3–3.3%** of warm fork self samples. These
+are sampled primary-process costs, not timings of a proposed optimisation.
+Investigate the CommonJS fallback's stack/error inspection and compilation costs
+without changing observable hook behaviour; validate any change against both
+workloads before claiming an improvement.
+
+**#844 remains unresolved.** The controlled results support a cold-start benefit
+for this Log4brains workload, with no corresponding warm-start benefit. They do
+not verify the reporter's unavailable private 10-to-30-second server regression.
+The raw timing samples, resource records, artifact hashes, and CPU profiles
+accompany `v1.0.10-verification.zip`.
+
+The complete canonical production-test Vitest suite passes on Linux with Node
+24.21.0: **1,539 tests across 55 files**. Typechecking and the attached Biome
+check also pass. This does not replace the remaining OS/Node CI matrix.
 
 ## #810: Babel aliases and top-level await
 
 The original upstream Express repository is
 [`ndabAP/esm-babel-plugin-module-resolver-issue`](https://github.com/ndabAP/esm-babel-plugin-module-resolver-issue).
-Its `babel-plugin-module-resolver@3.2.0` configuration resolves
+Its unchanged `.babelrc` uses `babel-plugin-module-resolver@3.2.0` to resolve
 `@routes/hello-world.route`. Its await-only `src/database.js` sleeps for two
-seconds but has no imports/exports. Original `esm@3.2.25` can serve the route
-before the database completes, so an HTTP 200 response alone is **not** a
-correctness test.
+seconds but has no imports/exports. Original `esm@3.2.25` on Node 20.20.2 calls
+`listen()` before that timer completes; the verification observer rejects it.
 
-The fork has targeted changes for await-only module classification, transformed
-source cache keys, and cross-factory await markers. Installed Babel regression
-fixtures cover `@babel/register` with CommonJS and preserved-ESM output,
-preload order, direct entry launches, cold/warm caches, and transform changes.
-The canonical Acorn production-test build passed both cached and uncached
-synthetic Babel tests.
+### Root cause and fix (v1.0.10)
 
-**Still failing:** When the **unchanged original** `.babelrc` is run through
-the canonical fork with `@babel/register`, the await-only database source is
-sent to Node's CommonJS compiler and throws a top-level-await `SyntaxError`.
-Earlier results from a temporary Acorn build adapter succeeded with both
-preload orders; they do not override the real canonical failure.
+Canonical Acorn module-goal detection and Babel's extension hooks were already
+working when preloading `dist/esm.js`. The failing path was the physical root
+`esm.js` shim (also `index.js`). Runtime package metadata concatenated its path
+as `dist/../esm.js`, while Node reported the normalised filename. The exact
+preload comparison failed, so the loader never installed its hooks. Babel then
+converted imports to CommonJS and handed the await-only database file to Node's
+CommonJS compiler, producing the reported `SyntaxError`.
 
-**Next:** Trace the exact installed extension-hook ordering and transformed
-module-goal detection for the original reproduction. Confirm both preload
-orders, database completion before HTTP readiness, single execution, and
-cold/warm caches with the canonical release/test builds. Investigate Node 20
-await-bridge availability separately; success with the Node 24 native bridge
-does not establish the same capability on Node 20. Add an original-reproduction
-regression before marking #810 resolved.
+Resolve the package filenames against `dist/` before comparing them. No Babel
+configuration changes, Acorn adapter, or module-goal workaround is required.
+Regression tests exercise physical shims, preserved/CommonJS Babel output,
+factory/direct entry launches, preload order, and cache transitions.
+
+### Original-application verification
+
+`pnpm verify:babel-repro --project=/path/to/installed/repro --node=/path/to/node --json`
+uses byte-identical copies of the original configuration and application files,
+with private package, bootstrap, and Babel caches. Installed dependencies are
+shared; application sources are not rewritten. A preload observer counts the
+actual database timer and its completion microtask, asserts exactly one
+initialisation before `listen()`, and then checks HTTP 200 with `Hello world`.
+Source hashes are checked before/after. All four physical entry paths run in
+both preload orders with disabled, cold, and warm caches: **24 checks per runtime**.
+
+The canonical production-test artifact passes on Node **22.23.4**, **24.21.0**,
+and **26.12.0**, with matching native bridges. The production release passes the
+same 24 checks on Node **24.21.0**. This is **96 successful original-application
+checks** across the two build variants. Babel core/register/preset-env are
+7.29.7; the resolver plugin remains 3.2.0.
+
+**Boundary:** The native bridge installer targets Node 22 and later. On Node
+20.20.2 the corrected loader recognises the await-only dependency but fails with
+`ERR_ESM_SYNC_ASYNC_PENDING` because no matching timer/I/O bridge is installed.
+It does not report successful readiness. The Babel/preload integration is fixed
+within the supported native-bridge startup context; Node 20 timer-await support
+has not been added.

@@ -26,13 +26,14 @@ setDeferred(ESM, "PACKAGE_DIRNAME", () => {
 
 setDeferred(ESM, "PACKAGE_FILENAMES", function () {
   const { safePath } = __shared__.module
-  const { sep } = safePath
   const { PACKAGE_DIRNAME } = this
 
   let { length } = PACKAGE_FILENAMES
 
   while (length--) {
-    PACKAGE_FILENAMES[length] = PACKAGE_DIRNAME + sep + PACKAGE_FILENAMES[length]
+    // Physical compatibility shims live above dist/. Match their resolved
+    // filenames too, so preloading a shim installs the same hooks as dist/esm.js.
+    PACKAGE_FILENAMES[length] = safePath.resolve(PACKAGE_DIRNAME, PACKAGE_FILENAMES[length]!)
   }
 
   return PACKAGE_FILENAMES
