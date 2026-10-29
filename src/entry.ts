@@ -566,10 +566,14 @@ class Entry {
       }
 
       // Some CommonJS bundles (including tslib's UMD build) set the
-      // __esModule marker but export only named helpers. Retain their named
-      // bindings while providing Node-compatible default interop when the
-      // exports object does not actually supply a default property.
-      if (this.type === TYPE_PSEUDO && !has(this.getters, "default")) {
+      // __esModule marker but export only named helpers. Support their default
+      // imports without adding a synthetic default to marker-only modules,
+      // whose ESM namespaces must remain empty.
+      if (
+        this.type === TYPE_PSEUDO &&
+        !has(this.getters, "default") &&
+        names.some((name) => name !== "__esModule")
+      ) {
         this.addGetter("default", () => this.exports)
       }
 

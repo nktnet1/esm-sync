@@ -70,10 +70,17 @@ console.log('ready')`
 Object.defineProperty(value, '__esModule', { value: true })
 module.exports = value`,
           "transpiled.cjs": `module.exports = { __esModule: true, default: 'explicit' }`,
+          "empty.cjs": `Object.defineProperty(exports, '__esModule', { value: true })`,
+          "marker-only.cjs": `module.exports = { __esModule: true }`,
           "entry.js": `import tslib, * as tslibNamespace from './tslib.cjs'
 import explicit from './transpiled.cjs'
+import * as emptyNamespace from './empty.cjs'
+import * as markerOnlyNamespace from './marker-only.cjs'
 if (tslib.__awaiter() !== 42 || tslibNamespace.default !== tslib || explicit !== 'explicit') {
   throw new Error('CommonJS default interop failed')
+}
+if (Object.keys(emptyNamespace).length !== 0 || Object.hasOwn(markerOnlyNamespace, 'default')) {
+  throw new Error('Pseudo-ESM marker-only modules must not gain synthetic defaults')
 }
 console.log('interop:ok')`,
           "index.cjs": `const load=require(${JSON.stringify(loader)})(module, {
