@@ -39,6 +39,37 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/809
+    it("sees a CommonJS metadata polyfill after direct and transitive ESM imports", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          // Reproduce reflect-metadata's global patch without a third-party
+          // dependency: the issue is visibility of this CommonJS side effect.
+          "polyfill.js": `Object.defineProperty(Reflect, 'metadata', {
+  configurable: true,
+  writable: true,
+  value: function metadata() {}
+})\n`,
+          "dependency.js": "require('./polyfill.js')\n",
+          "direct.js": "import './polyfill.js'; console.log(typeof Reflect.metadata)\n",
+          "transitive.js": "import './dependency.js'; console.log(typeof Reflect.metadata)\n"
+        },
+        async (directory) => {
+          for (const name of ["direct.js", "transitive.js"]) {
+            checkSuccess(
+              expect,
+              await runNode(["-r", loaderPath, path.join(directory, name)], esmEnv, loaderOptions, {
+                cacheNamespace: "upstream-reflect-metadata"
+              }),
+              "function"
+            )
+          }
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/846
     it("exports the var declared inside the reported if block", async ({ expect }) => {
       await withFiles(
