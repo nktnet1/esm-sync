@@ -11,7 +11,7 @@ import statFast from "../../fs/stat-fast.js"
 
 const packagePattern = /^((?:@[^/\\%]+\/)?[^./\\%][^/\\%]*)(\/.*)?$/
 
-export function packageExportsError<T>(error: T): T {
+function packageExportsError<T>(error: T): T {
   if (typeof error === "object" && error !== null)
     shared.memoize.modulePackageExportsErrors.add(error)
   return error

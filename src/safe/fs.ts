@@ -35,8 +35,7 @@ export const {
   Stats,
   statSync,
   unlinkSync,
-  writeFileSync,
-  existsSync
+  writeFileSync
 } = safeFs
 
 export type CachedModule = ReturnType<typeof init>
