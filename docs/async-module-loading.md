@@ -8,7 +8,7 @@ const load = require("esm-sync")(module)
 const namespace = load("./module-with-await.mjs")
 ```
 
-The API remains synchronous; exported async functions still return Promises.
+The API remains synchronous. Exported async functions still return Promises.
 
 ## Evaluation and module identity
 
@@ -27,7 +27,7 @@ Accessing a namespace before evaluation finishes raises
 Module-body asynchronous iteration closes iterators on abrupt exits. `using`
 and `await using` dispose resources in reverse acquisition order before
 synchronous loading returns. The lowering applies to module execution, not to
-exported async functions or class static blocks; those still rely on native
+exported async functions or class static blocks. Those still rely on native
 syntax support in the host runtime.
 
 ## Native bridge and re-entry limits
@@ -53,7 +53,7 @@ The installer attempts to compile the bridge from `native/sync-await.cc` using
 matching Node headers and a C++20 compiler. `ESM_SYNC_NODE_HEADERS`,
 `ESM_SYNC_NODE_LIB` (Windows), and `CXX` customise its toolchain. The binary is
 specific to the platform, architecture, and Node ABI. Without it, pure-JavaScript
-loading and microtask awaits still work; synchronous timer/I/O awaits fail
+loading and microtask awaits still work. Synchronous timer/I/O awaits fail
 explicitly. `pnpm build:await` rebuilds the bridge.
 
 ### pnpm installations without build permission
@@ -61,7 +61,7 @@ explicitly. `pnpm build:await` rebuilds the bridge.
 pnpm can skip the install hook. A matching bundled bridge remains usable without
 running a compiler. When no compatible bridge is present, ordinary CJS/ESM loads
 and microtask-settled top-level awaits still work. A synchronous await that needs
-timers or I/O fails with `ERR_ESM_SYNC_ASYNC_PENDING`; the loader does not compile
+timers or I/O fails with `ERR_ESM_SYNC_ASYNC_PENDING`. The loader does not compile
 or download a bridge at runtime.
 
 On pnpm 12, an unreviewed dependency build can fail installation under the
@@ -84,8 +84,8 @@ for `allowBuilds`, `permissions`, and `strictDepBuilds`.
 ## Errors and timeouts
 
 `ESM_SYNC_AWAIT_TIMEOUT_MS` sets a positive, safe-integer polling deadline in
-milliseconds (default: `5000`). The native bridge uses nonblocking polling;
-slow callbacks or OS scheduling can still exceed its nominal interval.
+milliseconds (default: `5000`). The native bridge uses nonblocking polling.
+Slow callbacks or OS scheduling can still exceed its nominal interval.
 
 | Error code                     | Meaning                                                                          |
 | ------------------------------ | -------------------------------------------------------------------------------- |
