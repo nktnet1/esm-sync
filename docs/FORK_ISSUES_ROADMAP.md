@@ -1,6 +1,6 @@
 # Upstream issue roadmap
 
-Status as of 29 October 2026 for the 83 reports in
+Status as of 30 October 2026 for the 83 reports in
 [`standard-things/esm`](https://github.com/standard-things/esm/issues).
 The tests and source code, not a historical status label, are authoritative for
 current behaviour. Keep an issue open when its exact integration has not been
@@ -24,7 +24,7 @@ on the two active application reproductions.
 
 ### Application integrations
 
-- [#844 - Startup performance](https://github.com/standard-things/esm/issues/844): **not resolved**. Ten controlled paired trials per workload used the canonical production release, private bootstrap/compiler caches, alternating loader order, and fixed CPU affinity. Warm CLI medians were **1,459 ms** for the fork and **1,397 ms** for original `esm@3.2.25`; warm HTTP readiness was **2,973 / 2,916 ms**. Cold HTTP readiness favoured the fork in all ten pairs (**6,983 / 8,439 ms** marginal medians). Repeated CPU profiles identify stack/error construction, file access, compilation, and GC as further investigation points. There is no demonstrated warm-start improvement, and the private 10-to-30-second server workload remains unavailable. See [controlled release evidence](tooling-and-performance.md#controlled-release-verification-v1010).
+- [#844 - Startup performance](https://github.com/standard-things/esm/issues/844): **open for the private reporter workload**. v1.0.11 reduces repeated CommonJS stack checks and captures persistent bytecode after initialisation. Ten paired final-release trials per workload measured **14.3% faster warm CLI** and **11.9% faster warm preview** than v1.0.10; preview improved **9.8%** against original `esm@3.2.25`, winning nine of ten warm pairs. The original-loader CLI comparison remains variable. Warm preview startup peak RSS increased by about **35 MiB** versus v1.0.10. The private 10-to-30-second server is still unavailable, so its regression has not been verified. See [current controlled evidence](tooling-and-performance.md#controlled-release-measurements).
 
 ### Host-specific reports needing a reproduction or scope decision
 

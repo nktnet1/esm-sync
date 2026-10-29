@@ -31,6 +31,14 @@ and their real-application evidence are in the
 | `pnpm verify:babel-repro --project=/path/to/repro`                             | Verify the installed original #810 application without changing its files              |
 | `pnpm benchmark:log4brains --project=/path/to/log4brains --node=/path/to/node` | Compare original `esm` and the current release artifact with private caches            |
 
+Persistent CommonJS bytecode uses `vm.Script.createCachedData` after module
+execution so initialised helper functions can be reused on later starts. The
+wrapper occupies a separate line with `lineOffset: -1` to preserve user-source
+runtime columns and syntax-error snippets. Old function bytecode is rejected and
+repaired on upgrade. Keep cold/warm cache, wrapper-hook, error-location, and
+failed-load/retry regressions when changing this path. See the
+[measured latency/memory tradeoff](tooling-and-performance.md#controlled-release-measurements).
+
 `pnpm test:verdaccio` needs registry access; it exercises separate CJS/ESM
 consumer projects, exported paths, native bridge rebuilding, and workers.
 The normal Vitest suite does not replace this installed-package verification.

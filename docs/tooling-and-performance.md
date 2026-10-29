@@ -84,65 +84,89 @@ The unmodified original loader's timings changed substantially across
 sessions, and three pairs per configuration cannot establish a reproducible
 speedup or regression. The original private server graph is unavailable.
 
-### Controlled release verification (v1.0.10)
+### Warm CommonJS startup (v1.0.11)
 
-The new `benchmark:log4brains` command runs the unchanged historical CLI through
-its own `require("esm")` call. Each loader gets a separate staged bootstrap and
-compiler cache. The wrapper passes the cache path to the factory itself:
-`ESM_OPTIONS.cache` alone can be overridden by explicit factory/package options.
-Cold runs remove both caches; warm runs use the preceding cold run's caches in
-a fresh process. Cache-state assertions and identical response hashes are
-required. All 82 pre-existing application cache files remained byte-identical.
+The earlier parser/bootstrap work mostly helped cache misses. Warm CommonJS
+startup still repeated an error-stack inspection for nested native loads, and
+`compileFunction.cachedData` was generated before module execution. That cache
+could not retain helper functions compiled during module initialisation.
 
-Canonical Acorn **8.19.0**, built with Node **24.21.0**, produced the actual
-production release used here: **520,474 bytes**, SHA-256
-`239c874ac1fcc144e89b2f5b00d03b675f02851a7f8e9aed36f39dff05f75a0f`.
-Application processes used Node **20.20.2** on Linux x64, pinned to one CPU.
-No builds or test suites ran alongside the timing trials. Each workload ran
-**ten paired iterations**, alternating original/fork order in both cold and
-warm blocks: **80 measured processes** overall. OS filesystem caches were not
-flushed; “cold” refers to loader caches. The original loader is `esm@3.2.25`.
+The new release makes two changes:
 
-| Workload               | Loader    | Cold median (ms) | Warm median (ms) |
-| ---------------------- | --------- | ---------------: | ---------------: |
-| CLI `--version`        | Original  |            3,537 |            1,397 |
-| CLI `--version`        | Fork      |            3,292 |            1,459 |
-| Preview HTTP readiness | Original  |            8,439 |            2,916 |
-| Preview HTTP readiness | Fork      |            6,983 |            2,973 |
+- Reuse a successful external-caller stack check while its synchronous native
+  fallback remains active. `finally` clears the decision on return or failure;
+  a call without a known external caller still gets its own stack inspection.
+- Use a wrapped `vm.Script` for persistent CommonJS bytecode when
+  `createCachedData` is available. Cache creation/repair then captures bytecode
+  after execution. Uncached function compilation avoids producing unused
+  bytecode. A separate wrapper line and `lineOffset: -1` preserve native runtime
+  columns and SyntaxError source/caret output, including the first source line.
 
-Median **paired** fork/original ratios were **0.940 cold / 1.051 warm** for the
-CLI and **0.824 cold / 1.011 warm** for preview. Cold preview favoured the fork
-in all ten pairs; warm preview favoured original in seven. These ratios are
-medians of per-pair ratios, not ratios of the marginal medians above.
+A separate instrumented CLI run counted **1,334 → 133** internal error
+constructions in both cold and warm runs. These counters verify removed work;
+the instrumented timings are excluded from the performance results below.
 
-Preview measures spawn to the complete HTTP 200 body at `/`, from the child's
-own ephemeral port. All response hashes matched. The child then exits normally
-to flush cache metadata; shutdown is outside the readiness measurement. CPU
-usage, peak RSS, and load averages accompany every sample. Warm preview RSS
-was approximately **265.7–266.6 MiB** for original and **271.2–272.4 MiB** for the fork;
-about **8.7 GiB** was free at completion. This was a shared host with fixed CPU
-affinity, not a dedicated-machine or OS-cold benchmark.
+### Controlled release measurements
 
-Separate CPU-profile runs captured three warm CLI and two warm preview starts
-per loader, plus their cold runs. Repeated fork profiles attribute roughly
-**40–42%** of CLI and **24–25%** of preview self samples to loader frames.
-Error construction (`src/error/construct-error.ts`), filesystem reads/stats,
-V8 function compilation, and garbage collection recur across profiles. Error
-construction alone accounts for about **2.3–3.3%** of warm fork self samples. These
-are sampled primary-process costs, not timings of a proposed optimisation.
-Investigate the CommonJS fallback's stack/error inspection and compilation costs
-without changing observable hook behaviour; validate any change against both
-workloads before claiming an improvement.
+`benchmark:log4brains` invokes the unchanged historical CLI's own
+`require("esm")`. Every loader has private bootstrap/compiler caches, with the
+cache path supplied to its factory. Cold runs remove both caches; warm runs
+reuse the preceding cold run's caches in fresh processes. Loader order
+alternates, cache state is asserted, and all version outputs/HTTP body hashes
+must match. OS filesystem caches are not flushed.
 
-**#844 remains unresolved.** The controlled results support a cold-start benefit
-for this Log4brains workload, with no corresponding warm-start benefit. They do
-not verify the reporter's unavailable private 10-to-30-second server regression.
-The raw timing samples, resource records, artifact hashes, and CPU profiles
-accompany `v1.0.10-verification.zip`.
+The canonical Acorn **8.19.0** release was built on Node **24.21.0**:
+**520,696 bytes**, SHA-256
+`ff9cbfccb59e9111596556377685e65ed163e9c9f81f6aacace97316182a6f6d`.
+Application processes used Node **20.20.2**, Linux x64, pinned to one CPU. No
+builds or tests ran alongside timing trials. Each comparison/workload used ten
+paired iterations, giving **160 measured processes** for the final release.
 
-The complete canonical production-test Vitest suite passes on Linux with Node
-24.21.0: **1,539 tests across 55 files**. Typechecking and the attached Biome
-check also pass. This does not replace the remaining OS/Node CI matrix.
+| Baseline              | Workload        | Baseline cold (ms) | v1.0.11 cold (ms) | Baseline warm (ms) | v1.0.11 warm (ms) |
+| --------------------- | --------------- | -----------------: | ----------------: | -----------------: | ----------------: |
+| v1.0.10 fork          | CLI `--version` |              3,351 |             3,260 |              1,455 |             1,268 |
+| v1.0.10 fork          | Preview HTTP    |              6,953 |             6,692 |              3,026 |             2,584 |
+| Original `esm@3.2.25` | CLI `--version` |              3,622 |             3,354 |              1,419 |             1,395 |
+| Original `esm@3.2.25` | Preview HTTP    |              8,256 |             6,773 |              2,835 |             2,583 |
+
+These are marginal medians from separate batches. The primary comparison uses
+medians of each matched pair's fork/baseline ratio:
+
+| Baseline       | Workload | Cold ratio | Warm ratio | Warm pairs favouring v1.0.11 |
+| -------------- | -------- | ---------: | ---------: | ---------------------------: |
+| v1.0.10        | CLI      |      0.980 |      0.857 |                       9 / 10 |
+| v1.0.10        | Preview  |      0.983 |      0.881 |                      10 / 10 |
+| Original `esm` | CLI      |      0.883 |      0.939 |                       6 / 10 |
+| Original `esm` | Preview  |      0.823 |      0.902 |                       9 / 10 |
+
+Against v1.0.10, median paired warm startup improved **14.3% for CLI** and
+**11.9% for preview**. Warm preview improved **9.8%** against original `esm`.
+The original-loader CLI result remains variable: six of ten warm pairs favoured
+the fork, so do not claim a dependable CLI speedup over original `esm`.
+
+Preview measures spawn to the complete HTTP 200 body at `/` from the child's
+own ephemeral port, followed by normal exit to flush caches. Shutdown is outside
+HTTP readiness. Resource records accompany every sample. The warmed preview's
+recorded startup peak RSS increased from roughly **271–272 MiB** in v1.0.10 to
+**305–307 MiB** in v1.0.11, about **35 MiB extra**. RSS is captured before the
+exit-time cache writer. This trades additional cache memory for lower startup
+latency; it is a shared-host measurement with fixed CPU affinity.
+
+An explicit upgrade check reused a populated v1.0.10 cache in the same package
+path. The new bootstrap and **1,347 CommonJS entries** rejected the older
+bytecode and rebuilt successfully; the next run accepted all 1,347 CommonJS
+entries with zero rejections. Source changes are not required to repair caches.
+
+The final source passes **1,543 Vitest tests across 55 files** on Linux/Node
+24.21.0, plus typechecking and the attached Biome check. The unchanged original
+#810 application also passes all 96 checks again: production-test on Node
+22/24/26 and release on Node 24. This does not replace the full OS/Node CI matrix.
+
+**#844 remains open for the unavailable private 10-to-30-second workload.**
+There is now a measured warm-start improvement for historical Log4brains, with
+the memory tradeoff above. Raw trials, diagnostic counters, upgrade checks,
+runtime bytes/hashes, and validation logs accompany
+`v1.0.11-startup-verification.zip`.
 
 ## #810: Babel aliases and top-level await
 
