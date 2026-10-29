@@ -8,6 +8,9 @@ and their real-application evidence are in the
 [roadmap](FORK_ISSUES_ROADMAP.md) and
 [tooling/performance notes](tooling-and-performance.md).
 
+For default-export unwrapping, Mocha setup, and migrating a consumer to native
+Node ESM, see [interoperability and migration](interop-and-migration.md).
+
 Ask for explicit approval before making further changes to `README.md`.
 
 ## Source, build outputs, and module boundaries
@@ -107,6 +110,63 @@ synthesised from `module.exports` **only when another export is present**.
 Marker-only namespaces remain empty; explicit defaults are preserved. This
 v1.0.6/v1.0.7 contract protects both Log4brains' `tslib@2.2.0` and the
 native import suite.
+
+## Global-reference rewriting (#865)
+
+The user-source compiler routes selected unshadowed `console` and `Reflect`
+references through the loader runtime when transforming static or dynamic
+imports. In generated code, `_.g` is the runtime's global proxy; `_` is the
+schematic runtime identifier used below, not an application variable or public
+API. The generated name can differ.
+
+```js
+// Source, in a module containing an import:
+console.log(value)
+Reflect.set(target, "key", value)
+const context = { console }
+
+// Corresponding expressions after compilation:
+_.g.console.log(value)
+_.g.Reflect.set(target, "key", value)
+const context = { console: _.g.console }
+```
+
+This lets the loader's console format its emulated namespace objects and
+connect to the host inspector. Its Reflect wrappers handle namespace mutation
+operations (`defineProperty`, `deleteProperty`, and `set`), returning `false`
+for rejected namespace operations while preserving errors for other targets.
+The global proxy respects replacements of host globals and property descriptor
+constraints; Reflect polyfill additions, replacements, and deletions remain
+shared with CommonJS.
+
+The transform is selective. It preserves local bindings, including function
+parameters and imported `console`/`Reflect` names, and does not rewrite property
+names, comments, or strings. `typeof console` and `typeof Reflect` remain
+unchanged. Direct console member calls with no arguments or only literal or
+template-literal arguments are skipped; `console.log(value)` is rewritten.
+For example, `import console from "node:console"` creates a local binding and
+skips this prefixing; that import still follows the loader's builtin-module
+handling.
+
+A separate transform enforces the absence of CommonJS wrapper locals in ESM
+when `cjs.vars` is disabled. Unbound `require` becomes `_.t("require")`, which
+checks the actual global and throws if absent; `typeof require` becomes
+`typeof _.g.require`, preserving its non-throwing lookup. The same handling
+applies to `__dirname`, `__filename`, `arguments`, `exports`, and `module`.
+Explicit local bindings, including a `require` created with `createRequire`,
+remain local. This is not a blanket rewrite of globals such as `process` or
+`Buffer`.
+
+Start with [the compiler](../src/compiler.ts),
+[the globals visitor](../src/visitor/globals.ts), and
+[the undeclared-variable visitor](../src/visitor/undeclared.ts). Runtime aliases
+are in [runtime.ts](../src/runtime.ts); proxy and wrapper behaviour is in
+[global.ts](../src/builtin/global.ts), [console.ts](../src/builtin/console.ts),
+and [reflect.ts](../src/builtin/reflect.ts). Keep the scope, shorthand,
+`typeof`, and shadowing cases in [the compiler tests](../test/vitest/compiler.test.ts)
+when changing this code. The strict/sloppy and equality build transforms in
+[config/babel.ts](../config/babel.ts) act on the loader's own bundle and are a
+separate compilation stage.
 
 ## Dependency policy
 

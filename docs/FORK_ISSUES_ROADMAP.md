@@ -11,8 +11,8 @@ on the two application reproductions.
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
 | Investigate                                   |      6 |
-| Documentation follow-ups                      |      4 |
-| Already covered                               |     50 |
+| Documentation follow-ups                      |      0 |
+| Already covered                               |     54 |
 | Not planned                                   |     23 |
 | **Total**                                     | **83** |
 
@@ -33,23 +33,29 @@ on the two application reproductions.
 - [#854](https://github.com/standard-things/esm/issues/854): Custom REPL import hooks.
 - [#886](https://github.com/standard-things/esm/issues/886): `vm.runInThisContext` is script-goal; module loading there would be a separate feature.
 
-## Documentation follow-ups
+## Completed documentation follow-ups
 
-- [#885](https://github.com/standard-things/esm/issues/885): Explain `cjs.dedefault` with an example.
-- [#873](https://github.com/standard-things/esm/issues/873): Document Mocha preloads versus a setup-file loader factory.
-- [#865](https://github.com/standard-things/esm/issues/865): Explain global-reference rewriting for contributors.
-- [#838](https://github.com/standard-things/esm/issues/838): Provide native Node ESM migration guidance.
+All four reports now have documentation coverage in this fork. The examples
+were checked against the release runtime, Mocha 8.4.0, and native Node ESM;
+this records local completion rather than changes to the upstream issue tracker.
+
+| Report                                                    | Documentation                                                                                                                      |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| [#885](https://github.com/standard-things/esm/issues/885) | [`cjs.dedefault`: examples and export-shape boundaries](interop-and-migration.md#commonjs-default-export-unwrapping-885)           |
+| [#873](https://github.com/standard-things/esm/issues/873) | [Mocha preloads and configured factory entry points](interop-and-migration.md#mocha-preloads-and-factory-entry-points-873)         |
+| [#865](https://github.com/standard-things/esm/issues/865) | [Contributor guide to global-reference rewriting](MAINTAINER_GUIDE.md#global-reference-rewriting-865)                              |
+| [#838](https://github.com/standard-things/esm/issues/838) | [Native Node ESM migration and asynchronous startup](interop-and-migration.md#migrating-a-consumer-project-to-native-node-esm-838) |
 
 ## Triaged, not currently actionable
 
-The following **50** reports are classified _already covered_ by an existing
+The following **54** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
 931, 926, 924, 922, 921, 918, 916, 914, 913, 910, 909, 904, 900, 898, 897,
-896, 888, 887, 880, 879, 876, 875, 874, 872, 868, 866, 864, 863, 855, 852,
-846, 844, 843, 841, 839, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
+896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 866, 865, 864, 863, 855, 852,
+846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706.
 
 The following **23** reports are _not planned_: they concern external tooling,
