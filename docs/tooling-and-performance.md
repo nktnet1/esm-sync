@@ -115,40 +115,84 @@ inherited loader cannot contaminate the native baseline. Child exit status and
 matching stdout are checked; use a deterministic, terminating CLI command such
 as `--help` or `--version`. A live server/readiness benchmark is not implemented.
 
-### Historical Log4brains application (v1.0.6)
+### Historical Log4brains application (v1.0.6; canonical verification v1.0.8)
 
-The earlier Log4brains 1.1.0 source lacks the historical `esm` CLI entry. A
-second archive now supplies the **built** Log4brains workspace from commit
+The **built** Log4brains workspace from commit
 `68f80982fc0d2007acc2f8e08f27b2e6f974cec8`, immediately before PR #140
-removed `esm`. Its `packages/global-cli/dist/index.js` directly invokes
-`require("esm")(module, { mainFields: ["module", "main"] })`. The original
-`esm@3.2.25` and the fork both load the real application with `--version` on
-Node 20.20.2 after the CommonJS interop fix below.
+removed `esm`, contains the original CLI bootstrap at
+`packages/global-cli/dist/index.js`. It calls `require("esm")(module, {
+mainFields: ["module", "main"] })`. The comparison changes only that loader
+reference in an adjacent bootstrap copy, retaining the same application,
+dependency graph, and `mainFields` option. Both loaders return
+`1.0.2-alpha.4` for `--version` on Node 20.20.2.
 
-The comparison substituted the loader only in a copy of the CLI bootstrap,
-retained the same application graph and `mainFields`, selected distinct
-compiler caches per trial, and alternated loader order. Both variants returned
-`1.0.2-alpha.4` and created cache files. Eleven paired cold/warm CLI runs on
-Linux/Node 20.20.2 produced these **medians in milliseconds**:
+The initial experiment (v1.0.6) used a temporary offline Acorn adapter.
+Eleven alternating cold/warm `--version` pairs had the following medians
+(in milliseconds); these are **not** production-build evidence:
 
 | Loader                             | Cold CLI | Warm CLI |
 | ---------------------------------- | -------: | -------: |
 | Original `esm@3.2.25`              |  2,999.9 |  1,470.0 |
 | Fork (offline Acorn build adapter) |  2,738.9 |  1,650.4 |
 
-Cold runs varied widely (original: 1,366–3,803 ms; fork: 1,480–3,142 ms).
-The fork's warm median is **slower**; neither the cold median nor the earlier
-Execa benchmarks prove that #844 is resolved. These are CLI completion times,
-**not server-readiness timings**. The original reporter's 10-to-30-second
-application and its entry/dependencies remain unavailable.
+**Canonical-build verification:** The supplied test-fixtures archive contains
+the real Acorn `8.19.0` repository sources, including `src/state.js`. The
+unmodified `setup-fixtures acorn` task reports the sources are prepared. On
+Node 24.21.0, both standard commands, `build --prod --test` and `build --prod`,
+completed **without** an Acorn adapter or local bundler overrides:
 
-**Build limitation:** The fork requires the actual Acorn 8.19.0 repository
-sources in `src/vendor/acorn` for its standard build. The supplied archives
-contain the published Acorn package but not those sources. This experiment
-used a disposable, untracked Acorn adapter against the published package and
-a temporary local bundling override. Neither is part of the distributed patch.
-Repeat the integration and performance runs with the canonical production build
-before treating these as release results.
+| Build              | `dist/esm/loader.js` bytes | SHA-256                                                            |
+| ------------------ | -------------------------: | ------------------------------------------------------------------ |
+| Production-test    |                    520,813 | `5b1da74647596f874101b4a4a4f4db9fb05d5d6727f3b8c49eb169e52da9b750` |
+| Production release |                    520,495 | `f5cde620400472b630d1726cc1beab266ba9ad70e2db09f13c212ef126bba19d` |
+
+The `tslib` interoperability tests passed in both **production-test** cache
+modes, as did the native CommonJS export/import tests that had regressed before
+v1.0.7. The original Log4brains CLI also ran with the **production-release**
+loader on Node 20.20.2, preserving its version output. A complete CI suite
+was not rerun as part of this verification.
+
+Seven sequential, alternating-loader `--version` pairs used distinct compiler
+caches for each cold/warm pair. Here are the medians from the **release** build
+(in milliseconds):
+
+| Loader                   | Cold CLI | Warm CLI |
+| ------------------------ | -------: | -------: |
+| Original `esm@3.2.25`    |  2,294.6 |  1,650.6 |
+| Fork, production release |  2,932.0 |  1,704.8 |
+
+The release fork was about **3% slower** on the warm CLI median. Cold CLI
+results vary sharply with execution order (original 1,520–4,567 ms, fork
+1,570–3,732 ms), so the cold medians do not establish a reproducible
+performance ratio. An earlier **production-test** build comparison yielded
+1,838.5/1,512.8 ms (original cold/warm) versus 2,879.7/1,619.5 ms (fork
+cold/warm), which is a different loader build and measurement session.
+
+The actual application supports `preview --no-open --port <port>`. Three pairs
+per loader and cache state measured time from spawning the CLI to receiving
+**HTTP 200 from `/`** on the local preview server. All twelve checks per build
+variant succeeded. The medians (milliseconds) were:
+
+| Build              | Loader                | Cold readiness | Warm readiness |
+| ------------------ | --------------------- | -------------: | -------------: |
+| Production release | Original `esm@3.2.25` |          7,894 |          7,494 |
+| Production release | Fork                  |          5,476 |          5,277 |
+| Production-test    | Original `esm@3.2.25` |          5,610 |          6,246 |
+| Production-test    | Fork                  |          6,640 |          6,602 |
+
+The fork was **faster** in the three-pair release-readiness comparison, but
+**slower** in the three-pair production-test comparison. Even the unchanged
+original loader's readiness medians shifted markedly between sessions. These
+small, non-isolated samples include Next.js/runtime effects; they cannot
+establish a stable improvement or regression for server readiness. Both
+application behaviour and bundle compatibility are verified, not the original
+startup-performance complaint.
+
+The separate report of a private server slowing from roughly 10 to 30 seconds
+cannot be reproduced without that application's dependency graph. **Keep
+#844 under investigation** until there is a repeatable, controlled performance
+baseline and profiling of any persistent warm-startup overhead, or the scope
+and performance acceptance criteria are explicitly narrowed and documented.
 
 ### CommonJS interop uncovered by Log4brains
 
@@ -158,9 +202,10 @@ has no explicit `default` export. Its `modules/index.js` uses a default import
 from that module. The fork previously treated the CommonJS marker as sufficient
 to suppress a synthetic default, causing the real CLI to fail. Pseudo-ESM
 CommonJS modules now receive a default binding of `module.exports` **only if**
-they have no explicit default. The regression covers direct preloading and
-factory loading, cold and warm caches, and preservation of an explicitly
-provided default export.
+they have no explicit default **and** export at least one name other than
+`__esModule`. Marker-only modules keep empty namespaces. The regression covers
+direct preloading and factory loading, cold and warm caches, marker-only
+namespaces, and preservation of explicitly provided default exports.
 
 ## Jest transformer (#875, #706)
 
@@ -258,12 +303,17 @@ and responds `Hello world`, **but can start listening before the awaited
 probe detects this early return instead of mistaking a successful HTTP response
 for correct top-level-await sequencing.
 
-The same application with the fork on Node 24.21.0 serves the route only after
-database initialization. Both Babel preload orders and cold/warm caches passed
-with the actual module-resolver plugin. This fork run used the temporary Acorn
-build adapter described above; full validation against the normal production
-build is still required. Node 20 cannot use the fork's Node 24 native await
-bridge, so this does not establish cross-version synchronous-await support.
+The earlier integration probe with an offline Acorn adapter reported that
+the fork waited for database initialization with both Babel preload orders.
+With the canonical Acorn production-test build, the separate installed-Babel
+regression still passes both production cache variants. However, a direct run
+of the instrumented original Express reproduction, using its original
+`.babelrc` and `@babel/register` preload, fails with `SyntaxError: await is only
+valid in async functions and the top level bodies of modules`: the Babel hook
+sends the await-only `database.js` through Node's CommonJS compiler. This
+uncovered difference must be investigated before declaring the exact original
+configuration resolved. Node 20 also cannot use the fork's Node 24 native
+await bridge; cross-version synchronous-await support is not established.
 
 The separate `module-alias` fixture confirms that a CommonJS alias can coexist
 with an unrelated ESM graph. CommonJS-only aliases and Node `#imports` through
