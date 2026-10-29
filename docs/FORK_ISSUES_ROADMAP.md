@@ -5,9 +5,9 @@ A practical plan for the 83 reported issues, reviewed on 29 October 2026. Issues
 | Status                |  Count |
 | --------------------- | -----: |
 | Fix confirmed bugs    |      0 |
-| Investigate           |     11 |
+| Investigate           |      8 |
 | Improve documentation |      4 |
-| Already covered       |     45 |
+| Already covered       |     48 |
 | Not planned           |     23 |
 | **Total**             | **83** |
 
@@ -26,11 +26,8 @@ The verified fixture behaviour and remaining gaps are recorded in
 Node subprocesses with the fork's installed tooling, rather than claiming
 compatibility with versions or applications we have not exercised.
 
-- [#844](https://github.com/standard-things/esm/issues/844) — Cold/warm compiler-cache startup benchmark added, with a native Node baseline. A real affected application and repeatable before/after measurements are still needed.
-- [#779](https://github.com/standard-things/esm/issues/779) — Jest VM can load ESM using the bridge and read files via `node:fs`; original protobufjs `util.fs` reproduction is still unverified.
-- [#875](https://github.com/standard-things/esm/issues/875) — ESM imports pass in a Jest 26 CommonJS test via the loader factory; current Jest ESM runtimes remain unverified.
-- [#706](https://github.com/standard-things/esm/issues/706) — A Jest 26 custom test-source transform composes with the loader bridge, but using esm-sync itself as a Jest transformer and newer Jest releases remain unverified.
-- [#810](https://github.com/standard-things/esm/issues/810) — Package-name imports with top-level `await` work alongside a CommonJS alias. Babel's module-resolver rewrite, CommonJS-only aliases in ESM imports, and Node `#imports` through the loader are not established as working.
+- [#844](https://github.com/standard-things/esm/issues/844) — Bootstrap bytecode slicing, immediate regeneration of rejected caches, and package-manifest miss caching are fixed. Deterministic cache regressions and a scalable before/after benchmark cover those faults. The original application's startup regression still needs its graph and measurements.
+- [#810](https://github.com/standard-things/esm/issues/810) — Babel alias rewriting with `modules: false`, transitive top-level await, and warm caches now has a real register-hook regression. The original `babel-plugin-module-resolver` package/repository was not supplied, so its exact integration remains unverified. CommonJS-only aliases and Node `#imports` are not claimed as strict ESM aliases.
 
 ### Other runtimes and execution contexts
 
@@ -73,6 +70,7 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#880](https://github.com/standard-things/esm/issues/880) — Native Node's CommonJS named-export rules differ; this is a migration concern.
 - [#879](https://github.com/standard-things/esm/issues/879) — Nullish coalescing works with imports.
 - [#876](https://github.com/standard-things/esm/issues/876) — Modern Node compatibility work supersedes the older general report.
+- [#875](https://github.com/standard-things/esm/issues/875) — ESM Jest test sources can use esm-sync directly as their configured transformer. Installed Jest 26 tests exercise globals, lexical `jest`, live bindings, direct/transitive imports, and dynamic imports. Newer Jest runtimes remain unverified.
 - [#874](https://github.com/standard-things/esm/issues/874) — Updated files are picked up in a fresh process; same-process reload is tracked under #916.
 - [#872](https://github.com/standard-things/esm/issues/872) — Default-export namespace behaviour is expected; `cjs.dedefault` controls unwrapping.
 - [#868](https://github.com/standard-things/esm/issues/868) — Loading `"type": "module"` packages from CommonJS works.
@@ -96,7 +94,9 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#796](https://github.com/standard-things/esm/issues/796) — Executable configuration has a temporary default package and completes evaluation during cold startup. All supported config formats, dependencies, warm caches, and failed-initialization recovery have regression coverage.
 - [#794](https://github.com/standard-things/esm/issues/794) — `mainFields: ["module", "main"]` selects a package's TypeScript `module` source and falls back to `main` where needed. Real subprocess fixtures verify both ts-node and Babel extension hooks with their source transforms configured. See [tooling and performance](tooling-and-performance.md).
 - [#786](https://github.com/standard-things/esm/issues/786) — Internal `.mjs` imports intentionally bypass CommonJS mocking hooks. Tests distinguish `.js` interception from strict `.mjs` graphs, and `docs/caching-coverage-and-mocking.md` explains that boundary and top-level require interception.
+- [#779](https://github.com/standard-things/esm/issues/779) — Jest contexts use their executing realm's intrinsic eval, retaining lexical `require` for the historical protobuf optional-filesystem probe. Actual protobufjs `loadSync`, message round trips, eval imports, reset/isolation, and custom eval have regressions. The old gRPC application's exact dependency set was not supplied.
 - [#775](https://github.com/standard-things/esm/issues/775) — Startup drains queued callbacks without suppressing their deprecations or restoring over application changes to `process.noDeprecation`. Chained warning listeners, callback ordering, and deprecation flags have native-comparison coverage.
+- [#706](https://github.com/standard-things/esm/issues/706) — The package provides Jest `process`/`getCacheKey` methods, supports cold/warm transform caches, observes edited dependencies, and avoids transforming itself recursively. Modern API signatures/native-ESM passthrough have contract checks; Jest 29/30 were not installed or executed.
 
 ## Not planned
 

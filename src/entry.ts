@@ -107,6 +107,7 @@ const pseudoDescriptor = {
 }
 
 class Entry {
+  declare jest?: unknown
   declare require: import("./types/runtime.js").RuntimeRequire | undefined
   declare addBuiltinModules: ((context: Record<PropertyKey, unknown>) => void) | undefined
   get exportsObject(): Record<PropertyKey, unknown> {

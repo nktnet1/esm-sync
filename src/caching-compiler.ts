@@ -217,7 +217,7 @@ function init() {
         let changed = false
         let scriptData: Buffer | null = null
 
-        if (cachedData === void 0) {
+        if (cachedData === void 0 || script.cachedDataRejected) {
           if (useCreateCachedData && typeof script.createCachedData === "function") {
             scriptData = script.createCachedData()
           } else if (script.cachedDataProduced) {

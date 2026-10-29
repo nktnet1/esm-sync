@@ -1,88 +1,139 @@
-# Tooling and performance investigations
+# Tooling and performance
 
-This documents the reproducible portions of the upstream issues in the
-[roadmap](FORK_ISSUES_ROADMAP.md). The fixtures execute in real Node subprocesses
-under `test/vitest/fork-tooling-performance.test.ts`. They run in Vitest's
-**tooling** project (the Ubuntu/Node 24 CI job), not in every OS/Node matrix job.
-Passing them is not certification of an untested integration or a newer version
-of a third-party tool.
+The integration fixtures run in real Node subprocesses in
+`test/vitest/fork-tooling-performance.test.ts`. CI runs this file in the
+**tooling** project on Ubuntu/Node 24. The installed Jest version is **26.6.3**;
+the installed protobufjs version used by the regression is **7.6.6**.
 
-## Startup measurement (#844)
+## Startup and compiler caches (#844)
 
-Build the fork before measuring, then run:
+Bootstrap reads the `esm` record's validated offsets from `.data.json` before
+passing its slice of `.data.blob` to V8. Other modules' bytecode, a prefix, or a
+suffix must not be passed as the bootstrap's cached data. When V8 rejects
+bytecode, the cache writer now generates replacement bytecode in that same
+process, so the next process can reuse it. Missing package manifests are also
+memoized during resolution, avoiding repeated reads while walking a graph.
+
+Regression tests copy the package into a private directory, place bootstrap
+bytecode inside a larger blob, corrupt the bytecode, and exercise malformed or
+missing metadata and `ESM_DISABLE_CACHE`. They assert actual cache consumption,
+rejection, regeneration, and subsequent acceptance, without timing thresholds.
+
+Build before measuring:
 
 ```sh
-pnpm benchmark:startup --iterations=7
-pnpm benchmark:startup --iterations=7 --json
+pnpm benchmark:startup --modules=256 --iterations=7 --json
+pnpm benchmark:startup --modules=256 --iterations=7 --loader=/path/to/baseline/dist/esm.js --json
 ```
 
-The script uses the _same 16-module graph_ in two equivalent forms: `.mjs` for
-native Node and `.js` for the esm-sync preload. For each iteration it measures:
+`--modules` accepts 1–1000 modules; the default remains 16. `--loader` selects a
+built loader and defaults to this checkout. The report identifies its canonical
+path, Node version, platform, graph size, individual samples, and medians.
 
-- **Native:** A new Node process importing the native `.mjs` graph.
-- **esmCold:** A new Node process with an empty esm-sync compiler-cache directory.
-- **esmWarm:** Another new Node process using the compiler cache produced by
-  that iteration's cold run.
+Each iteration loads equivalent `.mjs` and `.js` graphs in fresh subprocesses:
 
-The measurements are subprocess wall times (including Node startup), in
-milliseconds. Output includes individual samples and medians; `--json` supports
-repeatable collection in a benchmark environment. The script ensures the
-loaded code returns the expected result and that the cold run creates a cache.
-It removes the test fixtures and cache afterwards.
+- **native:** Native Node, without the loader.
+- **esmCold:** esm-sync with an empty application compiler cache.
+- **esmWarm:** esm-sync reusing that iteration's application compiler cache.
 
-Do not turn these measurements into CI pass/fail thresholds. Operating-system
-file caches and other process activity affect wall times. In particular, the
-native baseline does not have an analogous persistent compiler cache. Issue
-#844 described a real application's startup regression; that application's
-dependency graph has not been supplied or benchmarked here. A change should
-be justified by before/after runs on the **same hardware and Node version**.
+The bootstrap cache is separate and may already be warm in either loader case.
+Times include Node startup, application execution, and cache writes on exit.
+The script checks the graph's result, verifies cache creation, and cleans up.
 
-## Jest and Babel transformations (#779, #875, #706)
+An illustrative development-build comparison on Linux/Node 24.21.0, using the
+same host, 256-module graph, and seven iterations per build, produced these
+medians in milliseconds:
 
-Using the fork's installed Jest **26.6.3**, a CommonJS Jest test can call the
-esm-sync loader factory to load an ES module. The same test runs an ESM module
-that imports `node:fs` and calls `readFileSync`, while Jest also applies an
-explicit custom transformer to the test file.
+| Build                     | Native | esmCold | esmWarm |
+| ------------------------- | -----: | ------: | ------: |
+| Supplied `08490c57`       | 102.46 |  368.38 |  264.04 |
+| Cache fixes in this patch |  91.90 |  322.88 |  217.80 |
 
-These are three specific, passing integration checks. They do **not** establish
-that the historical protobufjs `util.fs` initialization bug is fixed, that
-esm-sync itself implements Jest's `process`/`getCacheKey` transformer API, or
-that Jest 29/30 and their ESM runtimes are supported. Revisit these issues
-with current-version Jest and the original protobufjs reproduction before
-changing their roadmap status.
+The changing native baseline demonstrates measurement noise. These figures are
+not CI thresholds or a promised speedup. The original application's reported
+10-to-30-second regression still needs its application graph and equivalent
+before/after measurements; fixing these cache faults does not establish that
+application's startup time.
 
-## Top-level await and aliases (#810)
+## Jest transformer (#875, #706)
 
-The covered graph imports a package via its `exports` entry and evaluates
-top-level `await`, alongside an unrelated CommonJS `module-alias` registration.
-This confirms both features can coexist in one process, **not** that a
-CommonJS `module-alias` registration changes the resolution of ES module
-imports. The latter is intentionally a different resolution path. In the
-investigation, an ES module import of a `module-alias`-only specifier produced
-`ERR_MODULE_RESOLUTION_LEGACY`; an untransformed package `#imports` alias also
-failed through the fork's loader. Do not present either as a working ESM alias.
+The package entry implements Jest's synchronous `process` and `getCacheKey`
+interfaces. A CommonJS Jest configuration can transform ESM test files directly:
 
-The upstream report used `babel-plugin-module-resolver`, not `module-alias`.
-The original transform pipeline and its top-level-await handling remain to be
-reproduced before closing #810. Ordinary package-name imports work in the
-covered case; this is not equivalent to a Babel rewrite or a Node `#imports`
-alias.
+```js
+module.exports = {
+  testEnvironment: "node",
+  transform: { "\\.m?js$": "esm-sync" }
+}
+```
+
+No loader preload or per-test factory call is needed in this configuration.
+Jest retains ownership of the host module; esm-sync compiles the supplied test
+source into a separate loader record. Configured globals and Jest's per-file
+`jest` object remain available. Direct and transitive imports share live
+bindings, and dynamic imports use the loader.
+
+Transformer cache keys include source, filename, configuration, instrumentation
+options, Node version, and the installed bootstrap/loader code. The tests run
+with caching disabled, then cold and warm Jest caches, and confirm that an
+edited dependency is observed. The entry does not transform itself recursively
+when Jest loads it from a checkout outside `node_modules`.
+
+The transformer returns `{ code }`, which works with Jest 26 and matches the
+modern synchronous return contract. If `supportsStaticESM` is true, it returns
+the source unchanged for Jest's native ESM runtime. Contract tests exercise that
+branch and both cache-key call signatures. **Jest 29/30 and their native ESM
+runtimes have not been executed with the supplied dependencies.** This is not a
+claim of full compatibility with every Jest feature, mock mode, or coverage
+provider. See [Jest's transformer API](https://jestjs.io/docs/code-transformation).
+
+## Protobuf filesystem discovery in Jest (#779)
+
+A direct `node:fs` import did not reproduce this bug. The relevant historical
+`@protobufjs/inquire` operation is a direct `eval` of a computed `require` name.
+A copied intrinsic `eval` from another realm behaves as indirect evaluation,
+losing the module's lexical `require` and making the optional filesystem probe
+return `null`.
+
+Context preparation now obtains the executing realm's intrinsic `eval`, while
+preserving an application's custom eval function. The runtime compares against
+that realm's eval when deciding whether to compile direct eval source.
+
+The regression executes the historical probe inside Jest, verifies lexical
+variables and an import inside eval, and feeds the discovered filesystem into
+actual protobufjs `loadSync`. It loads a real `.proto` file, resolves its message
+type, and encodes/decodes a message. Reset/isolation and a custom eval override
+are also exercised. The original gRPC application and its old protobufjs release
+were not supplied; this covers the reported eval/filesystem failure mechanism.
+
+## Babel aliases and top-level await (#810)
+
+Babel must preserve import/export and top-level await for esm-sync to link and
+evaluate the graph. Register Babel before creating the loader factory, use
+`@babel/preset-env` with **`modules: false`**, and use `.js` sources handled by the
+registered extension hook. Configure the alias plugin in that Babel pipeline.
+
+A real `@babel/register` regression rewrites an aliased import and re-export,
+then loads a dependency with top-level await and awaits its value in the
+importer. It passes in cold and warm loader processes. Its small fixture plugin
+performs the source rewrite; **the original `babel-plugin-module-resolver`
+package and repository were not available and were not run**. That exact
+integration therefore remains open in the roadmap.
+
+The separate `module-alias` fixture confirms that a CommonJS alias can coexist
+with an unrelated ESM graph. It does not make CommonJS-only aliases part of
+strict ESM resolution. Node `#imports` mappings through the fork are also not
+established as supported by these fixtures.
 
 ## `mainFields` and TypeScript hooks (#794)
 
-The integration tests exercise a package with both `module: "./src/index.ts"`
-and `main: "./dist/index.js"`, plus a second package with only `main`. With
-`mainFields: ["module", "main"]`, esm-sync resolves the TypeScript source of
-the first package and falls back to `main` for the second.
+A package with both `module: "./src/index.ts"` and `main: "./dist/index.js"`
+selects its TypeScript source with `mainFields: ["module", "main"]`. A second
+package with only `main` verifies fallback. Both ts-node and Babel extension
+hooks transform the typed source in real subprocesses.
 
-The same fixture passes with `ts-node/register` and with `@babel/register`
-configured to process the fixture's simple typed source. When using ts-node,
-`TS_NODE_SKIP_IGNORE=true` is required to transform `.ts` under `node_modules`
-(the location of the reported package). `ESNext`/`Bundler` are the test's
-compiler options; `TS_NODE_TRANSPILE_ONLY` and `TS_NODE_SKIP_PROJECT` keep the
-fixture independent of the monorepo's TypeScript configuration.
-
-This reproduces the essential custom-main-field and registered-extension
-behaviour without requiring the original monorepo's private packages. It does
-not imply that arbitrary TypeScript syntax can be transformed by Babel's Flow
-plugin, or that arbitrary compiler hooks will compose in every order.
+For ts-node, `TS_NODE_SKIP_IGNORE=true` allows `.ts` under `node_modules` to be
+transformed. The fixture uses `ESNext`/`Bundler`, `TS_NODE_TRANSPILE_ONLY`, and
+`TS_NODE_SKIP_PROJECT` to remain independent of the repository configuration.
+The Babel fixture strips the simple type annotation using its configured Flow
+plugin; this does not imply support for arbitrary TypeScript syntax.

@@ -79,6 +79,82 @@ function makeRequireFunction(mod: typeof module, options?: Partial<Options>): No
   return (loadESM() as typeof makeRequireFunction)(mod, options)
 }
 
+function transform(source: string, filename: string, options: unknown = {}): { code: string } {
+  // Jest also transforms packages installed from source/outside node_modules.
+  // The runtime entry must remain executable before its own API is available.
+  if (
+    filename === __filename ||
+    filename === resolve(__dirname, "index.js") ||
+    filename === resolve(__dirname, "esm/loader.js")
+  )
+    return { code: source }
+  if (
+    typeof options === "object" &&
+    options !== null &&
+    "supportsStaticESM" in options &&
+    options.supportsStaticESM
+  ) {
+    return { code: source }
+  }
+  return {
+    code:
+      "module.exports=require(" +
+      JSON.stringify(__filename) +
+      ")._runJest(module," +
+      JSON.stringify(source) +
+      "," +
+      JSON.stringify(filename) +
+      ",typeof jest==='undefined'?undefined:jest);"
+  }
+}
+
+let transformKey: string | undefined
+function getCacheKey(
+  source: string,
+  filename: string,
+  options?: unknown,
+  legacyOptions?: unknown
+): string {
+  const { createHash } = require("crypto") as typeof import("node:crypto")
+  if (transformKey === undefined) {
+    transformKey = createHash("sha256")
+      .update(content)
+      .update(readFile(__filename, "utf8") ?? "")
+      .digest("hex")
+  }
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        transformKey,
+        __filename,
+        process.versions.node,
+        source,
+        filename,
+        options,
+        legacyOptions
+      ])
+    )
+    .digest("hex")
+}
+
+function runJest(mod: typeof module, source: string, filename: string, jest: unknown): unknown {
+  const factory = loadESM() as typeof makeRequireFunction & {
+    runJest: (mod: typeof module, source: string, filename: string, jest: unknown) => unknown
+  }
+  factory(mod, { cjs: true, mode: "auto" })
+  return factory.runJest(mod, source, filename, jest)
+}
+
+const factory = Object.defineProperties(makeRequireFunction, {
+  process: { value: transform },
+  getCacheKey: { value: getCacheKey },
+  _runJest: { value: runJest }
+}) as typeof makeRequireFunction & {
+  process: typeof transform
+  getCacheKey: typeof getCacheKey
+  _runJest: typeof runJest
+}
+
 function readFile(filename: string): Buffer | null
 function readFile(filename: string, options: "utf8"): string | null
 function readFile(filename: string, options?: "utf8"): Buffer | string | null {
@@ -90,6 +166,7 @@ function readFile(filename: string, options?: "utf8"): Buffer | string | null {
 }
 
 let cachedData: Buffer | undefined
+let cacheBuffer: Buffer | undefined
 let scriptOptions: ScriptOptions & { __proto__: null }
 let cachePath = ""
 let content = ""
@@ -111,7 +188,35 @@ if (nativeContent !== "") {
   // though the generated bootstrap itself lives in dist/.
   if (!disableCache) {
     cachePath = resolve(__dirname, "..", "node_modules/.cache/esm")
-    cachedData = readFile(cachePath + sep + ".data.blob") ?? undefined
+    cacheBuffer = readFile(cachePath + sep + ".data.blob") ?? undefined
+    try {
+      const data: unknown = JSON.parse(readFile(cachePath + sep + ".data.json", "utf8") ?? "null")
+      const version = (require("../package.json") as { version: string }).version
+      const meta =
+        typeof data === "object" &&
+        data !== null &&
+        "version" in data &&
+        data.version === version &&
+        "meta" in data
+          ? data.meta
+          : null
+      const offsets: unknown =
+        typeof meta === "object" && meta !== null && "esm" in meta ? meta.esm : null
+      if (cacheBuffer !== undefined && Array.isArray(offsets)) {
+        const [start, end] = offsets as unknown[]
+        if (
+          typeof start === "number" &&
+          typeof end === "number" &&
+          Number.isInteger(start) &&
+          Number.isInteger(end) &&
+          start >= 0 &&
+          end > start &&
+          end <= cacheBuffer.length
+        ) {
+          cachedData = cacheBuffer.slice(start, end)
+        }
+      }
+    } catch {}
   }
   content = readFile(__dirname + sep + "esm" + sep + "loader.js", "utf8") ?? ""
 
@@ -169,7 +274,7 @@ if (cachePath !== "") {
     const scriptData = cachedData ?? null
 
     cache = {
-      buffer: cachedData,
+      buffer: cacheBuffer,
       compile: new Map([
         [
           "esm",
@@ -224,4 +329,4 @@ defineProperty(makeRequireFunction, symbolFor("esm:package"), {
 
 freeze(makeRequireFunction)
 
-export default makeRequireFunction
+export default factory

@@ -129,6 +129,14 @@ function init(): SharedState {
     return new safeVM.Script("this").runInThisContext() as typeof globalThis
   })
 
+  setDeferred(shared, "contextEval", () => {
+    if (shared.unsafeGlobal === shared.defaultGlobal)
+      return shared.external.eval as SharedState["contextEval"]
+    return new shared.module.safeVM.Script("eval").runInContext(
+      shared.unsafeContext
+    ) as SharedState["contextEval"]
+  })
+
   setDeferred(shared, "originalConsole", (): Console | typeof Function.prototype => {
     const { safeInspector, safeVM, utilGet } = shared.module
 

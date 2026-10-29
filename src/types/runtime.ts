@@ -130,6 +130,7 @@ export interface SharedState {
   customInspectKey: string | symbol | undefined
   defaultInspectOptions: import("node:util").InspectOptions | undefined
   defaultGlobal: typeof globalThis
+  contextEval: (value: unknown) => unknown
   originalConsole: Console | typeof Function.prototype
   proxyNativeSourceText: string
   runtimeName: string
