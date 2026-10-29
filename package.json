@@ -37,7 +37,8 @@
     "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio",
     "release:beta": "node script/src/esm/release-beta.ts",
     "release:pack": "node script/src/esm/prepare-release-package.ts",
-    "release:publish": "node script/src/esm/publish-release-package.ts"
+    "release:publish": "node script/src/esm/publish-release-package.ts",
+    "benchmark:startup": "node script/src/benchmark-startup.ts"
   },
   "main": "./dist/esm.js",
   "types": "./dist/esm.d.ts",
