@@ -26,6 +26,7 @@ import realConsole from "../real/console.js"
 import safeConsole from "../safe/console.js"
 import safeGlobalConsole from "../safe/global-console.js"
 import safeProcess from "../safe/process.js"
+import satisfies from "../util/satisfies.js"
 import setProperty from "../util/set-property.js"
 import setPrototypeOf from "../util/set-prototype-of.js"
 import shared from "../shared.js"
@@ -67,7 +68,10 @@ function createBuiltinConsole(): ConsoleObject {
     const { originalConsole } = shared
     const useConsoleCall = typeof consoleCall === "function"
 
-    const emptyConfig = useConsoleCall ? {} : null
+    // Node 11.11 removed the config argument from consoleCall. Passing it
+    // on newer versions logs it as an extra argument in both consoles.
+    const configArgs =
+      useConsoleCall && satisfies(safeProcess.versions.node, "<11.11.0") ? [{}] : []
 
     const originalNames = keys(originalConsole)
 
@@ -87,7 +91,13 @@ function createBuiltinConsole(): ConsoleObject {
           setProperty(
             newBuiltinConsole,
             name,
-            GenericFunction.bind(consoleCall, void 0, originalFunc, builtinFunc, emptyConfig)
+            GenericFunction.bind(
+              consoleCall,
+              newBuiltinConsole,
+              originalFunc,
+              builtinFunc,
+              ...configArgs
+            )
           )
         } else {
           setProperty(newBuiltinConsole, name, originalFunc)

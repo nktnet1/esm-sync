@@ -104,7 +104,9 @@ function init() {
       }
 
       if (typeof name !== "string") return
-      entry.addGetter(name as string, () => value)
+      // The synthetic default binding always refers to the CommonJS exports
+      // object, even when that object has its own property named "default".
+      if (name !== "default") entry.addGetter(name as string, () => value)
 
       try {
         entry.updateBindings(name as string)
@@ -133,7 +135,8 @@ function init() {
         }
 
         if (has(entry.getters, name)) {
-          entry.addGetter(name as string, () => readProperty(entry.exports, name))
+          if (name !== "default")
+            entry.addGetter(name as string, () => readProperty(entry.exports, name))
           entry.updateBindings(name as string)
         }
 
@@ -142,7 +145,8 @@ function init() {
       deleteProperty(exported, name) {
         if (Reflect.deleteProperty(exported, name)) {
           if (has(entry.getters, name)) {
-            entry.addGetter(name as string, () => readProperty(entry.exports, name))
+            if (name !== "default")
+              entry.addGetter(name as string, () => readProperty(entry.exports, name))
             entry.updateBindings(name as string)
           }
 
@@ -170,7 +174,8 @@ function init() {
 
         if (Reflect.set(exported, name, value, receiver)) {
           if (has(entry.getters, name)) {
-            entry.addGetter(name as string, () => readProperty(entry.exports, name))
+            if (name !== "default")
+              entry.addGetter(name as string, () => readProperty(entry.exports, name))
             entry.updateBindings(hasPropertySetter ? void 0 : (name as string))
           } else if (hasPropertySetter) {
             entry.updateBindings()

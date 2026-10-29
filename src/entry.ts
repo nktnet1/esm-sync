@@ -930,15 +930,16 @@ function assignMutableNamespaceHandlerTraps(
       const exported = entry.exports
       const value: unknown = oldGet(namespace, name, receiver)
 
+      // A CommonJS default import is the exports object itself. Its own
+      // property named "default" may be an unrelated (or deprecated) getter.
+      if (name === "default" && (entry.type === TYPE_CJS || entry.type === TYPE_JSON)) {
+        return value
+      }
+
       if (has(exported, name)) {
         const newValue = Reflect.get(exported as object, name, receiver)
-        const { type } = entry
 
-        if (
-          newValue !== value &&
-          ((type !== TYPE_CJS && type !== TYPE_JSON) || name !== "default") &&
-          isUpdatableGet(namespace, name)
-        ) {
+        if (newValue !== value && isUpdatableGet(namespace, name)) {
           return newValue
         }
       }
@@ -953,6 +954,11 @@ function assignMutableNamespaceHandlerTraps(
     if (
       descriptor === void 0 ? !Reflect.isExtensible(namespace) : !isUpdatableDescriptor(descriptor)
     ) {
+      return descriptor
+    }
+
+    if (name === "default" && (entry.type === TYPE_CJS || entry.type === TYPE_JSON)) {
+      if (descriptor !== void 0) descriptor.value = handler.get!(namespace, name)
       return descriptor
     }
 

@@ -21,6 +21,7 @@ const runtimeTests = [
   "legacy-runtime",
   "main-hook",
   "native-suites",
+  "observable-compatibility",
   "optional-native",
   "package-config",
   "package-exports",

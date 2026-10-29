@@ -1,27 +1,19 @@
 # Roadmap
 
-A practical plan for the 83 reported issues, reviewed on 28 October 2026. Issues link to their original reports. Work is ordered by impact, not by release date.
+A practical plan for the 83 reported issues, reviewed on 29 October 2026. Issues link to their original reports. Work is ordered by impact, not by release date.
 
 | Status                |  Count |
 | --------------------- | -----: |
-| Fix confirmed bugs    |      3 |
+| Fix confirmed bugs    |      0 |
 | Investigate           |     19 |
 | Improve documentation |      4 |
-| Already covered       |     34 |
+| Already covered       |     37 |
 | Not planned           |     23 |
 | **Total**             | **83** |
 
-## Fix next
+## Confirmed fixes complete
 
-The high-priority crash and module-behaviour fixes are complete.
-
-### Next: observable compatibility bugs
-
-- [#812](https://github.com/standard-things/esm/issues/812) — Importing CommonJS can unexpectedly invoke a `default` getter.
-- [#775](https://github.com/standard-things/esm/issues/775) — A warning listener can miss the second deprecation warning.
-- [#824](https://github.com/standard-things/esm/issues/824) — Starting with `--inspect` can print an extra `{}` to the console.
-
-For each fix, add a small regression test and compare behaviour with native Node where appropriate.
+The high-priority crash, module-behaviour, and observable compatibility fixes are complete. Dedicated upstream regressions cover the linked reports; feature tests cover broader behaviour and compare with native Node where appropriate. The remaining reports below need investigation or documentation.
 
 ## Investigate before committing to a fix
 
@@ -95,11 +87,14 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#846](https://github.com/standard-things/esm/issues/846) — Module binding discovery follows `var` through nested statements without crossing function or class boundaries. The reported export and broader hoisting, destructuring, scope, and live-binding cases have regression coverage.
 - [#843](https://github.com/standard-things/esm/issues/843) — Invalid zero-width tokens report a syntax error instead of resuming tokenization; the original source and broader tokenizer cases have regression coverage.
 - [#841](https://github.com/standard-things/esm/issues/841) — Build instructions are available in `docs/build-layout.md`.
+- [#824](https://github.com/standard-things/esm/issues/824) — The inspector console bridge uses the host's argument signature, so console output and inspector events do not acquire an extra configuration object. Object formatting, placeholders, console methods, custom consoles, and event delivery have native-comparison coverage.
 - [#821](https://github.com/standard-things/esm/issues/821) — Node filesystem/stat compatibility is handled.
 - [#816](https://github.com/standard-things/esm/issues/816) — Basic repeated initialization does not reproduce the `__global__` error.
 - [#813](https://github.com/standard-things/esm/issues/813) — `Object.assign` preserves added properties in the tested mixed-module case.
+- [#812](https://github.com/standard-things/esm/issues/812) — CommonJS default imports and namespace descriptors preserve the exports object without reading its own `default` accessor. Explicit property access and mutations retain that synthetic binding; transpiled `__esModule` defaults keep their configured interop behaviour.
 - [#809](https://github.com/standard-things/esm/issues/809) — The Reflect shim forwards CommonJS polyfill changes and ESM mutations to the same backing object while retaining namespace safeguards. Direct/transitive polyfills, accessors, method replacement, and frozen descriptors have regression coverage.
 - [#796](https://github.com/standard-things/esm/issues/796) — Executable configuration has a temporary default package and completes evaluation during cold startup. All supported config formats, dependencies, warm caches, and failed-initialization recovery have regression coverage.
+- [#775](https://github.com/standard-things/esm/issues/775) — Startup drains queued callbacks without suppressing their deprecations or restoring over application changes to `process.noDeprecation`. Chained warning listeners, callback ordering, and deprecation flags have native-comparison coverage.
 
 ## Not planned
 

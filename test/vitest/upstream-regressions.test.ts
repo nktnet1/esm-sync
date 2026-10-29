@@ -39,6 +39,97 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/812
+    it("imports a morgan-style CommonJS function without reading its deprecated default property", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          // Match morgan's legacy API without depending on a particular release.
+          "morgan.cjs": `function morgan(format) { return format }
+Object.defineProperty(morgan, 'default', {
+  enumerable: true,
+  configurable: true,
+  get: require('node:util').deprecate(() => 'combined', 'default format: use combined format')
+})
+module.exports = morgan
+`,
+          "index.js":
+            "import morgan, * as ns from './morgan.cjs'; console.log(ns.default === morgan && morgan('combined'))\n"
+        },
+        async (directory) => {
+          checkSuccess(
+            expect,
+            await runNode(["-r", loaderPath, "index.js"], esmEnv, loaderOptions, {
+              cwd: directory
+            }),
+            "combined"
+          )
+        }
+      )
+    })
+
+    // https://github.com/standard-things/esm/issues/775
+    it("delivers the second deprecation emitted from a once warning listener", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "index.cjs": `const util = require('node:util')
+const fn = () => {}
+const deprecated1 = util.deprecate(fn, 'msg1')
+const deprecated2 = util.deprecate(fn, 'msg2')
+const warnings = []
+process.once('warning', warning => {
+  warnings.push(warning.message)
+  process.once('warning', warning => warnings.push(warning.message))
+  deprecated2()
+})
+deprecated1()
+process.on('beforeExit', () => console.log(JSON.stringify(warnings)))
+`
+        },
+        async (directory) => {
+          for (const preload of [[], ["-r", loaderPath]]) {
+            checkSuccess(
+              expect,
+              await runNode(
+                ["--no-warnings", ...preload, "index.cjs"],
+                esmEnv,
+                {},
+                { cwd: directory }
+              ),
+              '["msg1","msg2"]'
+            )
+          }
+        }
+      )
+    })
+
+    // https://github.com/standard-things/esm/issues/824
+    it("logs the reported object without an extra empty object under --inspect", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "a.js": "import './b.js'\nconsole.log({ test: true })\n",
+          "b.js": ""
+        },
+        async (directory) => {
+          const result = await runNode(
+            ["--inspect=0", "-r", loaderPath, "a.js"],
+            esmEnv,
+            loaderOptions,
+            { cwd: directory }
+          )
+          expect(result.exitCode, result.stderr).toBe(0)
+          expect(result.stdout).toBe("{ test: true }\n")
+          expect(result.stderr).toMatch(/^Debugger listening on ws:\/\/127\.0\.0\.1:\d+\//)
+          expect(result.stderr.trim().split("\n")).toHaveLength(2)
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/924
     it("requires the exported remotion/version subpath with the loader preloaded", async ({
       expect
