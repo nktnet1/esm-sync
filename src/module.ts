@@ -23,6 +23,7 @@ import protoLoad from "./module/proto/load.js"
 import protoReq from "./module/proto/require.js"
 import safeDefaultProperties from "./util/safe-default-properties.js"
 import shared from "./shared.js"
+import setPrototypeOf from "./util/set-prototype-of.js"
 import staticCreateRequireFromPath from "./module/static/create-require-from-path.js"
 import staticFindPath from "./module/static/find-path.js"
 import staticInitPaths from "./module/static/init-paths.js"
@@ -201,6 +202,10 @@ if (!ELECTRON || !Array.isArray(SafeModule.wrapper)) {
 }
 
 const ModuleProto = Module.prototype
+
+// Native compilation helpers require instanceof the host Module. Keep our
+// own methods while retaining that identity through composed transform hooks.
+setPrototypeOf(ModuleProto, RealModule.prototype)
 
 ModuleProto._compile = protoCompile
 ModuleProto.constructor = Module

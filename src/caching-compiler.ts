@@ -20,9 +20,7 @@ import GenericBuffer from "./generic/buffer.js"
 import exists from "./fs/exists.js"
 import getCachePathHash from "./util/get-cache-path-hash.js"
 import isExtMJS from "./path/is-ext-mjs.js"
-import getEnv from "./util/get-env.js"
 import mkdirp from "./fs/mkdirp.js"
-import parseJSON from "./util/parse-json.js"
 import relative from "./path/relative.js"
 import removeFile from "./fs/remove-file.js"
 import shared from "./shared.js"
@@ -169,11 +167,6 @@ function init() {
       const noCacheDir = !mkdirp(cachePath)
 
       let { dirty } = cache
-
-      if (!dirty && !noCacheDir) {
-        dirty = !!parseJSON(getEnv("ESM_DISABLE_CACHE"))
-        cache.dirty = dirty
-      }
 
       if (dirty || noCacheDir) {
         dir.delete(cachePath)

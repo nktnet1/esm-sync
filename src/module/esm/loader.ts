@@ -1,5 +1,6 @@
 import type Entry from "../../entry.js"
 import ENTRY from "../../constant/entry.js"
+import ENV from "../../constant/env.js"
 
 import Loader from "../../loader.js"
 import Module from "../../module.js"
@@ -30,6 +31,7 @@ function loader(entry: Entry, filename: string, parentEntry: Entry | null) {
   const parentIsPseudo = parentType === TYPE_PSEUDO
 
   if (
+    (ENV.NYC && ext === ".mjs") ||
     parentIsCJS ||
     parentIsPseudo ||
     ext === ".js" ||

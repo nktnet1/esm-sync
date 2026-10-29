@@ -3,12 +3,8 @@ import type { Options } from "../types/public.js"
 import type { ScriptOptions } from "node:vm"
 
 const NativeModule = require("module") as ModuleConstructor
-NativeModule.Module._extensions[".js"] = function (module, filename) {
-  module._compile(
-    (require("fs") as typeof import("node:fs")).readFileSync(filename, "utf8"),
-    filename
-  )
-}
+// Preserve handlers installed by coverage tools and transpilers. Replacing
+// .js here discards their transforms before the loader hooks can compose them.
 
 const globalThis = (function (this: typeof global | void): typeof global {
   // Reference `this` before `Function()` to prevent CSP errors for unsafe-eval.
@@ -97,6 +93,11 @@ let cachedData: Buffer | undefined
 let scriptOptions: ScriptOptions & { __proto__: null }
 let cachePath = ""
 let content = ""
+let disableCache = false
+
+try {
+  disableCache = !!JSON.parse(process.env.ESM_DISABLE_CACHE || "false")
+} catch {}
 
 if (nativeContent !== "") {
   content = nativeContent
@@ -108,8 +109,10 @@ if (nativeContent !== "") {
 } else {
   // Keep bootstrap and compiler cache data together at the package root even
   // though the generated bootstrap itself lives in dist/.
-  cachePath = resolve(__dirname, "..", "node_modules/.cache/esm")
-  cachedData = readFile(cachePath + sep + ".data.blob") ?? undefined
+  if (!disableCache) {
+    cachePath = resolve(__dirname, "..", "node_modules/.cache/esm")
+    cachedData = readFile(cachePath + sep + ".data.blob") ?? undefined
+  }
   content = readFile(__dirname + sep + "esm" + sep + "loader.js", "utf8") ?? ""
 
   scriptOptions = {

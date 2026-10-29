@@ -5,29 +5,19 @@ A practical plan for the 83 reported issues, reviewed on 29 October 2026. Issues
 | Status                |  Count |
 | --------------------- | -----: |
 | Fix confirmed bugs    |      0 |
-| Investigate           |     19 |
+| Investigate           |     12 |
 | Improve documentation |      4 |
-| Already covered       |     37 |
+| Already covered       |     44 |
 | Not planned           |     23 |
 | **Total**             | **83** |
 
 ## Confirmed fixes complete
 
-The high-priority crash, module-behaviour, and observable compatibility fixes are complete. Dedicated upstream regressions cover the linked reports; feature tests cover broader behaviour and compare with native Node where appropriate. The remaining reports below need investigation or documentation.
+The high-priority crash, module-behaviour, and observable compatibility fixes are complete. The cache, coverage, and mocking reports also have fixes or documented boundaries with regression coverage. Dedicated upstream regressions cover the linked reports; feature tests cover broader behaviour and compare with native Node where appropriate. The remaining reports below need investigation or documentation.
 
 ## Investigate before committing to a fix
 
 These reports may still matter, but need a current reproduction or a clear decision about supported behaviour.
-
-### Cache, coverage, and mocking
-
-- [#910](https://github.com/standard-things/esm/issues/910) — Check NYC coverage accuracy, cache separation, and `ESM_DISABLE_CACHE` behaviour.
-- [#852](https://github.com/standard-things/esm/issues/852) — Retest NYC with `ts-node` and exports.
-- [#839](https://github.com/standard-things/esm/issues/839) — Retest NYC with `.mjs` files.
-- [#805](https://github.com/standard-things/esm/issues/805) — Check rewiremock, re-exports, and module caching together.
-- [#798](https://github.com/standard-things/esm/issues/798) — Check whether proxyquire can intercept otherwise unused imports.
-- [#786](https://github.com/standard-things/esm/issues/786) — `.mjs` imports bypass `Module._load` mocks; decide whether interception is supported.
-- [#916](https://github.com/standard-things/esm/issues/916) — Clarify whether disabling the compiler cache should allow hot reload; it does not reset evaluated modules.
 
 ### Tooling and performance
 
@@ -64,8 +54,10 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#922](https://github.com/standard-things/esm/issues/922) — Synchronous CommonJS-to-ESM loading is supported through the loader factory.
 - [#921](https://github.com/standard-things/esm/issues/921) — The syntax failure is covered; imports normally evaluate top-level code.
 - [#918](https://github.com/standard-things/esm/issues/918) — Optional chaining is supported.
+- [#916](https://github.com/standard-things/esm/issues/916) — Persistent compiler-cache settings do not invalidate evaluated modules. The reported configuration and fresh-process behaviour are tested and explained in `docs/caching-coverage-and-mocking.md`; implicit hot reload is not part of those settings.
 - [#914](https://github.com/standard-things/esm/issues/914) — Errors no longer produce a wall of bundled loader source in the tested case.
 - [#913](https://github.com/standard-things/esm/issues/913) — Worker threads can use imports when the loader is preloaded.
+- [#910](https://github.com/standard-things/esm/issues/910) — NYC hooks survive bootstrap, instrumented compiler caches are separated by configuration, and `ESM_DISABLE_CACHE` bypasses persistent reads/writes without deleting existing caches. Tests assert real coverage counters, warm runs, changed include rules, and cache-disable values.
 - [#909](https://github.com/standard-things/esm/issues/909) — Nullish coalescing is supported.
 - [#904](https://github.com/standard-things/esm/issues/904) — `node:` built-in imports are supported.
 - [#900](https://github.com/standard-things/esm/issues/900) — The CJS-to-ESM loading case works; Electron packaging was not verified.
@@ -84,16 +76,21 @@ These have an existing fix, supported behaviour, or an explanation that requires
 - [#864](https://github.com/standard-things/esm/issues/864) — Migration options and module boundaries are supported.
 - [#863](https://github.com/standard-things/esm/issues/863) — Legacy folder maps support root and nested exports, while null and unexported subpaths remain blocked. The reported `"./": "./dist/"` mapping has a dedicated upstream regression; modern patterns and boundary checks have separate coverage.
 - [#855](https://github.com/standard-things/esm/issues/855) — The earlier `"type": "module"` warning is not reproduced.
+- [#852](https://github.com/standard-things/esm/issues/852) — A transpiler's post-link compile preserves registered import bindings, so NYC/Mocha/ts-node can call exported TypeScript functions. Tests cover both CommonJS and preserved ESM output, with source-mapped coverage checks.
 - [#846](https://github.com/standard-things/esm/issues/846) — Module binding discovery follows `var` through nested statements without crossing function or class boundaries. The reported export and broader hoisting, destructuring, scope, and live-binding cases have regression coverage.
 - [#843](https://github.com/standard-things/esm/issues/843) — Invalid zero-width tokens report a syntax error instead of resuming tokenization; the original source and broader tokenizer cases have regression coverage.
 - [#841](https://github.com/standard-things/esm/issues/841) — Build instructions are available in `docs/build-layout.md`.
+- [#839](https://github.com/standard-things/esm/issues/839) — NYC can start `.mjs` entry points and instrument their dependencies through the installed extension transform. Dedicated entry-point and original-source coverage tests guard the reported integration.
 - [#824](https://github.com/standard-things/esm/issues/824) — The inspector console bridge uses the host's argument signature, so console output and inspector events do not acquire an extra configuration object. Object formatting, placeholders, console methods, custom consoles, and event delivery have native-comparison coverage.
 - [#821](https://github.com/standard-things/esm/issues/821) — Node filesystem/stat compatibility is handled.
 - [#816](https://github.com/standard-things/esm/issues/816) — Basic repeated initialization does not reproduce the `__global__` error.
 - [#813](https://github.com/standard-things/esm/issues/813) — `Object.assign` preserves added properties in the tested mixed-module case.
 - [#812](https://github.com/standard-things/esm/issues/812) — CommonJS default imports and namespace descriptors preserve the exports object without reading its own `default` accessor. Explicit property access and mutations retain that synthetic binding; transpiled `__esModule` defaults keep their configured interop behaviour.
 - [#809](https://github.com/standard-things/esm/issues/809) — The Reflect shim forwards CommonJS polyfill changes and ESM mutations to the same backing object while retaining namespace safeguards. Direct/transitive polyfills, accessors, method replacement, and frozen descriptors have regression coverage.
+- [#805](https://github.com/standard-things/esm/issues/805) — Mock selection precedes real dependency execution, and abandoned linking records no longer poison later re-export loads. The reported rewiremock-style `Module._load`/cache-reset sequence has a dedicated regression; the historical rewiremock package was not run.
+- [#798](https://github.com/standard-things/esm/issues/798) — Import finalization is scoped to the importer, so an unused named import cannot replace another module's proxyquire stub. The original local/global stub sequence and binding isolation have regression coverage with proxyquire.
 - [#796](https://github.com/standard-things/esm/issues/796) — Executable configuration has a temporary default package and completes evaluation during cold startup. All supported config formats, dependencies, warm caches, and failed-initialization recovery have regression coverage.
+- [#786](https://github.com/standard-things/esm/issues/786) — Internal `.mjs` imports intentionally bypass CommonJS mocking hooks. Tests distinguish `.js` interception from strict `.mjs` graphs, and `docs/caching-coverage-and-mocking.md` explains that boundary and top-level require interception.
 - [#775](https://github.com/standard-things/esm/issues/775) — Startup drains queued callbacks without suppressing their deprecations or restoring over application changes to `process.noDeprecation`. Chained warning listeners, callback ordering, and deprecation flags have native-comparison coverage.
 
 ## Not planned

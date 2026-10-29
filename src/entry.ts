@@ -21,6 +21,8 @@ import ENTRY from "./constant/entry.js"
 import CachingCompiler from "./caching-compiler.js"
 import OwnProxy from "./own/proxy.js"
 import Package from "./package.js"
+import Module from "./module.js"
+import staticLoad from "./module/static/load.js"
 import SafeObject from "./safe/object.js"
 
 import encodeId from "./util/encode-id.js"
@@ -117,6 +119,7 @@ class Entry {
   declare _completeMutableNamespace: Namespace
   declare _completeNamespace: Namespace
   declare _finalize: (() => void) | null
+  declare _childFinalizers: Record<string, (() => void)[]>
   declare _lastChild: Entry | null
   declare _loaded: number
   declare _namespaceFinalized: number
@@ -390,6 +393,8 @@ class Entry {
     this._completeNamespace = toRawModuleNamespaceObject()
     // The entry finalization handler.
     this._finalize = null
+    // Require interception belongs to each importer, not the shared child.
+    this._childFinalizers = emptyRecord()
     // The last child entry loaded.
     this._lastChild = null
     // The loaded state of the module.
@@ -634,6 +639,19 @@ class Entry {
         continue
       }
 
+      const finalizers = this._childFinalizers[name]
+      if (
+        finalizers !== void 0 &&
+        this.hasRequireInterception() &&
+        !this.circular &&
+        !childEntry.circular
+      ) {
+        // Resolve each importing edge before executing the dependency. The
+        // require hook may supply a mock, leaving the real entry unevaluated.
+        for (const finalize of finalizers) finalize()
+        continue
+      }
+
       const { runtime } = childEntry
 
       const runResult = runtime === null ? void 0 : runtime.runResult
@@ -652,12 +670,12 @@ class Entry {
           }
         }
 
-        if (typeof childEntry._finalize === "function") {
-          childEntry._finalize()
-        } else {
+        // Strict and cyclic graphs retain their existing depth-first
+        // finalization order so indirect export bindings stay live.
+        if (typeof childEntry._finalize === "function") childEntry._finalize()
+        else {
           childEntry.loaded()
           childEntry.updateBindings(null, UPDATE_TYPE_INIT)
-
           validateShallow(childEntry, this)
         }
 
@@ -666,6 +684,14 @@ class Entry {
         childEntry.state = threw ? STATE_INITIAL : STATE_EXECUTION_COMPLETED
       }
     }
+  }
+
+  hasRequireInterception() {
+    return (
+      this.extname !== ".mjs" &&
+      (Module._load !== staticLoad ||
+        (has(this.module, "require") && this.module.require !== Module.prototype.require))
+    )
   }
 
   updateBindings(

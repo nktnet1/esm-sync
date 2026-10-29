@@ -4,9 +4,17 @@ import path from "node:path"
 import { pathToFileURL } from "node:url"
 import { describe, it, type TestContext } from "vitest"
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
+import {
+  coverageFor,
+  runCoverage,
+  tsNodeRegister,
+  mochaCLI,
+  proxyquirePath
+} from "./helpers/coverage.ts"
 
 const loaderOptions = { ESM_OPTIONS: "{cjs:true,mode:'auto'}" }
 const loaderPath = path.resolve(testPath, "../esm.js")
+const coverageTestTimeout = 180_000
 
 async function withFiles(
   files: Record<string, string>,
@@ -39,6 +47,204 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/910
+    it(
+      "collects real NYC counters after an ordinary run has warmed the compiler cache",
+      async (context) => {
+        const expect: TestContext["expect"] = context.expect
+        await withFiles(
+          {
+            "math.js":
+              "export function covered() { return 42 }\nexport function unused() { return 0 }\n",
+            "index.js": "import { covered } from './math.js'; console.log(covered())\n"
+          },
+          async (directory) => {
+            const options = { ESM_OPTIONS: "{cjs:true,mode:'auto',cache:'./esm-cache'}" }
+            checkSuccess(
+              expect,
+              await runNode(["-r", loaderPath, "index.js"], esmEnv, options, { cwd: directory }),
+              "42"
+            )
+            const result = await runCoverage(directory, esmEnv)
+            expect(result.exitCode, result.stderr).toBe(0)
+            const file = await coverageFor(result.coverage, path.join(directory, "math.js"))
+            expect.assert(file, "NYC must see the source instead of reusing uninstrumented output")
+            expect(Object.values(file.f).sort()).toStrictEqual([0, 1])
+          }
+        )
+      },
+      coverageTestTimeout
+    )
+
+    // https://github.com/standard-things/esm/issues/852
+    it(
+      "calls the exported calc function through NYC, Mocha, ts-node, and the loader",
+      async (context) => {
+        const expect: TestContext["expect"] = context.expect
+        await withFiles(
+          {
+            "calc.ts": "export const calc = (a: number, b: number): number => a + b\n",
+            "calc.test.ts":
+              "import { strictEqual } from 'node:assert'\nimport { calc } from './calc'\ndescribe('calc', () => it('adds', () => strictEqual(calc(1, 2), 3)))\n"
+          },
+          async (directory) => {
+            const result = await runCoverage(directory, esmEnv, {
+              entry: mochaCLI,
+              include: "calc.ts",
+              preloads: [tsNodeRegister, loaderPath],
+              args: ["--reporter=dot", "calc.test.ts"],
+              env: {
+                TS_NODE_SKIP_PROJECT: "true",
+                TS_NODE_TRANSPILE_ONLY: "true",
+                TS_NODE_COMPILER_OPTIONS: JSON.stringify({
+                  module: "ESNext",
+                  moduleResolution: "Bundler",
+                  target: "ES2022"
+                })
+              }
+            })
+            expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+            const file = await coverageFor(result.coverage, path.join(directory, "calc.ts"))
+            expect.assert(file)
+            expect(Object.values(file.f)).toStrictEqual([1])
+          }
+        )
+      },
+      coverageTestTimeout
+    )
+
+    // https://github.com/standard-things/esm/issues/839
+    it(
+      "starts and instruments the .mjs entry supplied to nyc --require esm",
+      async (context) => {
+        const expect: TestContext["expect"] = context.expect
+        await withFiles(
+          {
+            "ok.mjs":
+              "import { strictEqual } from 'node:assert'; strictEqual(1 + 1, 2); console.log('ok')\n"
+          },
+          async (directory) => {
+            const result = await runCoverage(directory, esmEnv, {
+              entry: "ok.mjs",
+              include: "ok.mjs"
+            })
+            expect(result.exitCode, result.stderr).toBe(0)
+            expect(result.stdout).toBe("ok\n")
+            const file = await coverageFor(result.coverage, path.join(directory, "ok.mjs"))
+            expect.assert(file)
+            expect(Object.values(file.s).some((count) => count > 0)).toBe(true)
+          }
+        )
+      },
+      coverageTestTimeout
+    )
+
+    // https://github.com/standard-things/esm/issues/805
+    it("lets a later C mock replace the parsed B-to-C re-export after an A-to-B mock", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "A.js": "import B from './B.js'; export default B\n",
+          "B.js": "import C from './C.js'; export default C\n",
+          "C.js": "export default 42\n",
+          // Exercise rewiremock's Module._load/cache protocol without adding
+          // a dependency on an unavailable historical rewiremock release.
+          "index.cjs": `const Module = require('module')
+const original = Module._load
+Module._load = function(request) { return request === './B.js' ? 'bar' : original.apply(this, arguments) }
+const first = require('./A.js').default
+for (const name of ['A', 'B', 'C']) delete require.cache[require.resolve('./' + name + '.js')]
+Module._load = function(request) { return request === './C.js' ? { __esModule: true, default: 'baz' } : original.apply(this, arguments) }
+const second = require('./B.js').default
+Module._load = original
+console.log(JSON.stringify([first, second]))
+`
+        },
+        async (directory) =>
+          checkSuccess(
+            expect,
+            await runNode(["-r", loaderPath, "index.cjs"], esmEnv, loaderOptions, {
+              cwd: directory
+            }),
+            '["bar","baz"]'
+          )
+      )
+    })
+
+    // https://github.com/standard-things/esm/issues/798
+    it("preserves proxyquire's global path stub when c.js has an unused named path import", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "a.js":
+            "import b from './b.js'; import { extname } from 'path'; export default () => 'a' + b + extname('')\n",
+          "b.js": "",
+          "c.js":
+            "import a from './a.js'; import { extname } from 'path'; export default () => a()\n",
+          "index.cjs": `const proxyquire = require(${JSON.stringify(proxyquirePath)})
+const a = proxyquire.load('./a.js', { path: { extname: () => 'c' }, './b.js': 'b' })
+const first = a.default()
+const b = new String('b'); b['@global'] = true
+const c = proxyquire.load('./c.js', { path: { extname: () => 'c', '@global': true }, './b.js': b })
+console.log(JSON.stringify([first, c.default()]))
+`
+        },
+        async (directory) =>
+          checkSuccess(
+            expect,
+            await runNode(["-r", loaderPath, "index.cjs"], esmEnv, loaderOptions, {
+              cwd: directory
+            }),
+            '["abc","abc"]'
+          )
+      )
+    })
+
+    // https://github.com/standard-things/esm/issues/786
+    it("keeps internal .mjs imports outside the documented CommonJS mocking boundary", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "foo.mjs": "export default () => 'FOO'\n",
+          "index.mjs": "import foo from './foo.mjs'; export default () => foo()\n",
+          "index.cjs": `const load = require(${JSON.stringify(loaderPath)})(module, { cjs: true, mode: 'auto' })
+const Module = load('module')
+const original = Module._load
+Module._load = function(request) { return request === './foo.mjs' ? () => 'bar' : original.apply(this, arguments) }
+try { console.log(load('./index.mjs').default()) } finally { Module._load = original }
+`
+        },
+        async (directory) =>
+          checkSuccess(expect, await runNode(["index.cjs"], esmEnv, {}, { cwd: directory }), "FOO")
+      )
+    })
+
+    // https://github.com/standard-things/esm/issues/916
+    it("treats cache:false and ESM_DISABLE_CACHE as compiler settings rather than module reload requests", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "config.js": "export default 'before'\n",
+          "index.cjs": `process.env.ESM_DISABLE_CACHE = 'true'
+const load = require(${JSON.stringify(loaderPath)})(module, { cache: false, cjs: { cache: false }, force: true })
+const first = load('./config.js').default
+require('node:fs').writeFileSync('./config.js', "export default 'after'\\n")
+console.log(JSON.stringify([first, load('./config.js').default]))
+`
+        },
+        async (directory) =>
+          checkSuccess(
+            expect,
+            await runNode(["index.cjs"], esmEnv, {}, { cwd: directory }),
+            '["before","before"]'
+          )
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/812
     it("imports a morgan-style CommonJS function without reading its deprecated default property", async ({
       expect

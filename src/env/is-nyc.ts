@@ -4,7 +4,7 @@ import shared from "../shared.js"
 
 function init() {
   function isNyc() {
-    return has(env, "NYC_ROOT_ID")
+    return has(env, "NYC_ROOT_ID") || has(env, "NYC_PROCESS_ID") || has(env, "NYC_CONFIG")
   }
 
   return isNyc

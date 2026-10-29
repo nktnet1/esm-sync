@@ -30,12 +30,14 @@ import errors from "./errors.js"
 import esmParseLoad from "./module/esm/parse-load.js"
 import findPath from "./module/internal/find-path.js"
 import getModuleDirname from "./util/get-module-dirname.js"
+import getEnv from "./util/get-env.js"
 import has from "./util/has.js"
 import isCacheName from "./util/is-cache-name.js"
 import isExtJSON from "./path/is-ext-json.js"
 import isFile from "./util/is-file.js"
 import isObject from "./util/is-object.js"
 import keys from "./util/keys.js"
+import md5 from "./util/md5.js"
 import parseJSON from "./util/parse-json.js"
 import parseJSON6 from "./util/parse-json6.js"
 import readFile from "./fs/read-file.js"
@@ -116,10 +118,19 @@ class Package {
 
     let cachePath = ""
 
-    if (typeof options.cache === "string") {
+    const disableCache = !!parseJSON(getEnv("ESM_DISABLE_CACHE"))
+
+    if (!disableCache && typeof options.cache === "string") {
       cachePath = resolve(dirPath, options.cache)
-    } else if (options.cache !== false) {
+    } else if (!disableCache && options.cache !== false) {
       cachePath = dirPath + sep + "node_modules" + sep + ".cache" + sep + "esm"
+    }
+
+    // Instrumented output must not reuse normal compilation or another NYC
+    // configuration. Keep both variants intact when switching between runs.
+    if (cachePath !== "" && ENV.NYC) {
+      const config = getEnv("NYC_CONFIG")
+      cachePath += sep + "nyc-" + md5(typeof config === "string" ? config : "")
     }
 
     const { dir } = shared.package

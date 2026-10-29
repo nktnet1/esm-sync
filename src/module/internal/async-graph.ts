@@ -235,7 +235,15 @@ class Evaluation {
       const child = dependencies[name]!
       const record = this.records.get(child)
       if (record !== void 0 && !record.done) continue
-      if (typeof child._finalize === "function") child._finalize()
+      const finalizers = entry._childFinalizers[child.name!]
+      if (
+        finalizers !== void 0 &&
+        entry.hasRequireInterception() &&
+        !entry.circular &&
+        !child.circular
+      ) {
+        for (const finalize of finalizers) finalize()
+      } else if (typeof child._finalize === "function") child._finalize()
       else {
         child.loaded()
         child.updateBindings(null, UPDATE_TYPE_INIT)
