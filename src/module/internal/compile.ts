@@ -71,6 +71,7 @@ const { DEVELOPMENT, ELECTRON_RENDERER, FLAGS, NDB } = ENV
 const { MODE_ALL, MODE_AUTO } = PACKAGE
 
 const exportsRegExp = /^.*?\bexports\b/
+let externalFallbackActive = false
 
 function compile(
   caller: typeof Function.prototype,
@@ -200,13 +201,24 @@ function compile(
   if (useFallback) {
     entry.type = TYPE_CJS
 
+    if (externalFallbackActive) {
+      return fallback!(content ?? void 0)
+    }
+
     const frames = getStackFrames(constructError(Error, emptyArray))
 
     for (const frame of frames) {
       const framePath = frame.getFileName()
 
       if (isAbsolute(framePath) && !isOwnPath(framePath)) {
-        return fallback!(content ?? void 0)
+        // Nested synchronous loads retain this external caller on their stack.
+        // Reuse that decision only while its native fallback is executing.
+        externalFallbackActive = true
+        try {
+          return fallback!(content ?? void 0)
+        } finally {
+          externalFallbackActive = false
+        }
       }
     }
 
@@ -513,7 +525,14 @@ function tryRun(
 }
 
 function useAsync(entry: Entry) {
-  return entry.package.options.await && shared.support.await && entry.extname !== ".mjs"
+  // Enabling legacy await support must not allocate an async wrapper and a
+  // promise for every ordinary CommonJS dependency in an application.
+  return (
+    entry.package.options.await &&
+    shared.support.await &&
+    entry.extname !== ".mjs" &&
+    entry.compileData!.firstAwaitOutsideFunction !== null
+  )
 }
 
 function useSourceMap(entry: Entry) {

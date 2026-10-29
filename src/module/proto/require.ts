@@ -8,7 +8,6 @@ import Module from "../../module.js"
 import RealModule from "../../real/module.js"
 
 import errors from "../../errors.js"
-import esmLoad from "../esm/load.js"
 import isExtMJS from "../../path/is-ext-mjs.js"
 import maskFunction from "../../util/mask-function.js"
 import shared from "../../shared.js"
@@ -33,8 +32,9 @@ const req = maskFunction(function (this: ModuleRecord, request: string | symbol)
     const parentEntry = isExtMJS(this.filename) ? Entry.get(this) : null
 
     if (parentEntry !== null && parentEntry._passthruRequire) {
+      const load = parentEntry._passthruRequire
       parentEntry._passthruRequire = false
-      return esmLoad(request, this).module.exports
+      return load(request, this).module.exports
     }
 
     return Module._load(request, this)

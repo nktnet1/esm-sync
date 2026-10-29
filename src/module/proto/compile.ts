@@ -228,12 +228,20 @@ const compile = maskFunction(function (
   }
 
   const isESM = entry.type === TYPE_ESM
+  const { cachePath } = entry.package
+  // Script bytecode can be captured after evaluation, including functions
+  // compiled while the module ran. compileFunction.cachedData is produced
+  // before its body executes and cannot retain that additional compilation.
+  const useScriptCache =
+    !isESM && !useLegacyWrapper && cachePath !== "" && shared.support.createCachedData
 
   let compiledWrapper: typeof Function.prototype | undefined
   let script: import("../../types/runtime.js").CachedScript
 
-  if (isESM || useLegacyWrapper) {
-    preparedContent = isESM ? staticWrap(preparedContent) : Module.wrap(preparedContent)
+  if (isESM || useLegacyWrapper || useScriptCache) {
+    preparedContent = isESM
+      ? staticWrap(preparedContent)
+      : Module.wrap((useScriptCache ? "\n" : "") + preparedContent)
     if (jest) {
       // Keep Jest's per-file object lexical, just like its own CJS wrapper.
       preparedContent = preparedContent.replace(/^(\(function\s*\([^)]*)(\))/, "$1,jest$2")
@@ -242,6 +250,10 @@ const compile = maskFunction(function (
     const compiledScript = new realVM.Script(preparedContent, {
       cachedData,
       filename,
+      // Put the wrapper on its own line, outside the module's source range.
+      // Runtime positions and SyntaxError source/caret output then match the
+      // CommonJS function compiler, including errors on the first source line.
+      lineOffset: useScriptCache ? -1 : 0,
       produceCachedData: !shared.support.createCachedData
     })
 
@@ -256,7 +268,7 @@ const compile = maskFunction(function (
       {
         cachedData,
         filename,
-        produceCachedData: true
+        produceCachedData: cachePath !== ""
       }
     )
 
@@ -264,9 +276,10 @@ const compile = maskFunction(function (
     script = compiledFunction
   }
 
-  const { cachePath } = entry.package
-
-  if (cachePath !== "") {
+  // Accepted bytecode is already persisted. Retain the Script only when exit
+  // must create or repair its cache; otherwise it pins compilation state for
+  // the lifetime of the application without doing any useful work at exit.
+  if (cachePath !== "" && (cachedData === void 0 || script.cachedDataRejected)) {
     const { pendingScripts } = shared
 
     let scripts = pendingScripts.get(cachePath)
@@ -288,6 +301,19 @@ const compile = maskFunction(function (
   }
 
   const result: unknown = Reflect.apply(compiledWrapper!, exported, args)
+
+  // Accepted CommonJS bytecode needs neither a source rewrite nor another
+  // linking pass. Release its duplicate raw text after execution. Keep cold
+  // source handling unchanged while V8 compiles and creates new bytecode.
+  if (
+    !isESM &&
+    cachedData !== void 0 &&
+    !script.cachedDataRejected &&
+    compileData !== null &&
+    compileData.transforms === 0
+  ) {
+    compileData.code = null
+  }
 
   if (noDepth) {
     moduleState.statFast = null

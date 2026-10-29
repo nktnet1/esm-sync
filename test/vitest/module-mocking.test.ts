@@ -11,6 +11,73 @@ const chain = {
 
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`module mocking and evaluation caches (${esmEnv})`, () => {
+    it("preserves nested CommonJS hook failures, retries, and single evaluation", async ({
+      expect
+    }) => {
+      await withCompatibilityFiles(
+        {
+          "parent.js": "global.events.push('parent'); module.exports = require('./child.js')",
+          "child.js": "global.events.push('child'); module.exports = require('./leaf.js')",
+          "leaf.js": "global.events.push('leaf'); require('./failure.js'); module.exports = 42",
+          "failure.js": "global.events.push('failure')",
+          "later.js": "global.events.push('later'); module.exports = require('./parent.js')",
+          "index.cjs": `const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const Module = require('node:module')
+const original = Module._extensions['.js']
+const failure = fs.realpathSync(require.resolve('./failure.js'))
+const marker = new Error('nested-hook-marker')
+let fail = true
+global.events = []
+Module._extensions['.js'] = function(mod, filename) {
+  if (fs.realpathSync(filename) === failure && fail) { fail = false; throw marker }
+  return original.apply(this, arguments)
+}
+const load = process.env.USE_FACTORY === 'true'
+  ? require(${JSON.stringify(coverageLoader)})(module, {cjs:true,mode:'auto',cache:'./esm-cache'})
+  : require
+try {
+  assert.throws(() => load('./parent.js'), error => error === marker)
+  assert.equal(load('./parent.js'), 42)
+  assert.equal(load('./parent.js'), 42)
+} finally { Module._extensions['.js'] = original }
+setImmediate(() => {
+  assert.equal(load('./later.js'), 42)
+  console.log(JSON.stringify(global.events))
+})`
+        },
+        async (directory) => {
+          const native = await runNode(["index.cjs"], esmEnv, {}, { cwd: directory })
+          expect(native.exitCode, native.stderr).toBe(0)
+          expect(JSON.parse(native.stdout)).toStrictEqual([
+            "parent",
+            "child",
+            "leaf",
+            "parent",
+            "child",
+            "leaf",
+            "failure",
+            "later"
+          ])
+          for (const factory of [false, true]) {
+            for (const cache of ["cold", "warm"]) {
+              const result = await runNode(
+                [...(factory ? [] : ["-r", coverageLoader]), "index.cjs"],
+                esmEnv,
+                {
+                  USE_FACTORY: String(factory),
+                  ESM_OPTIONS: "{cjs:true,mode:'auto',cache:'./esm-cache'}"
+                },
+                { cwd: directory }
+              )
+              expect(result.exitCode, `${factory}, ${cache}\n${result.stderr}`).toBe(0)
+              expect(result.stdout).toBe(native.stdout)
+            }
+          }
+        }
+      )
+    })
+
     it("preserves live export-star cycles in .js interop graphs", async ({ expect }) => {
       await withCompatibilityFiles(
         {

@@ -18,7 +18,9 @@ import realRequire from "../../real/require.js"
 import realProcess from "../../real/process.js"
 import shared from "../../shared.js"
 
-const AWAIT_MARKER = Symbol("esm-sync:top-level-await")
+// Preloads and later loader factories can share Entry records across bundle
+// evaluations. Their await protocol must retain the same token identity.
+const AWAIT_MARKER = Symbol.for(ESM.PACKAGE_PREFIX + "@" + ESM.PACKAGE_VERSION + ":top-level-await")
 const hrtime = realProcess.hrtime
 let bridge: NativeBridge | null | undefined
 let bridgeFailure: unknown

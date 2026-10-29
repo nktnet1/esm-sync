@@ -245,12 +245,16 @@ function tryLoad(
 }
 
 function tryRequire(request: string, parentEntry: Entry) {
-  parentEntry._passthruRequire = true
+  // A preload's inherited require may belong to another factory. Let require
+  // interception run, then dispatch through the factory that linked this graph
+  // so its scratch records are reused instead of creating duplicate entries.
+  const previous = parentEntry._passthruRequire
+  parentEntry._passthruRequire = esmLoad
 
   try {
     return parentEntry.module.require(request)
   } finally {
-    parentEntry._passthruRequire = false
+    parentEntry._passthruRequire = previous
   }
 }
 

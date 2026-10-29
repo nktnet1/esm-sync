@@ -185,6 +185,9 @@ function hook(Mod: ModuleConstructor, parent?: unknown) {
         Reflect.deleteProperty(this, shared.symbol._compile)
         Reflect.apply(compileWrapper, this, [content, filename])
       } else {
+        // Recursive _compile calls execute the loader's already-lowered code.
+        // Only extension-hook input selects a new source/cache identity.
+        if (!entry.running) entry.updateSource(content)
         compile(manager, entry, content, filename, compileFallback)
       }
     })
