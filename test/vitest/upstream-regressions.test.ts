@@ -39,6 +39,57 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/924
+    it("requires the exported remotion/version subpath with the loader preloaded", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          // Entry points from the published remotion@3.3.31 package.json.
+          "node_modules/remotion/package.json": JSON.stringify({
+            name: "remotion",
+            main: "dist/index.js",
+            exports: { ".": "./dist/index.js", "./version": "./dist/version.js" }
+          }),
+          "node_modules/remotion/dist/index.js": "module.exports = {}\n",
+          "node_modules/remotion/dist/version.js": "exports.VERSION = '3.3.31'\n",
+          "index.cjs": "console.log(require('remotion/version').VERSION)\n"
+        },
+        async (directory) => {
+          for (const args of [["index.cjs"], ["-r", loaderPath, "index.cjs"]]) {
+            checkSuccess(expect, await runNode(args, esmEnv, {}, { cwd: directory }), "3.3.31")
+          }
+        }
+      )
+    })
+
+    // https://github.com/standard-things/esm/issues/863
+    it("loads root and nested exports through the reported './' folder mapping", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "node_modules/the-package/package.json": JSON.stringify({
+            exports: { ".": "./dist/index.js", "./": "./dist/" }
+          }),
+          "node_modules/the-package/dist/index.js": "export const blah = 'root'\n",
+          "node_modules/the-package/dist/Foo.js": "export const Foo = 'foo'\n",
+          "node_modules/the-package/dist/nested/Bar.js": "export const Bar = 'bar'\n",
+          "index.js":
+            "import { Foo } from 'the-package/Foo.js'; import { blah } from 'the-package'; import { Bar } from 'the-package/nested/Bar.js'; console.log([blah, Foo, Bar].join(':'))\n"
+        },
+        async (directory) => {
+          checkSuccess(
+            expect,
+            await runNode(["-r", loaderPath, "index.js"], esmEnv, loaderOptions, {
+              cwd: directory
+            }),
+            "root:foo:bar"
+          )
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/809
     it("sees a CommonJS metadata polyfill after direct and transitive ESM imports", async ({
       expect

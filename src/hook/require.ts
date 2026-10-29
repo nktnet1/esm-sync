@@ -23,7 +23,7 @@ function hook(parent: import("../types/runtime.js").ModuleRecord) {
       throw new ERR_INVALID_ARG_VALUE("request", request, "must be a non-empty string")
     }
 
-    const filename = dualResolveFilename(request, parent)
+    const filename = dualResolveFilename(request, parent, false, void 0, false, "require")
     const defaultPkg = Loader.state.package.default
     const dirPath = dirname(filename)
 
@@ -44,7 +44,7 @@ function hook(parent: import("../types/runtime.js").ModuleRecord) {
   }
 
   function resolver(request: string, options?: { paths?: string[] }) {
-    return dualResolveFilename(request, parent, false, options)
+    return dualResolveFilename(request, parent, false, options, false, "require")
   }
 
   const req = makeRequireFunction(parent, requirer, resolver)

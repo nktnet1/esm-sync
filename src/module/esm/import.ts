@@ -6,6 +6,8 @@ import Entry from "../../entry.js"
 import Module from "../../module.js"
 
 import dualResolveFilename from "../internal/dual-resolve-filename.js"
+import { isPackageExportsRequest, isPackageExportsError } from "../internal/package-exports.js"
+import resolveLookupPaths from "../internal/resolve-lookup-paths.js"
 import errors from "../../errors.js"
 import esmLoad from "./load.js"
 import isError from "../../util/is-error.js"
@@ -122,7 +124,12 @@ function esmImport(
     parentEntry.extname === ".mjs" &&
     entry !== null &&
     entry.type === TYPE_ESM &&
-    entry.extname !== ".mjs"
+    entry.extname !== ".mjs" &&
+    !isPackageExportsRequest(
+      request,
+      parentEntry.dirname!,
+      resolveLookupPaths(request, parentEntry.module, true) ?? []
+    )
   ) {
     throw new ERR_INVALID_ESM_FILE_EXTENSION(entry.module)
   }
@@ -196,6 +203,8 @@ function tryLoad(
   if (!threw) {
     return entry!
   }
+
+  if (isPackageExportsError(error)) throw error
 
   if (parentEntry.extname === ".mjs" || !isError(error)) {
     throw error

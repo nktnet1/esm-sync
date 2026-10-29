@@ -23,6 +23,7 @@ const runtimeTests = [
   "native-suites",
   "optional-native",
   "package-config",
+  "package-exports",
   "reflect-polyfills",
   "repl-hook",
   "require-bindings",

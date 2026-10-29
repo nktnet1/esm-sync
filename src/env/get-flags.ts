@@ -34,12 +34,31 @@ function init() {
       type: string | null
       inspect: boolean
       preloadModules: string[]
+      addons: boolean
+      conditions: string[]
     }
 
     setDeferred(flags, "abortOnUncaughtException", () =>
       matches(commandArgs, "--abort-on-uncaught-exception")
     )
     setDeferred(flags, "check", () => matches(commandArgs, /^(?:--check|-c)$/))
+    setDeferred(flags, "addons", () => {
+      let enabled = true
+      for (const arg of commandArgs) {
+        if (arg === "--addons" || arg === "--no-addons") enabled = arg === "--addons"
+      }
+      return enabled
+    })
+    setDeferred(flags, "conditions", () => {
+      const result: string[] = []
+      for (let i = 0; i < commandArgs.length; i++) {
+        const arg = commandArgs[i]!
+        const match = /^(?:--conditions|-C)=(.*)$/.exec(arg)
+        if (match) result.push(stripQuotes(match[1]))
+        else if (arg === "--conditions" || arg === "-C") result.push(stripQuotes(commandArgs[++i]))
+      }
+      return result
+    })
     setDeferred(flags, "esModuleSpecifierResolution", () =>
       lastArgMatch(commandArgs, /^--es-module-specifier-resolution=(.+)$/)
     )
