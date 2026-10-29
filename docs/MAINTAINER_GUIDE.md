@@ -8,6 +8,8 @@ and their real-application evidence are in the
 [roadmap](FORK_ISSUES_ROADMAP.md) and
 [tooling/performance notes](tooling-and-performance.md).
 
+Ask for explicit approval before making further changes to `README.md`.
+
 ## Source, build outputs, and module boundaries
 
 - Maintained sources: `src/`, `script/src/`, `config/`, `native/`, `test/`, and the root entry-point shims. Generated bundles, declarations, native add-ons, and test workspaces live under ignored `dist/`; do not commit them.
@@ -37,7 +39,14 @@ wrapper occupies a separate line with `lineOffset: -1` to preserve user-source
 runtime columns and syntax-error snippets. Old function bytecode is rejected and
 repaired on upgrade. Keep cold/warm cache, wrapper-hook, error-location, and
 failed-load/retry regressions when changing this path. See the
-[measured latency/memory tradeoff](tooling-and-performance.md#controlled-release-measurements).
+[current latency and memory measurements](tooling-and-performance.md#lower-startup-memory-v1012).
+
+Accepted bytecode needs no exit-time cache work: keep Script objects only for
+misses and rejected bytecode. Mixed warm/missing entries must retain the older
+valid bytecode when a cache is rewritten. After accepted warm CommonJS
+bytecode executes, release the duplicate raw text held by the entry/compiler
+cache. Keep cold compilation and bytecode capture unchanged. Transformed
+CommonJS and ESM sources remain available for source-cache writes and linking.
 
 `pnpm test:verdaccio` needs registry access; it exercises separate CJS/ESM
 consumer projects, exported paths, native bridge rebuilding, and workers.

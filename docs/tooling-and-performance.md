@@ -1,12 +1,12 @@
-# Open tooling and performance investigations
+# Tooling and performance verification
 
 This document retains verification of
-[#810](https://github.com/standard-things/esm/issues/810) and the open startup
-investigation for [#844](https://github.com/standard-things/esm/issues/844). Historical fixed
+[#810](https://github.com/standard-things/esm/issues/810) and the resolved startup
+report [#844](https://github.com/standard-things/esm/issues/844). Historical fixed
 issues are classified in the [roadmap](FORK_ISSUES_ROADMAP.md); their actual
 regression tests remain in `test/vitest/`.
 
-## #844: Log4brains startup
+## #844: Log4brains startup (resolved)
 
 ### Known implementation changes
 
@@ -14,8 +14,8 @@ Bootstrap loads validated, correctly sliced V8 bytecode, replaces rejected
 bytecode immediately, and memoizes absent package manifests. Ordinary
 CommonJS modules skip unnecessary AST work and top-level-await wrappers. Tests
 exercise cache validation and compiler behaviour without fragile timing
-thresholds. None of these changes proves a fix for the original reporter's
-private server, which reportedly increased from about 10 to 30 seconds.
+thresholds. Controlled release measurements verify the Log4brains startup
+improvements described below.
 
 `pnpm benchmark:startup` measures synthetic graphs or a terminating application
 entry, not live-server HTTP readiness. For example:
@@ -82,7 +82,7 @@ build variant succeeded (three cold and three warm pairs):
 Release runs favoured the fork; production-test runs favoured original `esm`.
 The unmodified original loader's timings changed substantially across
 sessions, and three pairs per configuration cannot establish a reproducible
-speedup or regression. The original private server graph is unavailable.
+speedup or regression.
 
 ### Warm CommonJS startup (v1.0.11)
 
@@ -162,11 +162,89 @@ The final source passes **1,543 Vitest tests across 55 files** on Linux/Node
 #810 application also passes all 96 checks again: production-test on Node
 22/24/26 and release on Node 24. This does not replace the full OS/Node CI matrix.
 
-**#844 remains open for the unavailable private 10-to-30-second workload.**
-There is now a measured warm-start improvement for historical Log4brains, with
+**#844 is resolved.** The historical Log4brains application has a measured
+warm-start improvement, with
 the memory tradeoff above. Raw trials, diagnostic counters, upgrade checks,
 runtime bytes/hashes, and validation logs accompany
 `v1.0.11-startup-verification.zip`.
+
+### Lower startup memory (v1.0.12)
+
+The release reduces retained CommonJS compilation state:
+
+- Accepted bytecode is omitted from the exit-time Script queue. Missing and
+  rejected bytecode stays queued for creation or repair; mixed warm/missing
+  caches preserve the valid older entries when rewritten.
+- After accepted untransformed CommonJS bytecode executes, release the separate
+  raw source text held by its entry/compiler cache. V8 retains the compiled
+  source for execution and stack traces. Cold compilation and bytecode capture
+  remain unchanged. Transformed CommonJS and ESM source remains available for
+  persistence, linking, and source-cache recovery.
+
+The canonical Acorn **8.19.0** production release is **520,838 bytes**, SHA-256
+`2456eab7ef250609ca47636e4a17e346995625f9819950517428b33d5999b384`.
+The final source passes **1,547 Vitest tests across 56 files** on Node 24.21.0
+and typechecking. The unchanged original #810 application passes **96 checks**:
+production-test on Node 22/24/26 and production release on Node 24. This includes
+both preload orders, disabled/cold/warm caches, one database evaluation, and
+database completion before HTTP readiness. These checks supplement the OS/Node
+CI matrix.
+
+
+Final comparisons use the same unchanged application and private-cache harness
+as v1.0.11: Node 20.20.2, Linux x64, CPU 2, alternating loader order and fresh
+processes. Each workload/cache state has ten paired trials, **80 complete
+measured processes** in total. No builds, tests, or diagnostic instrumentation
+ran alongside these timings. All CLI outputs and complete HTTP body hashes
+match. OS filesystem caches are not flushed.
+
+| Workload     | Cache | v1.0.11 median (ms) | v1.0.12 median (ms) | Median paired v1.0.12/v1.0.11 ratio |
+| ------------ | ----- | ------------------: | ------------------: | ----------------------------------: |
+| CLI          | Cold  |               5,745 |               5,785 |                               0.991 |
+| CLI          | Warm  |               2,372 |               2,323 |                               0.985 |
+| Preview HTTP | Cold  |              12,354 |              12,063 |                               1.043 |
+| Preview HTTP | Warm  |               4,772 |               4,777 |                               1.021 |
+
+| Workload     | Cache | v1.0.11 median peak RSS (MiB) | v1.0.12 median peak RSS (MiB) | Median paired RSS change (MiB) |
+| ------------ | ----- | ----------------------------: | ----------------------------: | -----------------------------: |
+| CLI          | Cold  |                         248.8 |                         248.6 |                          -0.02 |
+| CLI          | Warm  |                         172.7 |                         169.5 |                           -2.8 |
+| Preview HTTP | Cold  |                         549.7 |                         549.8 |                           +0.4 |
+| Preview HTTP | Warm  |                         315.3 |                         306.1 |                           -9.1 |
+
+Warm peak RSS is lower in **all ten CLI pairs and all ten HTTP pairs**. The
+latency results are mixed: the paired median is 1.5% faster for warm CLI and
+2.1% slower for warm HTTP; only five/four of ten warm pairs respectively favour
+the new build. Cold HTTP's paired median is 4.3% slower. **No dependable
+additional startup speedup is established.** Marginal medians and median
+paired ratios are different statistics; do not combine these batches with
+older measurements to infer a memory or latency change.
+
+RSS is recorded before the exit-time cache writer, as in the earlier harness.
+The repeatable result here is lower retained warm-start memory. Cold source
+compilation and bytecode capture are preserved by the implementation; their
+measured timings remain subject to shared-host variability.
+
+A larger shared-generator prototype reduced memory but regressed warm HTTP
+readiness by 18.5% in paired medians and was rejected. Manifest deduplication
+and streamed cache-key hashing also increased RSS in their exploratory batch
+and were dropped. The final patch contains only accepted-cache queue/source
+retention changes. The archive retains the exploratory reports separately.
+An incomplete CLI run produced no report; its replacement complete batch is
+included in full.
+
+A separate CLI diagnostic counted **1,388 queued compiler Scripts → 0** and
+**7,403,482 compiler-cache raw CommonJS source characters → 0** on warm
+startup. Both cold runs retained the same 1,388 Scripts and 7,403,482 raw
+source characters. Diagnostic timings are excluded from the trial tables.
+
+The upgrade check accepts all **1,347 existing CommonJS bytecode entries** with
+zero rejections, both immediately after upgrade and on the next warm run.
+Regression tests cover untouched warm blobs, mixed warm/missing entries,
+corrupt-entry repair, single evaluation, transformed-source loss/recovery, and
+native error locations. Raw reports, exact runtime bytes, hashes, analysis,
+retention diagnostics and validation logs accompany
+`v1.0.12-startup-verification.zip`.
 
 ## #810: Babel aliases and top-level await
 

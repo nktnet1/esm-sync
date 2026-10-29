@@ -11,14 +11,6 @@ This fork includes:
 
 This package is maintained for use in the [import-sync](https://github.com/nktnet1/import-sync) project.
 
-Maintainer and project documentation:
-
-- [Maintainer guide](docs/MAINTAINER_GUIDE.md): build, fixtures, testing, caches, and package resolution.
-- [Upstream issue roadmap](docs/FORK_ISSUES_ROADMAP.md): open investigations and triage.
-- [Tooling and performance evidence](docs/tooling-and-performance.md): issues #810 and #844.
-- [Synchronous async-module loading](docs/async-module-loading.md): native bridge, limitations, and errors.
-- [v3.4.0 release notes](docs/releases/v3.4.0.md).
-
 You may also be interested in [jiti](https://github.com/unjs/jiti), which provides legacy (deprecated, but still reliable) support for synchronous imports.
 
 ## Install

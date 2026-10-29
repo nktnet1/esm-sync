@@ -276,7 +276,10 @@ const compile = maskFunction(function (
     script = compiledFunction
   }
 
-  if (cachePath !== "") {
+  // Accepted bytecode is already persisted. Retain the Script only when exit
+  // must create or repair its cache; otherwise it pins compilation state for
+  // the lifetime of the application without doing any useful work at exit.
+  if (cachePath !== "" && (cachedData === void 0 || script.cachedDataRejected)) {
     const { pendingScripts } = shared
 
     let scripts = pendingScripts.get(cachePath)
@@ -298,6 +301,19 @@ const compile = maskFunction(function (
   }
 
   const result: unknown = Reflect.apply(compiledWrapper!, exported, args)
+
+  // Accepted CommonJS bytecode needs neither a source rewrite nor another
+  // linking pass. Release its duplicate raw text after execution. Keep cold
+  // source handling unchanged while V8 compiles and creates new bytecode.
+  if (
+    !isESM &&
+    cachedData !== void 0 &&
+    !script.cachedDataRejected &&
+    compileData !== null &&
+    compileData.transforms === 0
+  ) {
+    compileData.code = null
+  }
 
   if (noDepth) {
     moduleState.statFast = null
