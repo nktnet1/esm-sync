@@ -167,8 +167,10 @@ console.log(covered(true) + ':' + (typeof globalThis.__coverage__ === 'object' ?
                   TS_NODE_TRANSPILE_ONLY: "true",
                   TS_NODE_SKIP_PROJECT: "true",
                   TS_NODE_COMPILER_OPTIONS: JSON.stringify({
-                    module,
-                    moduleResolution: module === "ESNext" ? "Bundler" : "Node",
+                    // Node16 compiles .ts files as CommonJS outside ESM packages
+                    // without the deprecated Node10 resolution used by "CommonJS".
+                    module: module === "CommonJS" ? "Node16" : module,
+                    moduleResolution: module === "CommonJS" ? "Node16" : "Bundler",
                     target: "ES2022"
                   })
                 }
