@@ -8,7 +8,6 @@ import Wrapper from "../wrapper.js"
 import { dirname } from "../safe/path.js"
 import dualResolveFilename from "../module/internal/dual-resolve-filename.js"
 import esmParseLoad from "../module/esm/parse-load.js"
-import getSilent from "../util/get-silent.js"
 import isStackTraceMaskable from "../util/is-stack-trace-maskable.js"
 import maskStackTrace from "../error/mask-stack-trace.js"
 import realProcess from "../real/process.js"
@@ -60,7 +59,10 @@ function hook(Mod: ModuleConstructor) {
   }
 
   function tickCallback() {
-    const _tickCallback = getSilent(realProcess, "_tickCallback")
+    // Draining the queue runs application callbacks, including warning
+    // listeners. Do not suppress their deprecations or restore over changes
+    // they make to process.noDeprecation.
+    const { _tickCallback } = realProcess
 
     if (typeof _tickCallback === "function") {
       Reflect.apply(_tickCallback, realProcess, [])

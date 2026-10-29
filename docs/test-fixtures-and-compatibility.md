@@ -36,20 +36,28 @@ processes exercise the loader without importing Vitest.
 
 The suite has several bounded levels of parallel execution:
 
-| Group                                                                                                         | Parallelism                                              | Isolation and ordering                                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Bootstrap project                                                                                             | One file at a time, before other projects                | Cold TypeScript checks do not compete with nested runners                                                                              |
-| Runtime and tooling projects                                                                                  | Test files run in parallel in the same sequence group    | Existing worker processes and per-file loader caches                                                                                   |
-| Async contexts, async syntax, top-level await, cached bindings, export binding identity, upstream regressions | `describe.concurrent`, at most three test cases per file | Each case owns its fixture directory and cache namespace; cold/warm cache passes and dependency updates remain ordered within the case |
-| Native harness                                                                                                | At most four suite subprocesses                          | Cached and uncached runs of the scenario suite or miscellaneous suite do not overlap each other                                        |
-| External runner scenarios                                                                                     | At most three cases in a native scenario suite           | Separate CLI caches and NYC output directories; PM2 cases stay sequential                                                              |
-| Test262 conformance                                                                                           | At most four cases per runner                            | Each case runs in a separate Node process                                                                                              |
+| Group                                                                                                                                   | Parallelism                                              | Isolation and ordering                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Bootstrap project                                                                                                                       | One file at a time, before other projects                | Cold TypeScript checks do not compete with nested runners                                                                              |
+| Runtime and tooling projects                                                                                                            | Test files run in parallel in the same sequence group    | Existing worker processes and per-file loader caches                                                                                   |
+| Async contexts, async syntax, top-level await, cached bindings, export binding identity, upstream regressions, observable compatibility | `describe.concurrent`, at most three test cases per file | Each case owns its fixture directory and cache namespace; cold/warm cache passes and dependency updates remain ordered within the case |
+| Native harness                                                                                                                          | At most four suite subprocesses                          | Cached and uncached runs of the scenario suite or miscellaneous suite do not overlap each other                                        |
+| External runner scenarios                                                                                                               | At most three cases in a native scenario suite           | Separate CLI caches and NYC output directories; PM2 cases stay sequential                                                              |
+| Test262 conformance                                                                                                                     | At most four cases per runner                            | Each case runs in a separate Node process                                                                                              |
 
 Concurrent Vitest tests use the test context's `expect`, passing it to shared
 assertion helpers when needed. Other tests remain sequential within their file,
 including checks that mutate shared globals, fixtures, or process state. Keep new
 concurrent cases independent of shared mutable state and give them distinct cache
 namespaces.
+
+`observable-compatibility.test.ts` groups independent CommonJS-accessor,
+process-warning, and inspector-console checks. Each case owns its temporary
+files and subprocesses; cached and uncached variants use the same assertions.
+Native comparisons cover lazy default properties, warning delivery and order,
+and console formatting and inspector events. Inspector tests use an ephemeral
+port (`--inspect=0`) and normalize only Node's startup URL. The linked upstream
+reports retain separate minimal cases in `upstream-regressions.test.ts`.
 
 ## Published package tests
 
