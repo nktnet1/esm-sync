@@ -565,6 +565,14 @@ class Entry {
         this.addGetter(name, () => readProperty(this.exports, name))
       }
 
+      // Some CommonJS bundles (including tslib's UMD build) set the
+      // __esModule marker but export only named helpers. Retain their named
+      // bindings while providing Node-compatible default interop when the
+      // exports object does not actually supply a default property.
+      if (this.type === TYPE_PSEUDO && !has(this.getters, "default")) {
+        this.addGetter("default", () => this.exports)
+      }
+
       if (this.type === TYPE_CJS) {
         const { filename } = this
 

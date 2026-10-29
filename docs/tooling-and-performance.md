@@ -115,13 +115,52 @@ inherited loader cannot contaminate the native baseline. Child exit status and
 matching stdout are checked; use a deterministic, terminating CLI command such
 as `--help` or `--version`. A live server/readiness benchmark is not implemented.
 
-The uploaded Log4brains **1.1.0 develop source** uses microbundle's CommonJS
-`dist/index.js` entry. Its `packages/global-cli/src/log4brains` launcher spawns
-that entry with an OpenSSL option and does not preload esm. Benchmark the actual
-JS entry to include the loader in the measured process. The uploaded ZIP has no
-built packages or installed dependency tree; its full CLI has not been built
-or executed here. The original 2020 startup report remains a separate runtime
-verification task.
+### Historical Log4brains application (v1.0.6)
+
+The earlier Log4brains 1.1.0 source lacks the historical `esm` CLI entry. A
+second archive now supplies the **built** Log4brains workspace from commit
+`68f80982fc0d2007acc2f8e08f27b2e6f974cec8`, immediately before PR #140
+removed `esm`. Its `packages/global-cli/dist/index.js` directly invokes
+`require("esm")(module, { mainFields: ["module", "main"] })`. The original
+`esm@3.2.25` and the fork both load the real application with `--version` on
+Node 20.20.2 after the CommonJS interop fix below.
+
+The comparison substituted the loader only in a copy of the CLI bootstrap,
+retained the same application graph and `mainFields`, selected distinct
+compiler caches per trial, and alternated loader order. Both variants returned
+`1.0.2-alpha.4` and created cache files. Eleven paired cold/warm CLI runs on
+Linux/Node 20.20.2 produced these **medians in milliseconds**:
+
+| Loader                             | Cold CLI | Warm CLI |
+| ---------------------------------- | -------: | -------: |
+| Original `esm@3.2.25`              |  2,999.9 |  1,470.0 |
+| Fork (offline Acorn build adapter) |  2,738.9 |  1,650.4 |
+
+Cold runs varied widely (original: 1,366–3,803 ms; fork: 1,480–3,142 ms).
+The fork's warm median is **slower**; neither the cold median nor the earlier
+Execa benchmarks prove that #844 is resolved. These are CLI completion times,
+**not server-readiness timings**. The original reporter's 10-to-30-second
+application and its entry/dependencies remain unavailable.
+
+**Build limitation:** The fork requires the actual Acorn 8.19.0 repository
+sources in `src/vendor/acorn` for its standard build. The supplied archives
+contain the published Acorn package but not those sources. This experiment
+used a disposable, untracked Acorn adapter against the published package and
+a temporary local bundling override. Neither is part of the distributed patch.
+Repeat the integration and performance runs with the canonical production build
+before treating these as release results.
+
+### CommonJS interop uncovered by Log4brains
+
+Log4brains' dependency graph includes `tslib@2.2.0`. Its `tslib.js` is a
+CommonJS/UMD module that declares a nonenumerable `__esModule` property but
+has no explicit `default` export. Its `modules/index.js` uses a default import
+from that module. The fork previously treated the CommonJS marker as sufficient
+to suppress a synthetic default, causing the real CLI to fail. Pseudo-ESM
+CommonJS modules now receive a default binding of `module.exports` **only if**
+they have no explicit default. The regression covers direct preloading and
+factory loading, cold and warm caches, and preservation of an explicitly
+provided default export.
 
 ## Jest transformer (#875, #706)
 
@@ -211,10 +250,20 @@ directions. They check evaluation order and a single execution. Keeping
 ESM linking semantics; it is no longer the sole tested module-output setting.
 The earlier alias-rewrite fixture remains covered.
 
-The original source archive does **not** include the installed
-`babel-plugin-module-resolver` **3.2.x** dependency or its dependencies. The
-Express application with that exact plugin has not been executed. That complete
-integration remains open until its runtime dependency tree is available.
+The subsequent original-reproduction archive includes the exact
+`babel-plugin-module-resolver@3.2.0` dependency tree. On Node 20.20.2, the
+original `esm@3.2.25` Express application resolves `@routes/hello-world.route`
+and responds `Hello world`, **but can start listening before the awaited
+`src/database.js` finishes its two-second initialization**. An instrumented
+probe detects this early return instead of mistaking a successful HTTP response
+for correct top-level-await sequencing.
+
+The same application with the fork on Node 24.21.0 serves the route only after
+database initialization. Both Babel preload orders and cold/warm caches passed
+with the actual module-resolver plugin. This fork run used the temporary Acorn
+build adapter described above; full validation against the normal production
+build is still required. Node 20 cannot use the fork's Node 24 native await
+bridge, so this does not establish cross-version synchronous-await support.
 
 The separate `module-alias` fixture confirms that a CommonJS alias can coexist
 with an unrelated ESM graph. CommonJS-only aliases and Node `#imports` through

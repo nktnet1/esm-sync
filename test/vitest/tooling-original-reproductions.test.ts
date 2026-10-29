@@ -61,6 +61,47 @@ console.log('ready')`
       )
     }, 120_000)
 
+    it("default-imports tslib-style CommonJS bundles that mark __esModule without exporting default", async ({
+      expect
+    }) => {
+      await withCompatibilityFiles(
+        {
+          "tslib.cjs": `const value = { __awaiter: () => 42 }
+Object.defineProperty(value, '__esModule', { value: true })
+module.exports = value`,
+          "transpiled.cjs": `module.exports = { __esModule: true, default: 'explicit' }`,
+          "entry.js": `import tslib, * as tslibNamespace from './tslib.cjs'
+import explicit from './transpiled.cjs'
+if (tslib.__awaiter() !== 42 || tslibNamespace.default !== tslib || explicit !== 'explicit') {
+  throw new Error('CommonJS default interop failed')
+}
+console.log('interop:ok')`,
+          "index.cjs": `const load=require(${JSON.stringify(loader)})(module, {
+  mode:'auto', cjs:{esModule:true,namedExports:true}, cache:'./esm-cache'
+})
+load('./entry.js')`
+        },
+        async (directory) => {
+          for (const entry of ["entry.js", "index.cjs"]) {
+            for (let index = 0; index < 2; index++) {
+              const result = await runNode(
+                entry === "entry.js" ? ["-r", loader, entry] : [entry],
+                esmEnv,
+                {
+                  ESM_OPTIONS:
+                    "{mode:'auto',cjs:{esModule:true,namedExports:true},cache:'./esm-cache'}"
+                },
+                { cwd: directory }
+              )
+              expect(result.exitCode, result.stderr).toBe(0)
+              expect(result.stdout.trim()).toBe("interop:ok")
+              expect(result.stderr.trim()).toBe("")
+            }
+          }
+        }
+      )
+    })
+
     it("recompiles missing transformed cache files while retaining their metadata and bytecode", async ({
       expect
     }) => {
