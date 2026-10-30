@@ -1,1 +1,5 @@
 * text=auto
+# Preserve the original reproduction bytes across checkouts.
+test/fixture/hosts/** text eol=lf
+# The upstream entry intentionally ends with a blank line; keep it verbatim.
+test/fixture/hosts/issue-915/src/extension.ts whitespace=-blank-at-eof

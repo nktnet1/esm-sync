@@ -1,21 +1,57 @@
-# Host integration reports and remaining evidence
+# Host integration verification and remaining scope
 
-The five asset archives were reviewed against the supplied source bundle.
-The fixes below have native Node regression coverage. An emulated module
-record or a mocked host API does not prove an Electron window or VS Code
-extension host works end to end.
+**#867 and #915 are resolved for the original Linux reproductions.** The supplied
+Arch Linux/Wayland run passed all six real-host cases: disabled, cold and warm
+caches for Electron 8.0.0 and VS Code 1.66.2. Electron completed the first load
+and three reloads per mode; VS Code activated the extension, executed its
+command and allocated a valid port per mode. This records the tested historical
+integrations, not an assertion about all Electron or VS Code versions.
 
-Run both original reproductions automatically with:
+## Docker verification
 
-`pnpm verify:hosts --assets /path/to/extracted-issue-assets`
+Run `pnpm verify:hosts:docker` from the repository. It requires Docker
+Engine/Desktop with BuildKit and the project's normal Node/pnpm tooling, with no flags,
+external assets directory, Python collector or host display configuration.
+No CI workflow is added.
 
-The assets directory must contain the `issue-867` and `issue-915` folders from
-the attached archives. The command builds the current production loader,
-checks asset checksums, and stages private copies without installing or
-downloading dependencies. It uses the attached Linux x64 Electron 8.0.0 and
-VS Code 1.66.2 runtimes. On another OS, add `--electron /path/to/electron` and
-`--vscode /path/to/the/actual/Code/executable` for those historical versions.
-Pass `--skip-build` only when `dist/` already contains the build to verify.
+The small original source files and real `get-port@6.1.2` fixture are committed
+under `test/fixture/hosts`, together with their licences and provenance. These
+inputs need no downloads or historical dependency installation. TypeScript
+tooling downloads only the two desktop runtime archives during the first image
+build, verifies their pinned SHA-256 hashes and caches them under the ignored
+`.cache/host-runtimes/` path. Docker caches this layer independently of ordinary
+loader-source changes. System packages and the fork's lockfile dependencies
+are also installed while building the image. The existing production build
+prepares its versioned Acorn source in ignored `src/vendor`; a BuildKit cache
+retains that input between source edits. The production loader is built from
+the current source inside the image. Host `node_modules`, `dist`, caches and
+external archives are excluded from its build context.
+
+The finished Linux/amd64 image contains everything needed for verification.
+The runner uses `--network none`, Xvfb and a private shared-memory allocation;
+it mounts neither the host display nor the source tree. ARM Docker hosts need
+Linux/amd64 emulation. The exact built image ID is used for the run and recorded
+in `docker.json`, so concurrent rebuilds cannot switch a running test to a
+different tagged image.
+
+Reports, probe JSON, raw host logs and runtime provenance are copied back to
+`.cache/host-verification/run-*/reports/` on successful and failed host runs.
+Both downloads and reports are gitignored. The runner removes only its own
+uniquely named container after copying diagnostics. The cached image remains
+available as `esm-sync-hosts:local`; report paths such as `/reports` and `/tmp`
+inside the logs refer to the container. The wrapper prints the host artifact
+directory and returns nonzero for failed or missing verification evidence.
+
+## Native verification
+
+The existing `pnpm verify:hosts` command uses the same checked-in fixtures and
+locally cached runtimes, without fetching anything. Supply `--electron` and
+`--vscode` paths to installed Electron 8.0.0 and VS Code 1.66.2 executables when
+the runtime archives are not cached. For compatibility, `--assets <directory>`
+still accepts the earlier extracted `issue-867` and `issue-915` archives and
+validates their checksums. Pass `--skip-build` only when `dist/` already contains
+the build to verify. Docker is the normal path for a single command with no
+machine-specific paths or flags.
 
 The checker runs disabled, cold and warm disk-cache launches. Electron must
 load the original HTML/renderer successfully and greet once on the first load
@@ -83,13 +119,13 @@ and applies only to the checker subprocesses; it does not change the loader or
 the original applications' source/configuration. Startup sandbox failure is
 one possible explanation for exit code 1, not a diagnosis without host logs.
 
-| Report                                                    | Result                                                          | Still needed                                                                              |
-| --------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [#867](https://github.com/standard-things/esm/issues/867) | Fixed stale renderer-module base directory                      | Real window launch/reload results                                                         |
-| [#915](https://github.com/standard-things/esm/issues/915) | VS Code 1.66.2 activation, command and port allocation verified | Three fresh-process cache modes passed; UI Reload Window was not automated                |
-| [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained              | Actual incompatible and compatible native addons, Electron run logs                       |
-| [#691](https://github.com/standard-things/esm/issues/691) | Insufficient evidence to alter Chromium error presentation      | Original failing source or equivalent reproduction, current DevTools/error-event captures |
-| [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below           | No missing source for the supplied probe                                                  |
+| Report                                                    | Result                                                            | Still needed                                                                              |
+| --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [#867](https://github.com/standard-things/esm/issues/867) | Resolved: real Electron 8 first load and reloads pass             | None for the original Linux reproduction                                                  |
+| [#915](https://github.com/standard-things/esm/issues/915) | Resolved: real VS Code 1.66.2 activation and port allocation pass | None for the original reproduction; UI Reload Window was not automated                    |
+| [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained                | Actual incompatible and compatible native addons, Electron run logs                       |
+| [#691](https://github.com/standard-things/esm/issues/691) | Insufficient evidence to alter Chromium error presentation        | Original failing source or equivalent reproduction, current DevTools/error-event captures |
+| [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below             | No missing source for the supplied probe                                                  |
 
 ## Renderer resolution (#867)
 
@@ -111,7 +147,9 @@ fresh-process cache loads. Explicit relative and absolute module paths are
 preserved. These checks reproduce the supplied module shape in Node; they do
 not launch Chromium.
 
-To finish browser verification:
+The supplied successful host run completes browser verification in all three
+cache modes, including first load and three reloads in each. To repeat it
+manually outside the automated verifier:
 
 1. Extract `source/reproduction.zip` and its supplied Linux dependency archive
    into the reproduction directory on Linux. Use native dependencies for your
@@ -169,12 +207,12 @@ That check supplied a loopback-only `os.networkInterfaces()` result because
 network-interface enumeration is unavailable in this workspace. It is not an
 actual VS Code activation result.
 
-The subsequently supplied Arch Linux/Wayland host report confirms real VS Code
-1.66.2 success with caching disabled, cold and warm. Each activation allocated
-port 13604, executed the command and reported no runtime errors. The same run
-could not start Electron 8, which exited at GTK display initialisation before
-the renderer probe ran. Fontconfig diagnostics were present even in the passing
-VS Code launches, so they do not by themselves establish a loader failure.
+The supplied Arch Linux/Wayland host results confirm real VS Code 1.66.2 success
+with caching disabled, cold and warm. The detailed report allocated port 13604,
+executed the command and reported no runtime errors in each mode. The later
+six-case successful run also verifies Electron 8 in all cache modes after
+selecting the X11 GTK backend for Xvfb. Fontconfig diagnostics were present in
+passing VS Code launches, so they do not by themselves establish a loader failure.
 
 To verify the rebuilt loader in the actual host:
 
@@ -294,6 +332,11 @@ Validation used only the supplied dependencies and runtimes on Linux x64:
 - The supplied VM probe and original compiled extension mechanisms were checked
   on Node 22/24/26, within the host limitations described above.
 
-The OS/Node GitHub Actions matrix and real Electron/VS Code UI hosts were not
-executed here. No third-party source archives, dependencies or generated build
-outputs are included in the patch.
+The supplied six-case real-host run confirms #867 and #915 as described above.
+The Docker command itself could not be executed in this authoring workspace,
+which has no Docker CLI/daemon. Its downloader, cache reuse, fixture fidelity,
+offline run arguments, report export and failure/cleanup contracts have tests
+on Node 22, 24 and 26; these do not substitute for a container run. The canonical
+production build, complete typechecks/type audit, Biome and Knip were checked.
+Only the small original source fixtures and their licences are checked in;
+runtime archives, generated outputs, downloaded files and reports are ignored.

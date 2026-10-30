@@ -7,6 +7,7 @@
     "src/acorn/replacement/regexp.ts",
     "src/types/registry.ts",
     "script/src/*.ts",
+    "script/src/esm/{host-runtimes,verify-hosts-container}.ts",
     "test/harness/**/*.{ts,cts}",
     "test/packed/{check-consumer,check-compat,consumer,compat,cli}.{cjs,mjs,js}",
     "test/fixture/scenario/**/{index,cwd,main,webpack.config}.{js,cjs,mjs,ts}"

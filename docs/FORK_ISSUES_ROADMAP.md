@@ -1,6 +1,6 @@
 # Upstream issue roadmap
 
-Status as of 30 October 2026 for the 83 reports in
+Status as of 31 October 2026 for the 83 reports in
 [`standard-things/esm`](https://github.com/standard-things/esm/issues).
 The tests and source code, not a historical status label, are authoritative for
 current behaviour. Keep an issue open when its exact integration has not been
@@ -12,9 +12,9 @@ For the five newly supplied host-integration asset archives, see
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      5 |
+| Investigate                                   |      3 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     55 |
+| Already covered                               |     57 |
 | Not planned                                   |     23 |
 | **Total**                                     | **83** |
 
@@ -28,12 +28,14 @@ For the five newly supplied host-integration asset archives, see
 
 - **Programmatic REPL static imports** - [https://github.com/standard-things/esm/issues/854](https://github.com/standard-things/esm/issues/854). **Fixed for the tested Node 22, 24, and 26 preload path**. An application's `repl.start()` does not enter the same startup branch as `node -i`. A one-time, lazy context hook now activates REPL compilation when the application first creates a server. Non-REPL `vm.createScript()` calls retain their normal behaviour, including after creating multiple REPL servers. Tests cover cached and uncached configurations, custom prompts, sloppy mode, isolated contexts, relative-file imports, repeated imports, and a second active server. This does not change arbitrary `vm` script evaluation or promise rejection handling in the Node REPL.
 
+## Verified desktop hosts
+
+- **Electron renderer module loading (#867)** and **VS Code extension-host ESM loading (#915)** are **resolved for the original Linux reproductions**. The supplied Arch Linux/Wayland run passed all six disabled/cold/warm host cases using Electron 8.0.0 and VS Code 1.66.2 under Xvfb. Electron greeted exactly once on the first page load and each of three reloads in every cache mode. VS Code activated the original extension, executed its command and allocated a valid port in every mode. VS Code checks use fresh host processes; UI Reload Window is not automated. See [host verification](host-integrations.md) and run `pnpm verify:hosts:docker` for the self-contained Docker path.
+
 ## Active investigations
 
 ### Electron and extension-host integrations
 
-- **VS Code extension-host ESM loading** - [https://github.com/standard-things/esm/issues/915](https://github.com/standard-things/esm/issues/915). **Native ESM rejection and virtual CommonJS host-module handoff fixed; rebuilt desktop activation remains unverified.** The supplied VS Code logs exposed `ERR_REQUIRE_ESM` from its native `.js` handler before compilation. The loader now uses its installed compiler for that rejection without retrying errors thrown after compilation starts. Tests disable modern Node's native `require(esm)`, which previously concealed the failure, and retain per-extension virtual APIs and cache checks. The original compiled extension runs under Node with a stubbed VS Code API and the attached `get-port`; successful desktop activation/reload results are still needed. See [verification steps](host-integrations.md#vs-code-extension-loading-915).
-- **Electron renderer module loading** - [https://github.com/standard-things/esm/issues/867](https://github.com/standard-things/esm/issues/867). **Stale renderer base directory fixed; real-window/reload verification remains open.** The supplied Electron 8 binary's embedded renderer code sets the injected module's page filename and search paths but leaves its `path` pointing to `electron/js2c`. The loader now uses the page directory for that stale injected record. Native Node regressions exercise the exact record shape, separate pages, dependency lookup, repeated factories and disk-cache reloads without changing the supplied module. The actual browser run still needs a host with Electron's system libraries and a display. See [collection steps](host-integrations.md#renderer-resolution-867).
 - **Electron dynamic imports and native-addon failures** - [https://github.com/standard-things/esm/issues/817](https://github.com/standard-things/esm/issues/817). **Node-side cache corruption fixed, Electron hang still unverified.** A real addon built for a different Node ABI rejects with `ERR_DLOPEN_FAILED` on Node 22, 24, and 26. Repeated imports exposed a separate defect: after an ESM re-export failed while requiring a native addon, a later import could reuse an incomplete CommonJS linking record and incorrectly return empty exports. The failed graph now discards only its incomplete staged CommonJS dependencies. Regression coverage exercises repeated and concurrent rejections in preload and factory modes with and without disk caching. The archived `crash.js` uses a valid `.catch(error => ...)` handler, unlike the abbreviated syntax in the issue description. The original Electron 5 process hang still requires a runnable Electron build with a mismatched addon to verify. Do not mark the host-specific failure resolved on Node-only evidence.
 - **Electron renderer error stacks** - [https://github.com/standard-things/esm/issues/691](https://github.com/standard-things/esm/issues/691). **Still missing original/host evidence.** The archive contains an alternative template and a generated substitute, not the deleted upstream reproduction. Node loader exceptions are masked, but Chromium's stored error location and `window.onerror` presentation are not established by `error.stack` alone. No suppressing renderer event handler is installed. See the [diagnostic listener and required captures](host-integrations.md#chromium-error-presentation-691).
 
@@ -56,13 +58,13 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **55** reports are classified _already covered_ by an existing
+The following **57** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
-931, 926, 924, 922, 921, 918, 916, 914, 913, 910, 909, 904, 900, 898, 897,
-896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 866, 865, 864, 863, 855, 854, 852,
+931, 926, 924, 922, 921, 918, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
+896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
 846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706.
 

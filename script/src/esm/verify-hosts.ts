@@ -17,6 +17,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs, styleText } from "node:util"
 import { electronProbe, vscodeProbe } from "./host-probes.ts"
+import { hostRuntimeCache, hostRuntimes } from "./host-runtimes.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 const require = createRequire(import.meta.url)
@@ -350,13 +351,16 @@ export function diagnoseHostLogs(directory: string, quietFontconfig = false): vo
 
 export async function prepareProject(
   issue: 867 | 915,
-  assets: string,
+  assets: string | undefined,
   directory: string
 ): Promise<string> {
-  const source = path.join(assets, `issue-${issue}`)
-  const manifest: Manifest = JSON.parse(readFileSync(path.join(source, "manifest.json"), "utf8"))
+  const source = path.join(assets ?? path.join(root, "test/fixture/hosts"), `issue-${issue}`)
   const project = path.join(directory, `issue-${issue}`)
-  unzip(asset(source, manifest, "source/reproduction.zip"), project, true)
+  const manifest: Manifest | undefined = assets
+    ? JSON.parse(readFileSync(path.join(source, "manifest.json"), "utf8"))
+    : undefined
+  if (manifest) unzip(asset(source, manifest, "source/reproduction.zip"), project, true)
+  else cpSync(source, project, { recursive: true })
   const loader = path.join(project, "node_modules/esm")
   for (const file of [
     "package.json",
@@ -375,15 +379,19 @@ export async function prepareProject(
     { recursive: true }
   )
   if (issue === 915) {
-    const dependency = manifest.dependencies.npm_tarballs.find((item) =>
-      item.packages.some((pkg) => pkg.name === "get-port" && pkg.version === "6.1.2")
-    )
-    assert.ok(dependency, "Attached get-port@6.1.2 was not found")
-    const archive = asset(source, manifest, dependency.file)
     const target = path.join(project, "node_modules/get-port")
-    mkdirSync(target, { recursive: true })
-    for (const name of ["package.json", "index.js"])
-      writeFileSync(path.join(target, name), tarMember(archive, "package/" + name))
+    if (manifest) {
+      const dependency = manifest.dependencies.npm_tarballs.find((item) =>
+        item.packages.some((pkg) => pkg.name === "get-port" && pkg.version === "6.1.2")
+      )
+      assert.ok(dependency, "Attached get-port@6.1.2 was not found")
+      const archive = asset(source, manifest, dependency.file)
+      mkdirSync(target, { recursive: true })
+      for (const name of ["package.json", "index.js"])
+        writeFileSync(path.join(target, name), tarMember(archive, "package/" + name))
+    } else {
+      cpSync(path.join(root, "test/fixture/hosts/get-port-6.1.2"), target, { recursive: true })
+    }
     const ts = await import("typescript")
     mkdirSync(path.join(project, "out"))
     for (const name of ["extension", "main"]) {
@@ -413,24 +421,42 @@ export async function prepareProject(
   return realpathSync(project)
 }
 
-function runtime(issue: 867 | 915, assets: string, directory: string, override?: string): string {
+function runtime(
+  issue: 867 | 915,
+  assets: string | undefined,
+  directory: string,
+  override?: string
+): string {
   if (override) return realpathSync(override)
   assert.ok(
     process.platform === "linux" && process.arch === "x64",
     `Attached runtimes are Linux x64. Supply --${issue === 867 ? "electron" : "vscode"} for your OS.`
   )
-  const source = path.join(assets, `issue-${issue}`)
-  const manifest: Manifest = JSON.parse(readFileSync(path.join(source, "manifest.json"), "utf8"))
+  let archive: string
+  if (assets) {
+    const source = path.join(assets, `issue-${issue}`)
+    const manifest: Manifest = JSON.parse(readFileSync(path.join(source, "manifest.json"), "utf8"))
+    archive = asset(
+      source,
+      manifest,
+      issue === 867
+        ? "dependencies/electron/electron-v8.0.0-linux-x64.zip"
+        : "validation/assets/vscode/vscode-1.66.2-linux-x64.tar.gz"
+    )
+  } else {
+    const input = hostRuntimes.find((item) => item.issue === issue)!
+    archive = path.join(hostRuntimeCache, input.file)
+    assert.ok(
+      existsSync(archive),
+      "Historical runtime is not cached. Use pnpm verify:hosts:docker, or supply --electron/--vscode binaries."
+    )
+    assert.equal(hash(archive), input.sha256, `Runtime checksum mismatch: ${input.file}`)
+  }
   const target = path.join(directory, `runtime-${issue}`)
   mkdirSync(target)
   if (issue === 867) {
-    unzip(asset(source, manifest, "dependencies/electron/electron-v8.0.0-linux-x64.zip"), target)
+    unzip(archive, target)
   } else {
-    const archive = asset(
-      source,
-      manifest,
-      "validation/assets/vscode/vscode-1.66.2-linux-x64.tar.gz"
-    )
     const listing = tar(archive, ["-tzf"]).toString().split("\n").filter(Boolean)
     for (const name of listing) safeTarget(target, name)
     const result = spawnSync(
@@ -520,11 +546,14 @@ export function hostLaunchArgs(
       ]
 }
 
-export async function main(args = process.argv.slice(2)): Promise<void> {
+export async function main(
+  args = process.argv.slice(2),
+  options: { reportDirectory?: string } = {}
+): Promise<void> {
   const { values } = parseArgs({
     args,
     options: {
-      assets: { type: "string", default: "../issue-assets" },
+      assets: { type: "string" },
       electron: { type: "string" },
       vscode: { type: "string" },
       diagnose: { type: "string" },
@@ -536,7 +565,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
   })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts --assets <folder containing issue-867 and issue-915>\nBuilds the fork and runs real Electron 8.0.0 / VS Code 1.66.2 checks.\n--electron <binary> --vscode <binary> override the attached Linux x64 runtimes.\n--xvfb launches each Linux host through installed xvfb-run -a, without needing a desktop display.\n--quiet-fontconfig hides Fontconfig warning/error lines in the console; full logs and JSON retain them.\n--skip-build uses existing dist output. No downloads or dependency installation.\n--diagnose <report-directory> reads existing host logs without building or launching apps."
+      "pnpm verify:hosts:docker runs self-contained Linux host checks.\npnpm verify:hosts uses checked-in reproductions and cached runtimes or supplied binaries.\n--assets <directory> optionally uses the earlier extracted issue-867/issue-915 archives.\n--electron <binary> --vscode <binary> override Electron 8.0.0 / VS Code 1.66.2 runtimes.\n--xvfb launches each Linux host through installed xvfb-run -a.\n--quiet-fontconfig hides Fontconfig warning/error lines in the console; full logs retain them.\n--skip-build uses existing dist output. The native verifier does not download or install dependencies.\n--diagnose <report-directory> reads existing host logs without building or launching apps."
     )
     return
   }
@@ -545,10 +574,12 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     return
   }
   assert.ok(!values.xvfb || process.platform === "linux", "--xvfb is supported only on Linux")
-  const assets = realpathSync(values.assets)
+  const assets = values.assets ? realpathSync(values.assets) : undefined
   const directory = realpathSync(mkdtempSync(path.join(os.tmpdir(), "esm-sync-hosts-")))
+  if (options.reportDirectory) mkdirSync(options.reportDirectory, { recursive: true })
+  const reports = options.reportDirectory ? realpathSync(options.reportDirectory) : directory
   const samples: Record<string, unknown>[] = []
-  const output = path.join(directory, "report.json")
+  const output = path.join(reports, "report.json")
   writeFileSync(output, JSON.stringify({ passed: false, samples }, null, 2))
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -567,8 +598,8 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       env,
       180_000
     )
-    writeFileSync(path.join(directory, "build.log"), result.stdout + result.stderr)
-    assert.equal(result.code, 0, `Build failed; see ${path.join(directory, "build.log")}`)
+    writeFileSync(path.join(reports, "build.log"), result.stdout + result.stderr)
+    assert.equal(result.code, 0, `Build failed; see ${path.join(reports, "build.log")}`)
   }
   for (const issue of [867, 915] as const) {
     let context: Record<string, unknown> = {}
@@ -591,7 +622,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       )
       for (const phase of ["disabled", "cold", "warm"] as const) {
         const identity: Identity = { issue, phase, nonce: randomUUID(), loader }
-        const resultFile = path.join(directory, `${issue}-${phase}.json`)
+        const resultFile = path.join(reports, `${issue}-${phase}.json`)
         const config = { ...identity, project, result: resultFile }
         const cacheExists =
           existsSync(path.join(compilerCache, ".data.json")) && existsSync(bootstrapCache)
@@ -601,7 +632,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
           hostLaunchArgs(issue, probe, project, directory, phase),
           values.xvfb
         )
-        const files = { log: path.join(directory, `${issue}-${phase}.log`), result: resultFile }
+        const files = { log: path.join(reports, `${issue}-${phase}.log`), result: resultFile }
         context = { phase, ...files, command: { ...command, cwd: project } }
         const details = await runHostCase(
           command.executable,
