@@ -286,6 +286,11 @@ export async function runHostCase(
     const errors = probeErrors(report)
     const message = [
       reason,
+      ...(/cannot open display|unable to open x display|missing x server or \$DISPLAY/i.test(
+        result.stderr
+      )
+        ? ["X11 display is unavailable. Re-run with --xvfb (requires installed Xvfb and xauth)."]
+        : []),
       ...(result.signal ? [`Signal: ${result.signal}`] : []),
       ...(errors.length ? ["Host error:\n" + errors.join("\n")] : []),
       ...(result.stderr.trim() ? ["stderr:\n" + tail(result.stderr.trim())] : []),
@@ -423,15 +428,34 @@ function runtime(issue: 867 | 915, assets: string, directory: string, override?:
   return realpathSync(executable)
 }
 
-function preflight(executable: string): void {
+function preflight(executable: string, xvfb: boolean): void {
   if (process.platform !== "linux") return
   const libraries = spawnSync("ldd", [executable], { encoding: "utf8" })
   const missing = libraries.stdout?.split("\n").filter((line) => line.includes("not found")) ?? []
   assert.equal(missing.length, 0, `Missing desktop libraries:\n${missing.join("\n")}`)
-  assert.ok(
-    process.env.DISPLAY,
-    "No X11 display. Run in a desktop session or use xvfb-run -a pnpm verify:hosts --assets <directory>."
-  )
+  if (xvfb) {
+    const wrapper = spawnSync("xvfb-run", ["--help"], { encoding: "utf8", timeout: 5_000 })
+    assert.equal(
+      wrapper.status,
+      0,
+      `--xvfb requires installed Xvfb, xvfb-run and xauth. ${wrapper.error?.message ?? wrapper.stderr}`
+    )
+  } else {
+    assert.ok(
+      process.env.DISPLAY,
+      "No X11 display. Use --xvfb with installed Xvfb/xauth, or run in a working X11 desktop session."
+    )
+  }
+}
+
+export function hostLaunchCommand(
+  executable: string,
+  args: string[],
+  xvfb: boolean,
+  platform: NodeJS.Platform = process.platform
+): { executable: string; args: string[] } {
+  assert.ok(!xvfb || platform === "linux", "--xvfb is supported only on Linux")
+  return xvfb ? { executable: "xvfb-run", args: ["-a", executable, ...args] } : { executable, args }
 }
 
 export function hostLaunchArgs(
@@ -470,13 +494,14 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       electron: { type: "string" },
       vscode: { type: "string" },
       diagnose: { type: "string" },
+      xvfb: { type: "boolean", default: false },
       "skip-build": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false }
     }
   })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts --assets <folder containing issue-867 and issue-915>\nBuilds the fork and runs real Electron 8.0.0 / VS Code 1.66.2 checks.\n--electron <binary> --vscode <binary> override the attached Linux x64 runtimes.\n--skip-build uses existing dist output. No downloads or dependency installation.\n--diagnose <report-directory> reads existing host logs without building or launching apps."
+      "pnpm verify:hosts --assets <folder containing issue-867 and issue-915>\nBuilds the fork and runs real Electron 8.0.0 / VS Code 1.66.2 checks.\n--electron <binary> --vscode <binary> override the attached Linux x64 runtimes.\n--xvfb launches each Linux host through installed xvfb-run -a, without needing a desktop display.\n--skip-build uses existing dist output. No downloads or dependency installation.\n--diagnose <report-directory> reads existing host logs without building or launching apps."
     )
     return
   }
@@ -484,6 +509,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     diagnoseHostLogs(values.diagnose)
     return
   }
+  assert.ok(!values.xvfb || process.platform === "linux", "--xvfb is supported only on Linux")
   const assets = realpathSync(values.assets)
   const directory = realpathSync(mkdtempSync(path.join(os.tmpdir(), "esm-sync-hosts-")))
   const samples: Record<string, unknown>[] = []
@@ -518,7 +544,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
         directory,
         issue === 867 ? values.electron : values.vscode
       )
-      preflight(executable)
+      preflight(executable, values.xvfb)
       const project = await prepareProject(issue, assets, directory)
       const loader = realpathSync(path.join(project, "node_modules/esm/dist/esm.js"))
       const probe = path.join(project, "host-probe.cjs")
@@ -535,12 +561,16 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
         const cacheExists =
           existsSync(path.join(compilerCache, ".data.json")) && existsSync(bootstrapCache)
         assert.equal(cacheExists, phase === "warm", "Unexpected cache state before host launch")
-        const command = hostLaunchArgs(issue, probe, project, directory, phase)
-        const files = { log: path.join(directory, `${issue}-${phase}.log`), result: resultFile }
-        context = { phase, ...files, command: { executable, args: command, cwd: project } }
-        const details = await runHostCase(
+        const command = hostLaunchCommand(
           executable,
-          command,
+          hostLaunchArgs(issue, probe, project, directory, phase),
+          values.xvfb
+        )
+        const files = { log: path.join(directory, `${issue}-${phase}.log`), result: resultFile }
+        context = { phase, ...files, command: { ...command, cwd: project } }
+        const details = await runHostCase(
+          command.executable,
+          command.args,
           project,
           {
             ...env,

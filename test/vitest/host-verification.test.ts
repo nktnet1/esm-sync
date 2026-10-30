@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
 import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { createRequire } from "node:module"
@@ -9,12 +9,14 @@ import { electronProbe, vscodeProbe } from "../../script/src/esm/host-probes.ts"
 import {
   prepareProject,
   hostLaunchArgs,
+  hostLaunchCommand,
   runHostCase,
   runCommand,
   safeTarget,
   validateReport
 } from "../../script/src/esm/verify-hosts.ts"
 import { Script } from "node:vm"
+import { withCompatibilityFiles } from "./helpers/coverage.ts"
 
 const identity = {
   issue: 915,
@@ -134,6 +136,127 @@ describe("desktop host verification", () => {
     expect(() => new Script(vscodeProbe)).not.toThrow()
   })
 
+  for (const fails of [false, true]) {
+    it(`captures VS Code's protected console and restores its descriptor after ${fails ? "port failure" : "success"}`, async () => {
+      const loader = await realpath(path.resolve("dist/esm.js"))
+      // Preserve #915's compiled activation shape: an unreturned async IIFE
+      // logs the port; the registered command only shows a greeting.
+      await withCompatibilityFiles(
+        {
+          "package.json": '{"name":"vscode-test-getport","main":"out/extension.js"}',
+          "out/extension.js": `require = require('esm')(module)
+module.exports = require('./main.js')`,
+          "out/main.js": `const get_port_1 = require('get-port')
+const vscode = require('vscode')
+exports.activate = function(context) {
+  (async () => { const port = await get_port_1.default({port:13604}); console.log(port) })()
+  console.log('Congratulations, your extension "vscode-test-getport" is now active!')
+  context.subscriptions.push(vscode.commands.registerCommand('vscode-test-getport.showPort', () => {
+    vscode.window.showInformationMessage('Hello from vscode-test-getport!')
+  }))
+}`,
+          "node_modules/get-port/package.json": '{"type":"module","version":"6.1.2"}',
+          "node_modules/get-port/index.js": fails
+            ? "export default async function() { throw new Error('allocation-rejected') }"
+            : `import net from 'node:net'
+export default function() {
+  return new Promise((resolve,reject) => {
+    const server = net.createServer()
+    server.on('error',reject)
+    server.listen({host:'127.0.0.1',port:0}, () => {
+      const port = server.address().port
+      server.close(error => error ? reject(error) : resolve(port))
+    })
+  })
+}`,
+          "host-probe.cjs": vscodeProbe,
+          "index.cjs": `const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const Module = require('node:module')
+const nativeLog = console.log
+// VS Code 1.66.2 bootstrap-fork.js installs an accessor whose setter is a no-op.
+Object.defineProperty(console, 'log', {
+  configurable: true, enumerable: true,
+  get: () => function(...args) { nativeLog.apply(console,args) },
+  set: () => {}
+})
+const descriptor = Object.getOwnPropertyDescriptor(console,'log')
+const commands = new Map()
+let greeting = false
+const extension = {
+  extensionPath: __dirname, isActive: false,
+  async activate() {
+    require('./out/extension.js').activate({subscriptions:[]})
+    this.isActive = true
+  }
+}
+const api = {
+  version:'1.66.2',
+  extensions:{getExtension(id) {
+    assert.equal(id,'undefined_publisher.vscode-test-getport')
+    return extension
+  }},
+  commands:{
+    registerCommand(id,callback) { commands.set(id,callback); return {dispose(){}} },
+    executeCommand(id) { return commands.get(id)() }
+  },
+  window:{showInformationMessage(message) {
+    assert.equal(message,'Hello from vscode-test-getport!')
+    greeting = true
+  }}
+}
+const originalLoad = Module._load
+Module._load = function(id) {
+  return id === 'vscode' ? api : originalLoad.apply(this,arguments)
+}
+const config = JSON.parse(process.env.ESM_HOST_CHECK)
+;(async () => {
+  let failure
+  try { await require('./host-probe.cjs').run() } catch(error) { failure = error }
+  const report = JSON.parse(fs.readFileSync(config.result,'utf8'))
+  assert.deepEqual(Object.getOwnPropertyDescriptor(console,'log'),descriptor)
+  assert.ok(greeting)
+  assert.equal(report.commandExecuted,true)
+  assert.equal(report.passed,${!fails})
+  assert.equal(Boolean(failure),${fails})
+  ${fails ? "assert.ok(report.errors.some(error => error.includes('allocation-rejected')))" : "assert.ok(report.ports.length > 0)"}
+  process.stdout.write('probe-restored\\n')
+})().catch(error => { console.error(error); process.exitCode = 1 })`
+        },
+        async (directory) => {
+          await symlink(
+            await realpath(process.cwd()),
+            path.join(directory, "node_modules/esm"),
+            "junction"
+          )
+          const resultFile = path.join(directory, "probe.json")
+          const expected = { ...identity, loader }
+          const result = await runCommand(
+            process.execPath,
+            ["--no-experimental-require-module", "index.cjs"],
+            directory,
+            {
+              ...process.env,
+              ESM_DISABLE_CACHE: "true",
+              ESM_HOST_CHECK: JSON.stringify({
+                ...expected,
+                project: directory,
+                result: resultFile
+              })
+            },
+            25_000
+          )
+          expect(result.code, result.stdout + result.stderr).toBe(0)
+          expect(result.stdout).toContain("probe-restored")
+          const report: unknown = JSON.parse(await readFile(resultFile, "utf8"))
+          if (fails) expect(() => validateReport(report, expected, 0)).toThrow()
+          else expect(() => validateReport(report, expected, 0)).not.toThrow()
+        }
+      )
+    })
+  }
+
   for (const issue of [867, 915] as const) {
     it(`passes Linux startup flags and private paths intact to host #${issue}`, async () => {
       const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-args ü -")))
@@ -144,15 +267,32 @@ describe("desktop host verification", () => {
         const args = hostLaunchArgs(issue, probe, project, directory, "cold", "linux")
         const source =
           "if (!process.argv.includes('--no-sandbox')) { console.error('No usable sandbox!'); process.exitCode = 1 } else console.log(JSON.stringify(process.argv.slice(1)))"
-        const result = await runCommand(
-          process.execPath,
-          ["-e", source, "--", ...args],
-          directory,
-          process.env
-        )
-        expect(result.code, result.stderr).toBe(0)
-        const received: unknown = JSON.parse(result.stdout)
-        expect(received).toEqual(args)
+        for (const xvfb of [false, true]) {
+          const command = hostLaunchCommand(
+            process.execPath,
+            ["-e", source, "--", ...args],
+            xvfb,
+            "linux"
+          )
+          expect(command.executable).toBe(xvfb ? "xvfb-run" : process.execPath)
+          // Exercise the wrapper boundary with native children without requiring
+          // an X server in this tooling regression.
+          const wrapper = `const assert = require('node:assert/strict')
+const [flag, executable, ...args] = process.argv.slice(1)
+assert.equal(flag,'-a')
+const result = require('node:child_process').spawnSync(executable,args,{stdio:'inherit'})
+if (result.error) throw result.error
+process.exitCode = result.status ?? 1`
+          const result = await runCommand(
+            process.execPath,
+            xvfb ? ["-e", wrapper, "--", ...command.args] : command.args,
+            directory,
+            process.env
+          )
+          expect(result.code, result.stderr).toBe(0)
+          const received: unknown = JSON.parse(result.stdout)
+          expect(received).toEqual(args)
+        }
         expect(args).toContain("--no-sandbox")
         if (issue === 867) expect(args).toContain(probe)
         else {
@@ -164,12 +304,47 @@ describe("desktop host verification", () => {
           expect(hostLaunchArgs(issue, probe, project, directory, "cold", platform)).not.toContain(
             "--no-sandbox"
           )
+          expect(() => hostLaunchCommand(process.execPath, args, true, platform)).toThrow(
+            /only on Linux/
+          )
         }
       } finally {
         await rm(directory, { recursive: true, force: true })
       }
     })
   }
+
+  it("explains an inaccessible X11 display without mistaking font warnings for a loader failure", async () => {
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-display-")))
+    try {
+      const files = {
+        log: path.join(directory, "867-disabled.log"),
+        result: path.join(directory, "867-disabled.json")
+      }
+      const source = `console.error('Fontconfig warning: invalid constant');
+console.error('Gtk-WARNING **: cannot open display: :0'); process.exitCode = 1`
+      await expect(
+        runHostCase(
+          process.execPath,
+          ["-e", source],
+          directory,
+          process.env,
+          { ...identity, issue: 867 },
+          files
+        )
+      ).rejects.toMatchObject({
+        message: expect.stringContaining("Re-run with --xvfb"),
+        details: {
+          exitCode: 1,
+          hostResult: null,
+          stderr: expect.stringContaining("cannot open display: :0")
+        }
+      })
+      expect(await readFile(files.log, "utf8")).toContain("Fontconfig warning")
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 
   it("preserves the probe error and host stderr when the process exits unsuccessfully", async () => {
     const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-error-")))

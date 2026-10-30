@@ -75,15 +75,26 @@ const path = require('path');
 exports.run = async function () {
   const config = JSON.parse(process.env.ESM_HOST_CHECK);
   const report = { ...config, issue: 915, ports: [], errors: [], passed: false };
+  const originalLogDescriptor = Object.getOwnPropertyDescriptor(console, 'log');
   const originalLog = console.log;
   const rejection = error => report.errors.push(String(error && error.stack || error));
-  console.log = function (...args) {
+  const captureLog = function (...args) {
     if (args.length === 1 && Number.isInteger(args[0]) && args[0] > 0 && args[0] <= 65535)
       report.ports.push(args[0]);
     return originalLog.apply(this, args);
   };
+  let logPatched = false;
   process.on('unhandledRejection', rejection);
   try {
+    // VS Code 1.66.2 uses a console.log accessor with an assignment-ignoring
+    // setter. Replace its configurable descriptor, then restore it exactly.
+    assert.ok(originalLogDescriptor, 'Host console.log has no own descriptor');
+    Object.defineProperty(console, 'log', {
+      configurable: true, enumerable: originalLogDescriptor.enumerable,
+      writable: true, value: captureLog
+    });
+    logPatched = true;
+    assert.equal(console.log, captureLog, 'Could not capture the host console');
     const vscode = require('vscode');
     assert.equal(vscode.version, '1.66.2', 'Use VS Code 1.66.2 to test #915');
     const projectRequire = require('module').createRequire(path.join(config.project, 'package.json'));
@@ -100,8 +111,8 @@ exports.run = async function () {
     const deadline = Date.now() + 15000;
     while (!report.ports.length && !report.errors.length && Date.now() < deadline)
       await new Promise(resolve => setTimeout(resolve, 50));
-    assert.ok(report.ports.length, 'Activation never reported an allocated port');
     assert.deepEqual(report.errors, []);
+    assert.ok(report.ports.length, 'Activation never reported an allocated port');
     report.version = vscode.version;
     report.versions = process.versions;
     report.passed = true;
@@ -109,7 +120,7 @@ exports.run = async function () {
     rejection(error);
     throw error;
   } finally {
-    console.log = originalLog;
+    if (logPatched) Object.defineProperty(console, 'log', originalLogDescriptor);
     process.removeListener('unhandledRejection', rejection);
     fs.writeFileSync(config.result, JSON.stringify(report, null, 2));
   }

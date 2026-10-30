@@ -29,8 +29,14 @@ caching is disabled. The original source files are not edited.
 The command prints a report directory containing JSON results and host logs.
 It exits nonzero if a check fails or a runtime, Linux library, or display is
 missing; unavailable desktop checks never count as passes. On Linux, run in
-an X11 desktop session or prefix the command with `xvfb-run -a` when Xvfb is
-installed. No real desktop success is claimed by the checker's own unit tests.
+an X11 desktop session or add `--xvfb` when Xvfb, `xvfb-run` and `xauth` are
+installed. For example:
+`pnpm verify:hosts --xvfb --assets /path/to/extracted-issue-assets`.
+This wraps each host in `xvfb-run -a`, using a virtual X11 display. It also
+works when `DISPLAY` is set but points to an inaccessible server, as in
+Electron's `Gtk-WARNING: cannot open display: :0` startup failure. Setting
+`DISPLAY=:0` alone does not create a display. The checker does not install
+system packages. No real desktop success is claimed by its own unit tests.
 
 Failures include the attempted command, cache phase, exit code/signal, probe
 errors, captured stdout/stderr, and paths to the complete log and probe result.
@@ -40,6 +46,15 @@ To inspect a previous run without rebuilding or relaunching either host, use
 This also reads logs written by the earlier checker, whose summary reported
 only `Host exited unsuccessfully`. Diagnostic mode does not mark checks passed
 or modify the saved results.
+
+VS Code 1.66.2 installs `console.log` as a configurable accessor whose setter
+ignores assignments. The port observer replaces that property descriptor for
+the duration of the test and restores the original descriptor on success or
+failure. Assigning `console.log = ...` silently leaves the observer detached,
+so older checker versions could report `Activation never reported an allocated
+port` even when allocation succeeded. The probe still requires a valid port
+from the original activation, successful command execution, and no rejection;
+the activation greeting alone is insufficient evidence.
 
 The disposable Linux verification hosts use `--no-sandbox` for all users.
 The earlier root-only flag left normal-user launches dependent on a correctly
