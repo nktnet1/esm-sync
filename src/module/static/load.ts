@@ -13,6 +13,7 @@ import Module from "../../module.js"
 import RealModule from "../../real/module.js"
 
 import _load from "../internal/load.js"
+import loadHostModule from "../internal/load-host-module.js"
 import errors from "../../errors.js"
 import has from "../../util/has.js"
 import maskFunction from "../../util/mask-function.js"
@@ -44,7 +45,12 @@ const load = maskFunction(function (
 
   const parentIsStrict = parentEntry !== null && parentEntry.package.options.mode === MODE_STRICT
 
-  const filename = Module._resolveFilename(request, parent, isMain)
+  let filename: string
+  try {
+    filename = Module._resolveFilename(request, parent, isMain)
+  } catch (error) {
+    return loadHostModule(request, parent, error, isMain)
+  }
   const { scratchCache } = Loader.state.module
 
   let cache = Module._cache
