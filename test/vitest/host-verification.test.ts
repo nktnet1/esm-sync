@@ -10,6 +10,7 @@ import {
   prepareProject,
   hostLaunchArgs,
   hostLaunchCommand,
+  hostLaunchEnv,
   runHostCase,
   runCommand,
   safeTarget,
@@ -346,6 +347,102 @@ console.error('Gtk-WARNING **: cannot open display: :0'); process.exitCode = 1`
     }
   })
 
+  it("uses X11 for Electron 8 and Xvfb without changing the desktop environment or Xauthority", async () => {
+    const inherited = {
+      ...process.env,
+      GDK_BACKEND: "wayland",
+      WAYLAND_DISPLAY: "wayland-1",
+      DISPLAY: ":99",
+      XAUTHORITY: path.join(process.cwd(), "private authority ü")
+    }
+    const snapshot = { ...inherited }
+    const cases = [
+      { issue: 867, xvfb: false, platform: "linux", backend: "x11" },
+      { issue: 867, xvfb: true, platform: "linux", backend: "x11" },
+      { issue: 915, xvfb: true, platform: "linux", backend: "x11" },
+      { issue: 915, xvfb: false, platform: "linux", backend: "wayland" },
+      { issue: 867, xvfb: true, platform: "darwin", backend: "wayland" },
+      { issue: 867, xvfb: true, platform: "win32", backend: "wayland" }
+    ] as const
+    for (const { issue, xvfb, platform, backend } of cases) {
+      const env = hostLaunchEnv(inherited, issue, xvfb, platform)
+      const source = `const assert = require('node:assert/strict')
+assert.equal(process.env.GDK_BACKEND,process.argv[1])
+assert.equal(process.env.DISPLAY,':99')
+assert.equal(process.env.WAYLAND_DISPLAY,'wayland-1')
+assert.equal(process.env.XAUTHORITY,process.argv[2])
+console.log('backend:ok')`
+      const result = await runCommand(
+        process.execPath,
+        ["-e", source, backend, inherited.XAUTHORITY],
+        process.cwd(),
+        env
+      )
+      expect(result.code, result.stderr).toBe(0)
+      expect(result.stdout.trim()).toBe("backend:ok")
+      expect(inherited).toEqual(snapshot)
+    }
+    expect(hostLaunchEnv({ DISPLAY: ":99" }, 867, true, "linux").GDK_BACKEND).toBe("x11")
+  })
+
+  for (const quietFontconfig of [false, true]) {
+    it(`retains fatal display errors and raw Fontconfig output with quiet-fontconfig=${quietFontconfig}`, async () => {
+      const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-fonts-")))
+      try {
+        const files = {
+          log: path.join(directory, "867-disabled.log"),
+          result: path.join(directory, "867-disabled.json")
+        }
+        const source = `console.log('Fontconfig warning: stdout-font-warning')
+console.log('stdout-kept')
+console.error('Fontconfig error: invalid attribute xsi:nil')
+console.error('  Fontconfig warning: invalid constant')
+console.error('Application warning: font matching failed')
+console.error('Gtk-WARNING **: cannot open display: :99')
+process.exitCode = 1`
+        let failure: unknown
+        try {
+          await runHostCase(
+            process.execPath,
+            ["-e", source],
+            directory,
+            process.env,
+            { ...identity, issue: 867 },
+            files,
+            { quietFontconfig, xvfb: true }
+          )
+        } catch (error) {
+          failure = error
+        }
+        expect(failure).toMatchObject({
+          details: {
+            exitCode: 1,
+            hostResult: null,
+            stderr: expect.stringContaining("Fontconfig error: invalid attribute xsi:nil"),
+            stdout: expect.stringContaining("Fontconfig warning: stdout-font-warning")
+          }
+        })
+        const message = String(failure)
+        expect(message).toContain("cannot open display: :99")
+        expect(message).toContain("Check Xvfb startup and Xauthority")
+        expect(message).not.toContain("Re-run with --xvfb")
+        expect(message).toContain("Application warning: font matching failed")
+        expect(message).toContain("stdout-kept")
+        for (const diagnostic of [
+          "Fontconfig warning: stdout-font-warning",
+          "Fontconfig error: invalid attribute xsi:nil",
+          "Fontconfig warning: invalid constant"
+        ]) {
+          if (quietFontconfig) expect(message).not.toContain(diagnostic)
+          else expect(message).toContain(diagnostic)
+          expect(await readFile(files.log, "utf8")).toContain(diagnostic)
+        }
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+  }
+
   it("preserves the probe error and host stderr when the process exits unsuccessfully", async () => {
     const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-error-")))
     try {
@@ -458,7 +555,9 @@ console.error('Gtk-WARNING **: cannot open display: :0'); process.exitCode = 1`
       }
       const source = "console.error('before-timeout'); setInterval(() => {}, 1000)"
       await expect(
-        runHostCase(process.execPath, ["-e", source], directory, process.env, identity, files, 1000)
+        runHostCase(process.execPath, ["-e", source], directory, process.env, identity, files, {
+          timeout: 1000
+        })
       ).rejects.toMatchObject({
         message: expect.stringContaining("timed out"),
         details: { timedOut: true, stderr: expect.stringContaining("before-timeout") }
@@ -534,6 +633,41 @@ console.error('Gtk-WARNING **: cannot open display: :0'); process.exitCode = 1`
       expect(await readFile(path.join(directory, "867-disabled.log"), "utf8")).toBe(
         "original-electron-startup-error\n"
       )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("can hide Fontconfig messages when diagnosing existing logs without changing the saved evidence", async () => {
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-font-logs-")))
+    try {
+      const file = path.join(directory, "867-disabled.log")
+      const log = [
+        "Exit code: 1",
+        "STDERR:",
+        "Fontconfig error: invalid attribute xsi:nil",
+        "Fontconfig warning: invalid constant",
+        "Gtk-WARNING **: cannot open display: :99"
+      ].join("\n")
+      await writeFile(file, log)
+      const result = await runCommand(
+        process.execPath,
+        [
+          path.resolve("script/src/esm/verify-hosts.ts"),
+          "--assets",
+          path.join(directory, "missing-assets"),
+          "--diagnose",
+          directory,
+          "--quiet-fontconfig"
+        ],
+        process.cwd(),
+        process.env
+      )
+      expect(result.code, result.stderr).toBe(0)
+      expect(result.stdout).toContain("cannot open display: :99")
+      expect(result.stdout).not.toContain("Fontconfig error:")
+      expect(result.stdout).not.toContain("Fontconfig warning:")
+      expect(await readFile(file, "utf8")).toBe(log)
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

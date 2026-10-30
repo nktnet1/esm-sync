@@ -38,6 +38,24 @@ Electron's `Gtk-WARNING: cannot open display: :0` startup failure. Setting
 `DISPLAY=:0` alone does not create a display. The checker does not install
 system packages. No real desktop success is claimed by its own unit tests.
 
+A Wayland desktop can keep running normally while the tests use X11. On Linux,
+the checker sets `GDK_BACKEND=x11` for Electron 8 and for both hosts under
+`--xvfb`. This overrides an inherited Wayland-only GTK backend for the test
+children and preserves `DISPLAY` and `XAUTHORITY` for Xvfb/Xwayland. The earlier
+wrapper alone could still fail with `cannot open display: :99` when GTK was
+forced to use Wayland. GTK documents the backend selection in its
+[environment-variable reference](https://gnome.pages.gitlab.gnome.org/gtk/gtk3/running.html).
+
+Add `--quiet-fontconfig` to hide lines starting with `Fontconfig warning:` or
+`Fontconfig error:` from the console, including in `--diagnose` mode. For example:
+`pnpm verify:hosts --xvfb --quiet-fontconfig --assets /path/to/extracted-issue-assets`.
+This filters displayed output only. Full host logs and raw stdout/stderr in
+failure reports retain the diagnostics, and host exit status and validation
+requirements are unchanged. Fontconfig parsing messages can occur when a
+historical runtime reads newer host font configuration. `FC_DEBUG` controls
+Fontconfig's debug output; setting it to zero does not disable these parsing
+messages. There is no need to change system font configuration for this test.
+
 Failures include the attempted command, cache phase, exit code/signal, probe
 errors, captured stdout/stderr, and paths to the complete log and probe result.
 Output is retained for startup failures and timeouts as well as module errors.
@@ -65,13 +83,13 @@ and applies only to the checker subprocesses; it does not change the loader or
 the original applications' source/configuration. Startup sandbox failure is
 one possible explanation for exit code 1, not a diagnosis without host logs.
 
-| Report                                                    | Result                                                              | Still needed                                                                              |
-| --------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [#867](https://github.com/standard-things/esm/issues/867) | Fixed stale renderer-module base directory                          | Real window launch/reload results                                                         |
-| [#915](https://github.com/standard-things/esm/issues/915) | Fixed native ESM rejection and virtual CommonJS host-module loading | Desktop activation/reload results from the rebuilt loader                                 |
-| [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained                  | Actual incompatible and compatible native addons, Electron run logs                       |
-| [#691](https://github.com/standard-things/esm/issues/691) | Insufficient evidence to alter Chromium error presentation          | Original failing source or equivalent reproduction, current DevTools/error-event captures |
-| [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below               | No missing source for the supplied probe                                                  |
+| Report                                                    | Result                                                          | Still needed                                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [#867](https://github.com/standard-things/esm/issues/867) | Fixed stale renderer-module base directory                      | Real window launch/reload results                                                         |
+| [#915](https://github.com/standard-things/esm/issues/915) | VS Code 1.66.2 activation, command and port allocation verified | Three fresh-process cache modes passed; UI Reload Window was not automated                |
+| [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained              | Actual incompatible and compatible native addons, Electron run logs                       |
+| [#691](https://github.com/standard-things/esm/issues/691) | Insufficient evidence to alter Chromium error presentation      | Original failing source or equivalent reproduction, current DevTools/error-event captures |
+| [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below           | No missing source for the supplied probe                                                  |
 
 ## Renderer resolution (#867)
 
@@ -150,6 +168,13 @@ Node with a stubbed `vscode` API and the real attached `get-port` dependency.
 That check supplied a loopback-only `os.networkInterfaces()` result because
 network-interface enumeration is unavailable in this workspace. It is not an
 actual VS Code activation result.
+
+The subsequently supplied Arch Linux/Wayland host report confirms real VS Code
+1.66.2 success with caching disabled, cold and warm. Each activation allocated
+port 13604, executed the command and reported no runtime errors. The same run
+could not start Electron 8, which exited at GTK display initialisation before
+the renderer probe ran. Fontconfig diagnostics were present even in the passing
+VS Code launches, so they do not by themselves establish a loader failure.
 
 To verify the rebuilt loader in the actual host:
 

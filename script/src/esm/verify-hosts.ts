@@ -49,6 +49,7 @@ type CaseDetails = {
   stderr: string
   hostResult: unknown
 }
+type CaseOptions = { timeout?: number; quietFontconfig?: boolean; xvfb?: boolean }
 
 class HostProcessError extends Error {
   readonly result: CommandResult
@@ -234,6 +235,15 @@ function tail(value: string): string {
     : value
 }
 
+function consoleOutput(value: string, quietFontconfig: boolean): string {
+  return quietFontconfig
+    ? value
+        .split("\n")
+        .filter((line) => !/^\s*Fontconfig (?:warning|error):/.test(line))
+        .join("\n")
+    : value
+}
+
 export async function runHostCase(
   executable: string,
   args: string[],
@@ -241,12 +251,12 @@ export async function runHostCase(
   env: NodeJS.ProcessEnv,
   identity: Identity,
   files: { log: string; result: string },
-  timeout = 90_000
+  options: CaseOptions = {}
 ): Promise<CaseDetails> {
   let result: CommandResult
   let processError = ""
   try {
-    result = await runCommand(executable, args, cwd, env, timeout)
+    result = await runCommand(executable, args, cwd, env, options.timeout)
   } catch (error) {
     if (!(error instanceof HostProcessError)) throw error
     result = error.result
@@ -284,17 +294,23 @@ export async function runHostCase(
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     const errors = probeErrors(report)
+    const stderr = consoleOutput(result.stderr, options.quietFontconfig ?? false).trim()
+    const stdout = consoleOutput(result.stdout, options.quietFontconfig ?? false).trim()
     const message = [
       reason,
       ...(/cannot open display|unable to open x display|missing x server or \$DISPLAY/i.test(
         result.stderr
       )
-        ? ["X11 display is unavailable. Re-run with --xvfb (requires installed Xvfb and xauth)."]
+        ? [
+            options.xvfb
+              ? "Cannot connect to the Xvfb display with GDK_BACKEND=x11. Check Xvfb startup and Xauthority; see the full log."
+              : "X11 display is unavailable. Re-run with --xvfb (requires installed Xvfb and xauth)."
+          ]
         : []),
       ...(result.signal ? [`Signal: ${result.signal}`] : []),
       ...(errors.length ? ["Host error:\n" + errors.join("\n")] : []),
-      ...(result.stderr.trim() ? ["stderr:\n" + tail(result.stderr.trim())] : []),
-      ...(result.stdout.trim() ? ["stdout:\n" + tail(result.stdout.trim())] : []),
+      ...(stderr ? ["stderr:\n" + tail(stderr)] : []),
+      ...(stdout ? ["stdout:\n" + tail(stdout)] : []),
       `Log: ${files.log}`,
       `Result: ${files.result}`
     ].join("\n")
@@ -303,7 +319,7 @@ export async function runHostCase(
   return details
 }
 
-export function diagnoseHostLogs(directory: string): void {
+export function diagnoseHostLogs(directory: string, quietFontconfig = false): void {
   const base = realpathSync(directory)
   let found = false
   for (const issue of [867, 915]) {
@@ -323,7 +339,10 @@ export function diagnoseHostLogs(directory: string): void {
         }
         console.log(`Result: ${result}`)
       }
-      if (existsSync(log)) console.log(`Log: ${log}\n${tail(readFileSync(log, "utf8").trim())}`)
+      if (existsSync(log))
+        console.log(
+          `Log: ${log}\n${tail(consoleOutput(readFileSync(log, "utf8"), quietFontconfig).trim())}`
+        )
     }
   }
   assert.ok(found, `No host logs or probe results found in ${base}`)
@@ -458,6 +477,21 @@ export function hostLaunchCommand(
   return xvfb ? { executable: "xvfb-run", args: ["-a", executable, ...args] } : { executable, args }
 }
 
+export function hostLaunchEnv(
+  env: NodeJS.ProcessEnv,
+  issue: 867 | 915,
+  xvfb: boolean,
+  platform: NodeJS.Platform = process.platform
+): NodeJS.ProcessEnv {
+  // Electron 8 needs X11, and Xvfb is an X11 server. A Wayland-only GTK
+  // backend inherited from the desktop can reject even a valid DISPLAY=:99.
+  // Scope the override to these test children and preserve X11 authentication.
+  return {
+    ...env,
+    ...(platform === "linux" && (issue === 867 || xvfb) ? { GDK_BACKEND: "x11" } : {})
+  }
+}
+
 export function hostLaunchArgs(
   issue: 867 | 915,
   probe: string,
@@ -495,18 +529,19 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       vscode: { type: "string" },
       diagnose: { type: "string" },
       xvfb: { type: "boolean", default: false },
+      "quiet-fontconfig": { type: "boolean", default: false },
       "skip-build": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false }
     }
   })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts --assets <folder containing issue-867 and issue-915>\nBuilds the fork and runs real Electron 8.0.0 / VS Code 1.66.2 checks.\n--electron <binary> --vscode <binary> override the attached Linux x64 runtimes.\n--xvfb launches each Linux host through installed xvfb-run -a, without needing a desktop display.\n--skip-build uses existing dist output. No downloads or dependency installation.\n--diagnose <report-directory> reads existing host logs without building or launching apps."
+      "pnpm verify:hosts --assets <folder containing issue-867 and issue-915>\nBuilds the fork and runs real Electron 8.0.0 / VS Code 1.66.2 checks.\n--electron <binary> --vscode <binary> override the attached Linux x64 runtimes.\n--xvfb launches each Linux host through installed xvfb-run -a, without needing a desktop display.\n--quiet-fontconfig hides Fontconfig warning/error lines in the console; full logs and JSON retain them.\n--skip-build uses existing dist output. No downloads or dependency installation.\n--diagnose <report-directory> reads existing host logs without building or launching apps."
     )
     return
   }
   if (values.diagnose) {
-    diagnoseHostLogs(values.diagnose)
+    diagnoseHostLogs(values.diagnose, values["quiet-fontconfig"])
     return
   }
   assert.ok(!values.xvfb || process.platform === "linux", "--xvfb is supported only on Linux")
@@ -573,13 +608,14 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
           command.args,
           project,
           {
-            ...env,
+            ...hostLaunchEnv(env, issue, values.xvfb),
             ESM_DISABLE_CACHE: String(phase === "disabled"),
             ESM_OPTIONS: JSON.stringify({ cache: phase === "disabled" ? false : compilerCache }),
             ESM_HOST_CHECK: JSON.stringify(config)
           },
           identity,
-          files
+          files,
+          { quietFontconfig: values["quiet-fontconfig"], xvfb: values.xvfb }
         )
         context = { ...details }
         assert.equal(
