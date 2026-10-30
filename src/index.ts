@@ -30,6 +30,7 @@ import moduleHook from "./hook/module.js"
 import pnp from "./pnp.js"
 import pnpHook from "./hook/pnp.js"
 import processHook from "./hook/process.js"
+import programmaticReplHook from "./hook/programmatic-repl.js"
 import realProcess from "./real/process.js"
 import realVM from "./real/vm.js"
 import requireHook from "./hook/require.js"
@@ -139,6 +140,9 @@ if (shared.inited && !shared.reloaded) {
     moduleHook(RealModule)
     mainHook(RealModule)
     processHook(realProcess)
+    if (CLI) {
+      programmaticReplHook()
+    }
   }
 
   if (INTERNAL) {

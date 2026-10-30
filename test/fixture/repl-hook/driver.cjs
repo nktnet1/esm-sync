@@ -8,6 +8,7 @@ const { readFileSync } = require("node:fs")
 const path = require("node:path")
 const repl = require("node:repl")
 const { PassThrough } = require("node:stream")
+const vm = require("node:vm")
 const { pathToFileURL } = require("node:url")
 
 const scenario = process.env.ESM_SYNC_REPL_CASE
@@ -15,8 +16,10 @@ const server = repl.start({
   input: new PassThrough(),
   output: new PassThrough(),
   terminal: false,
-  prompt: "",
-  useGlobal: scenario === "global"
+  prompt: scenario === "custom" ? "app > " : "",
+  useColors: scenario === "custom",
+  useGlobal: scenario === "global",
+  replMode: repl.REPL_MODE_SLOPPY
 })
 
 const context = server.context
@@ -46,6 +49,37 @@ async function run() {
       await evaluate('import { default as localAssert } from "assert"')
       assert.equal(typeof context.localAssert, "function")
       assert.equal(typeof globalThis.localAssert, "undefined")
+      break
+    }
+    case "custom": {
+      await evaluate('import { join } from "node:path"')
+      assert.equal(context.join("parent", "child"), path.join("parent", "child"))
+      await evaluate('import { User } from "./fixture/repl-hook/model.mjs"')
+      assert.equal(context.User.kind, "local")
+      await evaluate('import { sep as separator } from "path"')
+      assert.equal(context.separator, path.sep)
+      assert.equal(vm.createScript("3 + 5").runInThisContext(), 8)
+
+      const otherServer = repl.start({
+        input: new PassThrough(),
+        output: new PassThrough(),
+        terminal: false,
+        prompt: "other > "
+      })
+      try {
+        await new Promise((resolve, reject) => {
+          otherServer.eval('import { basename as base } from "path"', otherServer.context, "repl", (error) => {
+            if (error) reject(error)
+            else resolve()
+          })
+        })
+        assert.equal(otherServer.context.base("path/file.txt"), "file.txt")
+        await evaluate('import { dirname as dir } from "path"')
+        assert.equal(context.dir("path/file.txt"), "path")
+        assert.equal(vm.createScript("7 * 6").runInThisContext(), 42)
+      } finally {
+        otherServer.close()
+      }
       break
     }
     case "module-exports": {

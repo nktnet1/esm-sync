@@ -10,9 +10,9 @@ on the two application reproductions.
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      6 |
+| Investigate                                   |      5 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     54 |
+| Already covered                               |     55 |
 | Not planned                                   |     23 |
 | **Total**                                     | **83** |
 
@@ -22,16 +22,22 @@ on the two application reproductions.
 
 - **Startup performance** - [https://github.com/standard-things/esm/issues/844](https://github.com/standard-things/esm/issues/844). **Resolved**. Canonical production builds verify the historical Log4brains CLI and complete preview HTTP readiness. v1.0.11 reduced repeated CommonJS stack checks and captured bytecode after initialisation. v1.0.12 reduces retained warm-cache compilation state while preserving cold compilation and bytecode capture. See the [release measurements](tooling-and-performance.md#lower-startup-memory-v1012).
 
+## Verified custom REPL integration
+
+- **Programmatic REPL static imports** - [https://github.com/standard-things/esm/issues/854](https://github.com/standard-things/esm/issues/854). **Fixed for the tested Node 22, 24, and 26 preload path**. An application's `repl.start()` does not enter the same startup branch as `node -i`. A one-time, lazy context hook now activates REPL compilation when the application first creates a server. Non-REPL `vm.createScript()` calls retain their normal behaviour, including after creating multiple REPL servers. Tests cover cached and uncached configurations, custom prompts, sloppy mode, isolated contexts, relative-file imports, repeated imports, and a second active server. This does not change arbitrary `vm` script evaluation or promise rejection handling in the Node REPL.
+
 ## Active investigations
 
-### Host-specific reports needing a reproduction or scope decision
+### Electron and extension-host integrations
 
-- VS Code extension-host ESM loading. Upstream report: [https://github.com/standard-things/esm/issues/915](https://github.com/standard-things/esm/issues/915).
-- Electron renderer module loading. Upstream report: [https://github.com/standard-things/esm/issues/867](https://github.com/standard-things/esm/issues/867).
-- Electron dynamic imports versus native-addon failures. Upstream report: [https://github.com/standard-things/esm/issues/817](https://github.com/standard-things/esm/issues/817).
-- Electron renderer error stacks. Upstream report: [https://github.com/standard-things/esm/issues/691](https://github.com/standard-things/esm/issues/691).
-- Custom REPL import hooks. Upstream report: [https://github.com/standard-things/esm/issues/854](https://github.com/standard-things/esm/issues/854).
-- `vm.runInThisContext` is script-goal. Module loading there would be a separate feature. Upstream report: [https://github.com/standard-things/esm/issues/886](https://github.com/standard-things/esm/issues/886).
+- **VS Code extension-host ESM loading** - [https://github.com/standard-things/esm/issues/915](https://github.com/standard-things/esm/issues/915). The original TypeScript extension was compiled to CommonJS and attempted to require the ESM-only `get-port` package. The fork's loader supports synchronous ESM interop in Node, but an actual extension activation must be tested in the VS Code Node extension host. The browser extension host has different capabilities. Obtain the compiled extension and its host/version details before changing the loader.
+- **Electron renderer module loading** - [https://github.com/standard-things/esm/issues/867](https://github.com/standard-things/esm/issues/867). The failing inline HTML script resolves `./renderer.js` from Electron's internal `renderer_init`, not necessarily from the application's page. The reported workaround mutates the injected `module` record and disables the cache. A safe fix would need explicit base-path semantics and tests across the relevant `nodeIntegration`, sandbox, and context-isolation settings. Modern isolated preload scripts are a separate migration option.
+- **Electron dynamic imports and native-addon failures** - [https://github.com/standard-things/esm/issues/817](https://github.com/standard-things/esm/issues/817). Plain JavaScript throws and malformed `.node` files already reject dynamic-import promises in the fork's Node runtime on Node 22, 24, and 26. The upstream example uses `.catch('error')`, which is not a valid rejection handler. The native-addon ABI failure, renderer hang, and DevTools disconnect still require the exact Electron/Node/native-addon combination to reproduce. Do not infer an Electron fix from the Node-only rejection test.
+- **Electron renderer error stacks** - [https://github.com/standard-things/esm/issues/691](https://github.com/standard-things/esm/issues/691). Node loader exceptions are masked and the original `error.stack` is available, but the renderer's `window.onerror` and Chromium DevTools presentation are not verified. The existing stack-scrubbing path does not install a renderer event handler. Test the upstream renderer reproduction before introducing a DevTools-specific or source-map change.
+
+### VM API boundary
+
+- **Static imports in `vm.runInThisContext`** - [https://github.com/standard-things/esm/issues/886](https://github.com/standard-things/esm/issues/886). Reproduced on Node 22, 24, and 26. This API compiles script-goal code and does not accept static `import` declarations. Node's `vm.SourceTextModule` supports module-goal linking through a separate asynchronous API. Automatic transpilation or a new opt-in module evaluator would change the contract of the VM API and needs an explicit feature decision rather than a patch to ordinary `require()` hooks.
 
 ## Completed documentation follow-ups
 
@@ -48,13 +54,13 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **54** reports are classified _already covered_ by an existing
+The following **55** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
 931, 926, 924, 922, 921, 918, 916, 914, 913, 910, 909, 904, 900, 898, 897,
-896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 866, 865, 864, 863, 855, 852,
+896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 866, 865, 864, 863, 855, 854, 852,
 846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706.
 

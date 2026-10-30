@@ -47,6 +47,28 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/817
+    // A failed dlopen should reject the import Promise. This tests only the
+    // Node runtime, not Electron's renderer or mismatched addon ABI handling.
+    it("rejects a malformed native addon from dynamic import", async (context) => {
+      const expect: TestContext["expect"] = context.expect
+      await withFiles(
+        {
+          "invalid.node": "not an addon\n",
+          "entry.js": `import('./invalid.node').then(
+  () => console.log('unexpected success'),
+  (error) => console.log(error.code)
+)\n`
+        },
+        async (directory) => {
+          const result = await runNode(["-r", loaderPath, "entry.js"], esmEnv, loaderOptions, {
+            cwd: directory
+          })
+          checkSuccess(expect, result, "ERR_DLOPEN_FAILED")
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/910
     it(
       "collects real NYC counters after an ordinary run has warmed the compiler cache",
