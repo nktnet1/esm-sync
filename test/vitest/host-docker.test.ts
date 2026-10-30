@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { createServer, type RequestListener } from "node:http"
-import { mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
@@ -12,7 +12,7 @@ import {
   type HostRuntime
 } from "../../script/src/esm/host-runtimes.ts"
 import { verifyHostsDocker, type DockerRunner } from "../../script/src/esm/verify-hosts-docker.ts"
-import { prepareProject, runCommand } from "../../script/src/esm/verify-hosts.ts"
+import { prepareProject, runCommand } from "../../script/src/esm/verify-hosts-container.ts"
 
 async function withDirectory(action: (directory: string) => Promise<void>): Promise<void> {
   const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-docker ü -")))
@@ -138,7 +138,7 @@ describe("self-contained desktop host verification", () => {
     await withDirectory(async (directory) => {
       const fixture = path.resolve("test/fixture/hosts")
       for (const issue of [867, 915] as const) {
-        const project = await prepareProject(issue, undefined, directory)
+        const project = await prepareProject(issue, directory)
         const names =
           issue === 867
             ? ["index.html", "renderer.js", "package.json"]
@@ -197,35 +197,56 @@ describe("self-contained desktop host verification", () => {
     )
   })
 
-  it("exports failed native launches to a separate reports directory without copying the working projects", async () => {
-    await withDirectory(async (directory) => {
-      const reports = path.join(directory, "reports")
-      const verifier = pathToFileURL(path.resolve("script/src/esm/verify-hosts.ts")).href
-      const source = `import {main} from ${JSON.stringify(verifier)}
-await main(['--skip-build','--electron',process.execPath,'--vscode',process.execPath],{reportDirectory:process.argv[1]})`
-      // Node is deliberately not a GUI runtime. This exercises failure export,
-      // including the native verifier's real report writer, without a display.
-      const result = await runCommand(
-        process.execPath,
-        ["--input-type=module", "-e", source, reports],
-        process.cwd(),
-        { ...process.env, DISPLAY: ":unused", TMPDIR: directory, TMP: directory, TEMP: directory }
-      )
-      expect(result.code).not.toBe(0)
-      const report = JSON.parse(await readFile(path.join(reports, "report.json"), "utf8")) as {
-        passed: boolean
-        samples: { passed: boolean }[]
-      }
-      expect(report.passed).toBe(false)
-      expect(report.samples).toHaveLength(2)
-      expect(report.samples.every((sample) => sample.passed === false)).toBe(true)
-      const files = await readdir(reports)
-      expect(files).toContain("867-disabled.log")
-      expect(files).toContain("915-disabled.log")
-      expect(files.every((file) => file.endsWith(".log") || file.endsWith(".json"))).toBe(true)
-      expect(result.stdout).toContain(path.join(reports, "report.json"))
-    })
-  })
+  it.skipIf(process.platform !== "linux" || process.arch !== "x64")(
+    "exports a failed container report when the image's runtime inputs are missing",
+    async () => {
+      await withDirectory(async (directory) => {
+        const reports = path.join(directory, "reports")
+        const image = path.join(directory, "incomplete-image")
+        const scripts = path.join(image, "script/src/esm")
+        const cache = path.join(image, ".cache/host-runtimes")
+        await mkdir(scripts, { recursive: true })
+        await mkdir(cache, { recursive: true })
+        await mkdir(path.join(image, "dist/esm"), { recursive: true })
+        for (const file of [
+          "verify-hosts-container.ts",
+          "host-probes.ts",
+          "host-runtimes.ts",
+          "package.json"
+        ])
+          await cp(path.resolve("script/src/esm", file), path.join(scripts, file))
+        const inputs = JSON.stringify({ runtimes: hostRuntimes })
+        await writeFile(path.join(cache, "inputs.json"), inputs)
+        await writeFile(path.join(image, "dist/esm/loader.js"), "// Host is never launched.\n")
+        const verifier = pathToFileURL(path.join(scripts, "verify-hosts-container.ts")).href
+        const source = `import {verifyHostsContainer} from ${JSON.stringify(verifier)}
+await verifyHostsContainer(process.argv[1])`
+        // Run the actual container report writer against an incomplete image tree.
+        // Missing runtimes must fail before any download or GUI launch is possible.
+        const result = await runCommand(
+          process.execPath,
+          ["--input-type=module", "-e", source, reports],
+          process.cwd(),
+          { ...process.env, DISPLAY: ":unused", TMPDIR: directory, TMP: directory, TEMP: directory }
+        )
+        expect(result.code).not.toBe(0)
+        const report = JSON.parse(await readFile(path.join(reports, "report.json"), "utf8")) as {
+          passed: boolean
+          samples: { passed: boolean; error: string }[]
+        }
+        expect(report.passed).toBe(false)
+        expect(report.samples).toHaveLength(2)
+        expect(report.samples.every((sample) => sample.passed === false)).toBe(true)
+        expect(report.samples.every((sample) => /missing runtime archive/.test(sample.error))).toBe(
+          true
+        )
+        expect(await readFile(path.join(reports, "inputs.json"), "utf8")).toBe(inputs)
+        const files = await readdir(reports)
+        expect(files.sort()).toEqual(["inputs.json", "report.json"])
+        expect(result.stdout).toContain(path.join(reports, "report.json"))
+      })
+    }
+  )
 
   const image = "sha256:" + "a".repeat(64)
   const validReport = {

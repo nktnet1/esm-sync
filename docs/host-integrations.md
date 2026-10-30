@@ -4,8 +4,9 @@
 Arch Linux/Wayland run passed all six real-host cases: disabled, cold and warm
 caches for Electron 8.0.0 and VS Code 1.66.2. Electron completed the first load
 and three reloads per mode; VS Code activated the extension, executed its
-command and allocated a valid port per mode. This records the tested historical
-integrations, not an assertion about all Electron or VS Code versions.
+command and allocated a valid port per mode. A subsequent self-contained Docker
+run also passed all six cases. These results cover the tested historical
+integrations.
 
 ## Docker verification
 
@@ -42,82 +43,44 @@ available as `esm-sync-hosts:local`; report paths such as `/reports` and `/tmp`
 inside the logs refer to the container. The wrapper prints the host artifact
 directory and returns nonzero for failed or missing verification evidence.
 
-## Native verification
+## Checks and diagnostics
 
-The existing `pnpm verify:hosts` command uses the same checked-in fixtures and
-locally cached runtimes, without fetching anything. Supply `--electron` and
-`--vscode` paths to installed Electron 8.0.0 and VS Code 1.66.2 executables when
-the runtime archives are not cached. For compatibility, `--assets <directory>`
-still accepts the earlier extracted `issue-867` and `issue-915` archives and
-validates their checksums. Pass `--skip-build` only when `dist/` already contains
-the build to verify. Docker is the normal path for a single command with no
-machine-specific paths or flags.
+Docker is the only supported verification entry point. The container's internal
+TypeScript verifier uses the production build and runtime archives already in
+the image. It has no native CLI, external-assets option or runtime overrides.
 
 The checker runs disabled, cold and warm disk-cache launches. Electron must
 load the original HTML/renderer successfully and greet once on the first load
 and each of three reloads. Each VS Code launch must activate the original
 extension, execute its command through the real host API, and log a valid port
-from the attached `get-port@6.1.2`. VS Code cases use separate fresh host
+from the checked-in `get-port@6.1.2`. VS Code cases use separate fresh host
 processes; they do not automate the Reload Window command. Compiler and
 bootstrap cache files must exist before a warm run and remain absent when
 caching is disabled. The original source files are not edited.
 
-The command prints a report directory containing JSON results and host logs.
-It exits nonzero if a check fails or a runtime, Linux library, or display is
-missing; unavailable desktop checks never count as passes. On Linux, run in
-an X11 desktop session or add `--xvfb` when Xvfb, `xvfb-run` and `xauth` are
-installed. For example:
-`pnpm verify:hosts --xvfb --assets /path/to/extracted-issue-assets`.
-This wraps each host in `xvfb-run -a`, using a virtual X11 display. It also
-works when `DISPLAY` is set but points to an inaccessible server, as in
-Electron's `Gtk-WARNING: cannot open display: :0` startup failure. Setting
-`DISPLAY=:0` alone does not create a display. The checker does not install
-system packages. No real desktop success is claimed by its own unit tests.
+Both hosts always run through `xvfb-run -a` with `GDK_BACKEND=x11` and the
+testing-only `--no-sandbox` flag inside the disposable container. The image
+supplies the display libraries, Xvfb and xauth. This works from a Wayland
+session without host display configuration.
 
-A Wayland desktop can keep running normally while the tests use X11. On Linux,
-the checker sets `GDK_BACKEND=x11` for Electron 8 and for both hosts under
-`--xvfb`. This overrides an inherited Wayland-only GTK backend for the test
-children and preserves `DISPLAY` and `XAUTHORITY` for Xvfb/Xwayland. The earlier
-wrapper alone could still fail with `cannot open display: :99` when GTK was
-forced to use Wayland. GTK documents the backend selection in its
-[environment-variable reference](https://gnome.pages.gitlab.gnome.org/gtk/gtk3/running.html).
-
-Add `--quiet-fontconfig` to hide lines starting with `Fontconfig warning:` or
-`Fontconfig error:` from the console, including in `--diagnose` mode. For example:
-`pnpm verify:hosts --xvfb --quiet-fontconfig --assets /path/to/extracted-issue-assets`.
-This filters displayed output only. Full host logs and raw stdout/stderr in
-failure reports retain the diagnostics, and host exit status and validation
-requirements are unchanged. Fontconfig parsing messages can occur when a
-historical runtime reads newer host font configuration. `FC_DEBUG` controls
-Fontconfig's debug output; setting it to zero does not disable these parsing
-messages. There is no need to change system font configuration for this test.
+Fontconfig warning/error lines are hidden from failure messages automatically.
+Raw stdout/stderr, log files and failure reports retain those diagnostics.
+Other errors and the host's exit status still determine the result.
 
 Failures include the attempted command, cache phase, exit code/signal, probe
 errors, captured stdout/stderr, and paths to the complete log and probe result.
 Output is retained for startup failures and timeouts as well as module errors.
-To inspect a previous run without rebuilding or relaunching either host, use
-`pnpm verify:hosts --diagnose /tmp/esm-sync-hosts-<run>`.
-This also reads logs written by the earlier checker, whose summary reported
-only `Host exited unsuccessfully`. Diagnostic mode does not mark checks passed
-or modify the saved results.
+Open `report.json`, the individual probe JSON and the raw `.log` files in the
+exported reports directory to inspect a previous run without launching Docker
+again. Missing runtimes, libraries, displays or probe results count as failures.
+Tooling unit tests do not by themselves establish a real desktop-host pass.
 
 VS Code 1.66.2 installs `console.log` as a configurable accessor whose setter
 ignores assignments. The port observer replaces that property descriptor for
 the duration of the test and restores the original descriptor on success or
-failure. Assigning `console.log = ...` silently leaves the observer detached,
-so older checker versions could report `Activation never reported an allocated
-port` even when allocation succeeded. The probe still requires a valid port
-from the original activation, successful command execution, and no rejection;
-the activation greeting alone is insufficient evidence.
-
-The disposable Linux verification hosts use `--no-sandbox` for all users.
-The earlier root-only flag left normal-user launches dependent on a correctly
-installed SUID helper or available unprivileged user namespaces. Extracted
-historical runtimes do not install that root-owned helper. This follows
-[Electron's testing-only flag](https://www.electronjs.org/docs/latest/tutorial/sandbox#disabling-chromiums-sandbox-testing-only)
-and applies only to the checker subprocesses; it does not change the loader or
-the original applications' source/configuration. Startup sandbox failure is
-one possible explanation for exit code 1, not a diagnosis without host logs.
+failure. The probe requires a valid port from the original activation,
+successful command execution, and no rejection; the activation greeting alone
+is insufficient evidence.
 
 | Report                                                    | Result                                                            | Still needed                                                                              |
 | --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -129,8 +92,8 @@ one possible explanation for exit code 1, not a diagnosis without host logs.
 
 ## Renderer resolution (#867)
 
-The archive pins `aistrych/electron-quick-start` at
-`9ca5498beacf08d1572ffee05df385faad261dd0` and includes Electron 8.0.0.
+The fixture pins `aistrych/electron-quick-start` at
+`9ca5498beacf08d1572ffee05df385faad261dd0`; the image uses Electron 8.0.0.
 Its embedded renderer initialisation creates
 `new Module('electron/js2c/renderer_init')`, then sets `filename` to the HTML
 page and `paths` to the page's module search paths. It leaves `path` pointing
@@ -147,28 +110,9 @@ fresh-process cache loads. Explicit relative and absolute module paths are
 preserved. These checks reproduce the supplied module shape in Node; they do
 not launch Chromium.
 
-The supplied successful host run completes browser verification in all three
-cache modes, including first load and three reloads in each. To repeat it
-manually outside the automated verifier:
-
-1. Extract `source/reproduction.zip` and its supplied Linux dependency archive
-   into the reproduction directory on Linux. Use native dependencies for your
-   own OS/architecture elsewhere; the Linux archive is not portable.
-2. Build this fork. In a disposable copy of the reproduction, replace the
-   installed `esm` package with the fork's package, keeping the application's
-   existing `require('esm')` calls pointed at it. Keep the original sources and
-   Electron version for the first comparison.
-3. Launch with the attached Electron 8.0.0 executable. On a Linux CI host this
-   requires the Electron runtime's system libraries and a working display,
-   such as Xvfb. This workspace lacks `libXtst.so.6` and a display service.
-4. Capture the renderer console on first load and at least three reloads, with
-   caching enabled and then disabled. The expected message is
-   `Hello from the renderer process!` on every load.
-5. Attach the exact `BrowserWindow` constructor options (including
-   `nodeIntegration`, `sandbox`, `contextIsolation`, and preload path),
-   `index.html`, `renderer.js`, package manifest/lockfile, logs and runtime
-   versions. Also record `module.id`, `module.path`, `module.filename` and
-   `module.paths` immediately before the loader factory call.
+The supplied successful host runs complete browser verification in all three
+cache modes, including first load and three reloads in each. Repeat the checks
+with `pnpm verify:hosts:docker`.
 
 The fix supplies no Node APIs to a sandboxed or browser-only context. Do not
 change isolation settings merely to make the historical reproduction pass.
@@ -214,19 +158,8 @@ six-case successful run also verifies Electron 8 in all cache modes after
 selecting the X11 GTK backend for Xvfb. Fontconfig diagnostics were present in
 passing VS Code launches, so they do not by themselves establish a loader failure.
 
-To verify the rebuilt loader in the actual host:
-
-1. Extract the exact source and use its attached dependencies. From its root,
-   run `node node_modules/typescript/bin/tsc -p .`. Include **all of `out/`**, its
-   source maps, `src/`, `tsconfig.json`, `package.json`, and the lockfile.
-2. In a disposable copy, point its existing `esm` dependency at the built fork.
-   Launch the included extension debug configuration with F5 in desktop VS Code.
-3. In the Extension Development Host, run **Show Port**. Capture the Debug
-   Console and **Developer: Show Logs... > Extension Host** output, including
-   the allocated port or complete failure stack. Repeat after Reload Window.
-4. Attach **Help > About** details, `process.versions`, OS/architecture, and
-   whether the extension runs locally, remotely, or in a browser host. For a
-   remote extension, collect the remote Node host's details and log too.
+Repeat the original extension checks with `pnpm verify:hosts:docker`. Testing
+VS Code's **Reload Window** action remains a separate manual check.
 
 ## Electron dynamic imports and native addons (#817)
 

@@ -1,13 +1,9 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises"
-import { createHash } from "node:crypto"
-import { spawnSync } from "node:child_process"
-import { createRequire } from "node:module"
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import { electronProbe, vscodeProbe } from "../../script/src/esm/host-probes.ts"
 import {
-  prepareProject,
   hostLaunchArgs,
   hostLaunchCommand,
   hostLaunchEnv,
@@ -15,7 +11,7 @@ import {
   runCommand,
   safeTarget,
   validateReport
-} from "../../script/src/esm/verify-hosts.ts"
+} from "../../script/src/esm/verify-hosts-container.ts"
 import { Script } from "node:vm"
 import { withCompatibilityFiles } from "./helpers/coverage.ts"
 
@@ -265,49 +261,34 @@ const config = JSON.parse(process.env.ESM_HOST_CHECK)
         const project = path.join(directory, "original app")
         await mkdir(project)
         const probe = path.join(project, "host-probe.cjs")
-        const args = hostLaunchArgs(issue, probe, project, directory, "cold", "linux")
+        const args = hostLaunchArgs(issue, probe, project, directory, "cold")
         const source =
           "if (!process.argv.includes('--no-sandbox')) { console.error('No usable sandbox!'); process.exitCode = 1 } else console.log(JSON.stringify(process.argv.slice(1)))"
-        for (const xvfb of [false, true]) {
-          const command = hostLaunchCommand(
-            process.execPath,
-            ["-e", source, "--", ...args],
-            xvfb,
-            "linux"
-          )
-          expect(command.executable).toBe(xvfb ? "xvfb-run" : process.execPath)
-          // Exercise the wrapper boundary with native children without requiring
-          // an X server in this tooling regression.
-          const wrapper = `const assert = require('node:assert/strict')
+        const command = hostLaunchCommand(process.execPath, ["-e", source, "--", ...args])
+        expect(command.executable).toBe("xvfb-run")
+        // Exercise the wrapper boundary with native children without requiring
+        // an X server in this tooling regression.
+        const wrapper = `const assert = require('node:assert/strict')
 const [flag, executable, ...args] = process.argv.slice(1)
 assert.equal(flag,'-a')
 const result = require('node:child_process').spawnSync(executable,args,{stdio:'inherit'})
 if (result.error) throw result.error
 process.exitCode = result.status ?? 1`
-          const result = await runCommand(
-            process.execPath,
-            xvfb ? ["-e", wrapper, "--", ...command.args] : command.args,
-            directory,
-            process.env
-          )
-          expect(result.code, result.stderr).toBe(0)
-          const received: unknown = JSON.parse(result.stdout)
-          expect(received).toEqual(args)
-        }
+        const result = await runCommand(
+          process.execPath,
+          ["-e", wrapper, "--", ...command.args],
+          directory,
+          process.env
+        )
+        expect(result.code, result.stderr).toBe(0)
+        const received: unknown = JSON.parse(result.stdout)
+        expect(received).toEqual(args)
         expect(args).toContain("--no-sandbox")
         if (issue === 867) expect(args).toContain(probe)
         else {
           expect(args).toContain(`--extensionDevelopmentPath=${project}`)
           expect(args).toContain(`--extensionTestsPath=${probe}`)
           expect(args).toContain(`--user-data-dir=${path.join(directory, "vscode-user-cold")}`)
-        }
-        for (const platform of ["darwin", "win32"] as const) {
-          expect(hostLaunchArgs(issue, probe, project, directory, "cold", platform)).not.toContain(
-            "--no-sandbox"
-          )
-          expect(() => hostLaunchCommand(process.execPath, args, true, platform)).toThrow(
-            /only on Linux/
-          )
         }
       } finally {
         await rm(directory, { recursive: true, force: true })
@@ -334,7 +315,7 @@ console.error('Gtk-WARNING **: cannot open display: :0'); process.exitCode = 1`
           files
         )
       ).rejects.toMatchObject({
-        message: expect.stringContaining("Re-run with --xvfb"),
+        message: expect.stringContaining("Check Xvfb startup and Xauthority"),
         details: {
           exitCode: 1,
           hostResult: null,
@@ -347,7 +328,7 @@ console.error('Gtk-WARNING **: cannot open display: :0'); process.exitCode = 1`
     }
   })
 
-  it("uses X11 for Electron 8 and Xvfb without changing the desktop environment or Xauthority", async () => {
+  it("uses X11 for the container hosts without changing the inherited environment or Xauthority", async () => {
     const inherited = {
       ...process.env,
       GDK_BACKEND: "wayland",
@@ -356,92 +337,78 @@ console.error('Gtk-WARNING **: cannot open display: :0'); process.exitCode = 1`
       XAUTHORITY: path.join(process.cwd(), "private authority ü")
     }
     const snapshot = { ...inherited }
-    const cases = [
-      { issue: 867, xvfb: false, platform: "linux", backend: "x11" },
-      { issue: 867, xvfb: true, platform: "linux", backend: "x11" },
-      { issue: 915, xvfb: true, platform: "linux", backend: "x11" },
-      { issue: 915, xvfb: false, platform: "linux", backend: "wayland" },
-      { issue: 867, xvfb: true, platform: "darwin", backend: "wayland" },
-      { issue: 867, xvfb: true, platform: "win32", backend: "wayland" }
-    ] as const
-    for (const { issue, xvfb, platform, backend } of cases) {
-      const env = hostLaunchEnv(inherited, issue, xvfb, platform)
-      const source = `const assert = require('node:assert/strict')
+    const env = hostLaunchEnv(inherited)
+    const source = `const assert = require('node:assert/strict')
 assert.equal(process.env.GDK_BACKEND,process.argv[1])
 assert.equal(process.env.DISPLAY,':99')
 assert.equal(process.env.WAYLAND_DISPLAY,'wayland-1')
 assert.equal(process.env.XAUTHORITY,process.argv[2])
 console.log('backend:ok')`
-      const result = await runCommand(
-        process.execPath,
-        ["-e", source, backend, inherited.XAUTHORITY],
-        process.cwd(),
-        env
-      )
-      expect(result.code, result.stderr).toBe(0)
-      expect(result.stdout.trim()).toBe("backend:ok")
-      expect(inherited).toEqual(snapshot)
-    }
-    expect(hostLaunchEnv({ DISPLAY: ":99" }, 867, true, "linux").GDK_BACKEND).toBe("x11")
+    const result = await runCommand(
+      process.execPath,
+      ["-e", source, "x11", inherited.XAUTHORITY],
+      process.cwd(),
+      env
+    )
+    expect(result.code, result.stderr).toBe(0)
+    expect(result.stdout.trim()).toBe("backend:ok")
+    expect(inherited).toEqual(snapshot)
+    expect(hostLaunchEnv({ DISPLAY: ":99" }).GDK_BACKEND).toBe("x11")
   })
 
-  for (const quietFontconfig of [false, true]) {
-    it(`retains fatal display errors and raw Fontconfig output with quiet-fontconfig=${quietFontconfig}`, async () => {
-      const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-fonts-")))
-      try {
-        const files = {
-          log: path.join(directory, "867-disabled.log"),
-          result: path.join(directory, "867-disabled.json")
-        }
-        const source = `console.log('Fontconfig warning: stdout-font-warning')
+  it("hides Fontconfig console messages while retaining fatal errors and raw diagnostics", async () => {
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-fonts-")))
+    try {
+      const files = {
+        log: path.join(directory, "867-disabled.log"),
+        result: path.join(directory, "867-disabled.json")
+      }
+      const source = `console.log('Fontconfig warning: stdout-font-warning')
 console.log('stdout-kept')
 console.error('Fontconfig error: invalid attribute xsi:nil')
 console.error('  Fontconfig warning: invalid constant')
 console.error('Application warning: font matching failed')
 console.error('Gtk-WARNING **: cannot open display: :99')
 process.exitCode = 1`
-        let failure: unknown
-        try {
-          await runHostCase(
-            process.execPath,
-            ["-e", source],
-            directory,
-            process.env,
-            { ...identity, issue: 867 },
-            files,
-            { quietFontconfig, xvfb: true }
-          )
-        } catch (error) {
-          failure = error
-        }
-        expect(failure).toMatchObject({
-          details: {
-            exitCode: 1,
-            hostResult: null,
-            stderr: expect.stringContaining("Fontconfig error: invalid attribute xsi:nil"),
-            stdout: expect.stringContaining("Fontconfig warning: stdout-font-warning")
-          }
-        })
-        const message = String(failure)
-        expect(message).toContain("cannot open display: :99")
-        expect(message).toContain("Check Xvfb startup and Xauthority")
-        expect(message).not.toContain("Re-run with --xvfb")
-        expect(message).toContain("Application warning: font matching failed")
-        expect(message).toContain("stdout-kept")
-        for (const diagnostic of [
-          "Fontconfig warning: stdout-font-warning",
-          "Fontconfig error: invalid attribute xsi:nil",
-          "Fontconfig warning: invalid constant"
-        ]) {
-          if (quietFontconfig) expect(message).not.toContain(diagnostic)
-          else expect(message).toContain(diagnostic)
-          expect(await readFile(files.log, "utf8")).toContain(diagnostic)
-        }
-      } finally {
-        await rm(directory, { recursive: true, force: true })
+      let failure: unknown
+      try {
+        await runHostCase(
+          process.execPath,
+          ["-e", source],
+          directory,
+          process.env,
+          { ...identity, issue: 867 },
+          files
+        )
+      } catch (error) {
+        failure = error
       }
-    })
-  }
+      expect(failure).toMatchObject({
+        details: {
+          exitCode: 1,
+          hostResult: null,
+          stderr: expect.stringContaining("Fontconfig error: invalid attribute xsi:nil"),
+          stdout: expect.stringContaining("Fontconfig warning: stdout-font-warning")
+        }
+      })
+      const message = String(failure)
+      expect(message).toContain("cannot open display: :99")
+      expect(message).toContain("Check Xvfb startup and Xauthority")
+      expect(message).not.toContain("Re-run with --xvfb")
+      expect(message).toContain("Application warning: font matching failed")
+      expect(message).toContain("stdout-kept")
+      for (const diagnostic of [
+        "Fontconfig warning: stdout-font-warning",
+        "Fontconfig error: invalid attribute xsi:nil",
+        "Fontconfig warning: invalid constant"
+      ]) {
+        expect(message).not.toContain(diagnostic)
+        expect(await readFile(files.log, "utf8")).toContain(diagnostic)
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 
   it("preserves the probe error and host stderr when the process exits unsuccessfully", async () => {
     const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-error-")))
@@ -594,164 +561,6 @@ process.exitCode = 1`
           log: files.log
         }
       })
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
-
-  it("diagnoses the previous checker format without assets, a build, or a desktop host", async () => {
-    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-diagnose-")))
-    try {
-      await writeFile(path.join(directory, "867-disabled.log"), "original-electron-startup-error\n")
-      await writeFile(path.join(directory, "915-disabled.log"), "original-vscode-startup-error\n")
-      await writeFile(
-        path.join(directory, "915-disabled.json"),
-        JSON.stringify({ errors: ["original-probe-error"] })
-      )
-      const result = await runCommand(
-        process.execPath,
-        [
-          path.resolve("script/src/esm/verify-hosts.ts"),
-          "--assets",
-          path.join(directory, "missing-assets"),
-          "--diagnose",
-          directory
-        ],
-        process.cwd(),
-        process.env
-      )
-      expect(result.code, result.stderr).toBe(0)
-      for (const message of [
-        "DIAGNOSE",
-        "original-electron-startup-error",
-        "original-vscode-startup-error",
-        "original-probe-error"
-      ])
-        expect(result.stdout).toContain(message)
-      expect(result.stdout).not.toContain("BUILD")
-      expect(result.stdout).not.toContain("PASS")
-      expect(await readFile(path.join(directory, "867-disabled.log"), "utf8")).toBe(
-        "original-electron-startup-error\n"
-      )
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
-
-  it("can hide Fontconfig messages when diagnosing existing logs without changing the saved evidence", async () => {
-    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-font-logs-")))
-    try {
-      const file = path.join(directory, "867-disabled.log")
-      const log = [
-        "Exit code: 1",
-        "STDERR:",
-        "Fontconfig error: invalid attribute xsi:nil",
-        "Fontconfig warning: invalid constant",
-        "Gtk-WARNING **: cannot open display: :99"
-      ].join("\n")
-      await writeFile(file, log)
-      const result = await runCommand(
-        process.execPath,
-        [
-          path.resolve("script/src/esm/verify-hosts.ts"),
-          "--assets",
-          path.join(directory, "missing-assets"),
-          "--diagnose",
-          directory,
-          "--quiet-fontconfig"
-        ],
-        process.cwd(),
-        process.env
-      )
-      expect(result.code, result.stderr).toBe(0)
-      expect(result.stdout).toContain("cannot open display: :99")
-      expect(result.stdout).not.toContain("Fontconfig error:")
-      expect(result.stdout).not.toContain("Fontconfig warning:")
-      expect(await readFile(file, "utf8")).toBe(log)
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
-
-  it("stages unchanged source and packed dependencies and compiles the original CommonJS import shape", async () => {
-    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-prepare-")))
-    try {
-      const assets = path.join(directory, "assets")
-      const issue = path.join(assets, "issue-915")
-      await mkdir(path.join(issue, "source"), { recursive: true })
-      await mkdir(path.join(issue, "dependencies"))
-      const require = createRequire(import.meta.url)
-      const Zip = require("adm-zip") as new () => {
-        addFile(name: string, data: Buffer): void
-        writeZip(file: string): void
-      }
-      const archive = new Zip()
-      const source = "import getPort from 'get-port'; export const port: number = getPort()"
-      archive.addFile(
-        "original/package.json",
-        Buffer.from('{"name":"original-extension","main":"out/extension.js"}')
-      )
-      archive.addFile("original/src/main.ts", Buffer.from(source))
-      archive.addFile(
-        "original/src/extension.ts",
-        Buffer.from("require = require('esm')(module); module.exports = require('./main.js')")
-      )
-      archive.writeZip(path.join(issue, "source/reproduction.zip"))
-      const packed = path.join(directory, "packed")
-      await mkdir(path.join(packed, "package"), { recursive: true })
-      await writeFile(
-        path.join(packed, "package/package.json"),
-        '{"name":"get-port","version":"6.1.2","type":"module"}'
-      )
-      await writeFile(path.join(packed, "package/index.js"), "export default () => 13604")
-      const tar = spawnSync(
-        "tar",
-        ["-czf", path.join(issue, "dependencies/get-port.tgz"), "-C", packed, "package"],
-        { encoding: "utf8" }
-      )
-      expect(tar.status, tar.stderr || tar.error?.message).toBe(0)
-      const files = await Promise.all(
-        ["source/reproduction.zip", "dependencies/get-port.tgz"].map(async (file) => ({
-          file,
-          sha256: createHash("sha256")
-            .update(await readFile(path.join(issue, file)))
-            .digest("hex")
-        }))
-      )
-      await writeFile(
-        path.join(issue, "manifest.json"),
-        JSON.stringify({
-          files,
-          dependencies: {
-            npm_tarballs: [
-              {
-                file: "dependencies/get-port.tgz",
-                packages: [{ name: "get-port", version: "6.1.2" }]
-              }
-            ]
-          }
-        })
-      )
-      const project = await prepareProject(915, assets, path.join(directory, "projects"))
-      expect(await readFile(path.join(project, "src/main.ts"), "utf8")).toBe(source)
-      expect(await readFile(path.join(project, "node_modules/get-port/index.js"), "utf8")).toBe(
-        "export default () => 13604"
-      )
-      const output = await readFile(path.join(project, "out/main.js"), "utf8")
-      expect(() => new Script(output)).not.toThrow()
-      expect(output).toContain('require("get-port")')
-      expect(await readFile(path.join(project, "node_modules/esm/dist/esm.js"))).toEqual(
-        await readFile(path.resolve("dist/esm.js"))
-      )
-      const manifest = JSON.parse(await readFile(path.join(issue, "manifest.json"), "utf8")) as {
-        files: { file: string; sha256: string }[]
-      }
-      for (const file of manifest.files)
-        expect(
-          createHash("sha256")
-            .update(await readFile(path.join(issue, file.file)))
-            .digest("hex")
-        ).toBe(file.sha256)
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
