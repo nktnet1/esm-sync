@@ -1,6 +1,6 @@
 import builtinLookup from "../builtin-lookup.js"
 import ENV from "../constant/env.js"
-import { dirname } from "../safe/path.js"
+import { dirname, isAbsolute } from "../safe/path.js"
 import getFilePathfromURL from "./get-file-path-from-url.js"
 import isFileOrigin from "./is-file-origin.js"
 import isObject from "./is-object.js"
@@ -27,7 +27,18 @@ function init() {
       }
 
       if (typeof path === "string") {
-        return path
+        if (isAbsolute(path)) {
+          return path
+        }
+
+        const { filename } = mod
+
+        // Electron 8 exposes a relative internal path such as "electron/js2c"
+        // alongside the document's absolute filename. Resolve its imports
+        // beside that document while preserving explicit absolute bases.
+        if (typeof filename !== "string" || !isAbsolute(filename)) {
+          return path
+        }
       }
 
       if (typeof id === "string" && builtinLookup.has(id)) {
