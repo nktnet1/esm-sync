@@ -32,6 +32,24 @@ missing; unavailable desktop checks never count as passes. On Linux, run in
 an X11 desktop session or prefix the command with `xvfb-run -a` when Xvfb is
 installed. No real desktop success is claimed by the checker's own unit tests.
 
+Failures include the attempted command, cache phase, exit code/signal, probe
+errors, captured stdout/stderr, and paths to the complete log and probe result.
+Output is retained for startup failures and timeouts as well as module errors.
+To inspect a previous run without rebuilding or relaunching either host, use
+`pnpm verify:hosts --diagnose /tmp/esm-sync-hosts-<run>`.
+This also reads logs written by the earlier checker, whose summary reported
+only `Host exited unsuccessfully`. Diagnostic mode does not mark checks passed
+or modify the saved results.
+
+The disposable Linux verification hosts use `--no-sandbox` for all users.
+The earlier root-only flag left normal-user launches dependent on a correctly
+installed SUID helper or available unprivileged user namespaces. Extracted
+historical runtimes do not install that root-owned helper. This follows
+[Electron's testing-only flag](https://www.electronjs.org/docs/latest/tutorial/sandbox#disabling-chromiums-sandbox-testing-only)
+and applies only to the checker subprocesses; it does not change the loader or
+the original applications' source/configuration. Startup sandbox failure is
+one possible explanation for exit code 1, not a diagnosis without host logs.
+
 | Report                                                    | Result                                                              | Still needed                                                                              |
 | --------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | [#867](https://github.com/standard-things/esm/issues/867) | Fixed stale renderer-module base directory                          | Real window launch/reload results                                                         |

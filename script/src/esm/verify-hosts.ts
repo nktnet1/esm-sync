@@ -22,7 +22,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const require = createRequire(import.meta.url)
 type ZipEntry = { entryName: string; isDirectory: boolean; attr: number; getData(): Buffer }
 type Zip = { getEntries(): ZipEntry[] }
-const AdmZip = require("adm-zip") as new (file: string) => Zip
 type Manifest = {
   files: { file: string; sha256: string }[]
   dependencies: {
@@ -31,7 +30,43 @@ type Manifest = {
 }
 type Phase = "disabled" | "cold" | "warm"
 type Identity = { issue: 867 | 915; phase: Phase; nonce: string; loader: string }
-type CommandResult = { code: number | null; stdout: string; stderr: string }
+type CommandResult = {
+  code: number | null
+  signal: NodeJS.Signals | null
+  timedOut: boolean
+  stdout: string
+  stderr: string
+}
+type CaseDetails = {
+  phase: Phase
+  command: { executable: string; args: string[]; cwd: string }
+  log: string
+  result: string
+  exitCode: number | null
+  signal: NodeJS.Signals | null
+  timedOut: boolean
+  stdout: string
+  stderr: string
+  hostResult: unknown
+}
+
+class HostProcessError extends Error {
+  readonly result: CommandResult
+
+  constructor(message: string, result: CommandResult) {
+    super(message)
+    this.result = result
+  }
+}
+
+class HostCaseError extends Error {
+  readonly details: CaseDetails
+
+  constructor(message: string, details: CaseDetails) {
+    super(message)
+    this.details = details
+  }
+}
 
 function hash(file: string): string {
   return createHash("sha256").update(readFileSync(file)).digest("hex")
@@ -47,6 +82,7 @@ export function safeTarget(directory: string, filename: string): string {
 }
 
 function unzip(archive: string, destination: string, stripRoot = false): void {
+  const AdmZip = require("adm-zip") as new (file: string) => Zip
   mkdirSync(destination, { recursive: true })
   for (const entry of new AdmZip(archive).getEntries()) {
     safeTarget(destination, entry.entryName)
@@ -139,12 +175,15 @@ export async function runCommand(
     })
     child.once("error", (error) => {
       cleanup()
-      reject(error)
+      reject(
+        new HostProcessError(error.message, { code: null, signal: null, timedOut, stdout, stderr })
+      )
     })
-    child.once("close", (code) => {
+    child.once("close", (code, signal) => {
       cleanup()
-      if (timedOut) reject(new Error(`Host timed out after ${timeout}ms\n${stderr}`))
-      else resolve({ code, stdout, stderr })
+      const result = { code, signal, timedOut, stdout, stderr }
+      if (timedOut) reject(new HostProcessError(`Host timed out after ${timeout}ms`, result))
+      else resolve(result)
     })
   })
 }
@@ -154,7 +193,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 export function validateReport(value: unknown, expected: Identity, code: number | null): void {
-  assert.equal(code, 0, "Host exited unsuccessfully")
+  if (code !== 0) throw new Error(`Host exited unsuccessfully (exit code ${code ?? "unavailable"})`)
   assert.ok(record(value), "Host did not write a result object")
   for (const [key, identity] of Object.entries(expected)) {
     assert.equal(value[key], identity, `Unexpected host result: ${key}`)
@@ -181,6 +220,108 @@ export function validateReport(value: unknown, expected: Identity, code: number 
       )
     )
   }
+}
+
+function probeErrors(value: unknown): string[] {
+  return record(value) && Array.isArray(value.errors)
+    ? value.errors.filter((error: unknown): error is string => typeof error === "string")
+    : []
+}
+
+function tail(value: string): string {
+  return value.length > 12_000
+    ? "[earlier output omitted; see full log]\n" + value.slice(-12_000)
+    : value
+}
+
+export async function runHostCase(
+  executable: string,
+  args: string[],
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+  identity: Identity,
+  files: { log: string; result: string },
+  timeout = 90_000
+): Promise<CaseDetails> {
+  let result: CommandResult
+  let processError = ""
+  try {
+    result = await runCommand(executable, args, cwd, env, timeout)
+  } catch (error) {
+    if (!(error instanceof HostProcessError)) throw error
+    result = error.result
+    processError = error.message
+  }
+  const command = { executable, args, cwd }
+  writeFileSync(
+    files.log,
+    `Command: ${JSON.stringify(command)}\nExit code: ${result.code}\nSignal: ${result.signal}\nTimed out: ${result.timedOut}\n\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`
+  )
+  let report: unknown = null
+  let reportError = ""
+  if (existsSync(files.result)) {
+    try {
+      report = JSON.parse(readFileSync(files.result, "utf8")) as unknown
+    } catch (error) {
+      reportError = `Cannot parse host result: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+  const details: CaseDetails = {
+    phase: identity.phase,
+    command,
+    ...files,
+    exitCode: result.code,
+    signal: result.signal,
+    timedOut: result.timedOut,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    hostResult: report
+  }
+  try {
+    if (processError) throw new Error(processError)
+    if (reportError) throw new Error(reportError)
+    validateReport(report, identity, result.code)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    const errors = probeErrors(report)
+    const message = [
+      reason,
+      ...(result.signal ? [`Signal: ${result.signal}`] : []),
+      ...(errors.length ? ["Host error:\n" + errors.join("\n")] : []),
+      ...(result.stderr.trim() ? ["stderr:\n" + tail(result.stderr.trim())] : []),
+      ...(result.stdout.trim() ? ["stdout:\n" + tail(result.stdout.trim())] : []),
+      `Log: ${files.log}`,
+      `Result: ${files.result}`
+    ].join("\n")
+    throw new HostCaseError(message, details)
+  }
+  return details
+}
+
+export function diagnoseHostLogs(directory: string): void {
+  const base = realpathSync(directory)
+  let found = false
+  for (const issue of [867, 915]) {
+    for (const phase of ["disabled", "cold", "warm"]) {
+      const log = path.join(base, `${issue}-${phase}.log`)
+      const result = path.join(base, `${issue}-${phase}.json`)
+      if (!existsSync(log) && !existsSync(result)) continue
+      found = true
+      console.log(`${styleText("cyan", "DIAGNOSE")} #${issue} ${phase}`)
+      if (existsSync(result)) {
+        try {
+          const value: unknown = JSON.parse(readFileSync(result, "utf8"))
+          const errors = probeErrors(value)
+          if (errors.length) console.log("Host error:\n" + errors.join("\n"))
+        } catch (error) {
+          console.log(`Cannot parse ${result}: ${String(error)}`)
+        }
+        console.log(`Result: ${result}`)
+      }
+      if (existsSync(log)) console.log(`Log: ${log}\n${tail(readFileSync(log, "utf8").trim())}`)
+    }
+  }
+  assert.ok(found, `No host logs or probe results found in ${base}`)
 }
 
 export async function prepareProject(
@@ -293,6 +434,34 @@ function preflight(executable: string): void {
   )
 }
 
+export function hostLaunchArgs(
+  issue: 867 | 915,
+  probe: string,
+  project: string,
+  directory: string,
+  phase: Phase,
+  platform: NodeJS.Platform = process.platform
+): string[] {
+  // These historical runtimes are unpacked into a private test directory.
+  // Their Linux SUID helper is not installed as root-owned mode 4755, and
+  // modern hosts may also prohibit unprivileged user namespaces. Limit this
+  // testing-only flag to the disposable verifier processes, regardless of UID.
+  const flags = platform === "linux" ? ["--no-sandbox"] : []
+  return issue === 867
+    ? [...flags, probe]
+    : [
+        ...flags,
+        "--disable-extensions",
+        "--skip-welcome",
+        "--skip-release-notes",
+        "--disable-workspace-trust",
+        `--user-data-dir=${path.join(directory, `vscode-user-${phase}`)}`,
+        `--extensions-dir=${path.join(directory, "vscode-extensions")}`,
+        `--extensionDevelopmentPath=${project}`,
+        `--extensionTestsPath=${probe}`
+      ]
+}
+
 export async function main(args = process.argv.slice(2)): Promise<void> {
   const { values } = parseArgs({
     args,
@@ -300,14 +469,19 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
       assets: { type: "string", default: "../issue-assets" },
       electron: { type: "string" },
       vscode: { type: "string" },
+      diagnose: { type: "string" },
       "skip-build": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false }
     }
   })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts --assets <folder containing issue-867 and issue-915>\nBuilds the fork and runs real Electron 8.0.0 / VS Code 1.66.2 checks.\n--electron <binary> --vscode <binary> override the attached Linux x64 runtimes.\n--skip-build uses existing dist output. No downloads or dependency installation."
+      "pnpm verify:hosts --assets <folder containing issue-867 and issue-915>\nBuilds the fork and runs real Electron 8.0.0 / VS Code 1.66.2 checks.\n--electron <binary> --vscode <binary> override the attached Linux x64 runtimes.\n--skip-build uses existing dist output. No downloads or dependency installation.\n--diagnose <report-directory> reads existing host logs without building or launching apps."
     )
+    return
+  }
+  if (values.diagnose) {
+    diagnoseHostLogs(values.diagnose)
     return
   }
   const assets = realpathSync(values.assets)
@@ -336,6 +510,7 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     assert.equal(result.code, 0, `Build failed; see ${path.join(directory, "build.log")}`)
   }
   for (const issue of [867, 915] as const) {
+    let context: Record<string, unknown> = {}
     try {
       const executable = runtime(
         issue,
@@ -360,33 +535,23 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
         const cacheExists =
           existsSync(path.join(compilerCache, ".data.json")) && existsSync(bootstrapCache)
         assert.equal(cacheExists, phase === "warm", "Unexpected cache state before host launch")
-        const flags =
-          process.platform === "linux" && process.getuid?.() === 0 ? ["--no-sandbox"] : []
-        const command =
-          issue === 867
-            ? [...flags, probe]
-            : [
-                ...flags,
-                "--disable-extensions",
-                "--skip-welcome",
-                "--skip-release-notes",
-                "--disable-workspace-trust",
-                `--user-data-dir=${path.join(directory, `vscode-user-${phase}`)}`,
-                `--extensions-dir=${path.join(directory, "vscode-extensions")}`,
-                `--extensionDevelopmentPath=${project}`,
-                `--extensionTestsPath=${probe}`
-              ]
-        const result = await runCommand(executable, command, project, {
-          ...env,
-          ESM_DISABLE_CACHE: String(phase === "disabled"),
-          ESM_OPTIONS: JSON.stringify({ cache: phase === "disabled" ? false : compilerCache }),
-          ESM_HOST_CHECK: JSON.stringify(config)
-        })
-        writeFileSync(path.join(directory, `${issue}-${phase}.log`), result.stdout + result.stderr)
-        const report: unknown = existsSync(resultFile)
-          ? JSON.parse(readFileSync(resultFile, "utf8"))
-          : null
-        validateReport(report, identity, result.code)
+        const command = hostLaunchArgs(issue, probe, project, directory, phase)
+        const files = { log: path.join(directory, `${issue}-${phase}.log`), result: resultFile }
+        context = { phase, ...files, command: { executable, args: command, cwd: project } }
+        const details = await runHostCase(
+          executable,
+          command,
+          project,
+          {
+            ...env,
+            ESM_DISABLE_CACHE: String(phase === "disabled"),
+            ESM_OPTIONS: JSON.stringify({ cache: phase === "disabled" ? false : compilerCache }),
+            ESM_HOST_CHECK: JSON.stringify(config)
+          },
+          identity,
+          files
+        )
+        context = { ...details }
         assert.equal(
           existsSync(bootstrapCache),
           phase !== "disabled",
@@ -397,14 +562,20 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
           phase !== "disabled",
           "Unexpected compiler cache after launch"
         )
-        samples.push({ issue, phase, passed: true, executable, result: resultFile })
+        samples.push({ issue, phase, passed: true, executable, result: resultFile, log: files.log })
         console.log(
           `${styleText("green", "PASS")} #${issue} ${phase}${issue === 867 ? " - first load + 3 reloads" : " - activation + command + allocated port"}`
         )
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      samples.push({ issue, passed: false, error: message })
+      samples.push({
+        issue,
+        ...context,
+        ...(error instanceof HostCaseError ? error.details : {}),
+        passed: false,
+        error: message
+      })
       console.error(`${styleText("red", "FAIL")} #${issue} ${message}`)
     }
   }
