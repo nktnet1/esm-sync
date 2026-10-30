@@ -39,6 +39,7 @@
     "interface": true,
     "type": true
   },
+  "ignoreBinaries": ["ldd"],
   "ignoreDependencies": [
     "@babel/helper-plugin-utils",
     "@babel/plugin-proposal-class-properties",

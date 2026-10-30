@@ -40,7 +40,8 @@
     "release:publish": "node script/src/esm/publish-release-package.ts",
     "benchmark:startup": "node script/src/benchmark-startup.ts",
     "benchmark:log4brains": "node script/src/esm/cli.ts benchmark-log4brains",
-    "verify:babel-repro": "node script/src/esm/cli.ts verify-babel-repro"
+    "verify:babel-repro": "node script/src/esm/cli.ts verify-babel-repro",
+    "verify:hosts": "node script/src/esm/verify-hosts.ts"
   },
   "main": "./dist/esm.js",
   "types": "./dist/esm.d.ts",

@@ -5,6 +5,33 @@ The fixes below have native Node regression coverage. An emulated module
 record or a mocked host API does not prove an Electron window or VS Code
 extension host works end to end.
 
+Run both original reproductions automatically with:
+
+`pnpm verify:hosts --assets /path/to/extracted-issue-assets`
+
+The assets directory must contain the `issue-867` and `issue-915` folders from
+the attached archives. The command builds the current production loader,
+checks asset checksums, and stages private copies without installing or
+downloading dependencies. It uses the attached Linux x64 Electron 8.0.0 and
+VS Code 1.66.2 runtimes. On another OS, add `--electron /path/to/electron` and
+`--vscode /path/to/the/actual/Code/executable` for those historical versions.
+Pass `--skip-build` only when `dist/` already contains the build to verify.
+
+The checker runs disabled, cold and warm disk-cache launches. Electron must
+load the original HTML/renderer successfully and greet once on the first load
+and each of three reloads. Each VS Code launch must activate the original
+extension, execute its command through the real host API, and log a valid port
+from the attached `get-port@6.1.2`. VS Code cases use separate fresh host
+processes; they do not automate the Reload Window command. Compiler and
+bootstrap cache files must exist before a warm run and remain absent when
+caching is disabled. The original source files are not edited.
+
+The command prints a report directory containing JSON results and host logs.
+It exits nonzero if a check fails or a runtime, Linux library, or display is
+missing; unavailable desktop checks never count as passes. On Linux, run in
+an X11 desktop session or prefix the command with `xvfb-run -a` when Xvfb is
+installed. No real desktop success is claimed by the checker's own unit tests.
+
 | Report                                                    | Result                                                              | Still needed                                                                              |
 | --------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | [#867](https://github.com/standard-things/esm/issues/867) | Fixed stale renderer-module base directory                          | Real window launch/reload results                                                         |
