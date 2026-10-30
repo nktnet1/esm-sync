@@ -69,6 +69,51 @@ for (const esmEnv of testEnvironments) {
       )
     })
 
+    // https://github.com/standard-things/esm/issues/817
+    // Importing a native addon can fail after its CommonJS parent was staged
+    // during ESM linking. Do not reuse the staged parent's empty exports.
+    it("rejects repeated imports after a native dependency fails during linking", async ({
+      expect
+    }) => {
+      const files = {
+        "invalid.node": "not an addon\n",
+        "node_modules/usb/index.js": "module.exports = require('../../invalid.node')\n",
+        "re-export.js": "export { default } from 'usb'\n",
+        "static-wrapper.js": "import usb from 'usb'; export default usb\n",
+        "working.js": "export const value = 42\n",
+        "entry.js": `const assert = require('node:assert/strict')
+async function rejects(request) {
+  const error = await import(request).then(() => null, error => error)
+  assert.notEqual(error, null, request + ' unexpectedly resolved')
+  assert.equal(error.code, 'ERR_DLOPEN_FAILED')
+  assert.match(error.message, /invalid.node/)
+}
+async function main() {
+  for (const request of process.argv.slice(2)) await rejects(request)
+  await Promise.all([rejects('usb'), rejects('usb')])
+  assert.equal((await import('./working.js')).value, 42)
+  console.log('failed-native-imports:pass')
+}
+main().catch(error => { console.error(error); process.exitCode = 1 })
+`,
+        "start.cjs": `require(${JSON.stringify(loaderPath)})(module)('./entry.js')\n`
+      }
+      for (const [args, sequence] of [
+        [
+          ["-r", loaderPath, "entry.js"],
+          ["./re-export.js", "./static-wrapper.js", "usb"]
+        ],
+        [["start.cjs"], ["./static-wrapper.js", "usb", "./re-export.js"]]
+      ] as const) {
+        await withFiles(files, async (directory) => {
+          const result = await runNode([...args, ...sequence], esmEnv, loaderOptions, {
+            cwd: directory
+          })
+          checkSuccess(expect, result, "failed-native-imports:pass")
+        })
+      }
+    })
+
     // https://github.com/standard-things/esm/issues/910
     it(
       "collects real NYC counters after an ordinary run has warmed the compiler cache",

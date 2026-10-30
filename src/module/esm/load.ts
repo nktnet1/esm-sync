@@ -176,6 +176,7 @@ function tryLoader(
     threw = false
   } catch (e) {
     error = e
+    discardIncompleteCommonJSLinks(entry)
     throw error
   } finally {
     if (threw) {
@@ -209,6 +210,29 @@ function tryLoader(
         Reflect.deleteProperty(cache, cacheKey)
       }
     }
+  }
+}
+
+// A failed module can leave CommonJS dependencies in the parse-only cache.
+// Those records were never evaluated, and using their empty exports in the
+// next import would disguise the original failure (for example, a failed
+// native-addon dlopen). Only discard dependencies of this failed graph.
+function discardIncompleteCommonJSLinks(root: Entry) {
+  const { scratchCache } = Loader.state.module
+  const pending = [root]
+  const visited = new Set<Entry>()
+
+  while (pending.length !== 0) {
+    const entry = pending.pop()!
+    if (visited.has(entry)) continue
+    visited.add(entry)
+
+    if (entry.type === TYPE_CJS && !entry.module.loaded && entry.name !== null) {
+      const name = entry.name
+      if (scratchCache[name] === entry.module) Reflect.deleteProperty(scratchCache, name)
+    }
+
+    for (const name in entry.children) pending.push(entry.children[name]!)
   }
 }
 
