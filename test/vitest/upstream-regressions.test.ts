@@ -62,6 +62,8 @@ for (const esmEnv of testEnvironments) {
           "unrelated/renderer.js": "export default 'wrong-base'\n",
           "entry.cjs": `const Module = require('module')
 const path = require('path')
+process.versions.electron = '8.0.0'
+process.type = 'renderer'
 const factory = require(${JSON.stringify(loaderPath)})
 for (const absolutePath of [false, true]) {
   for (let reload = 0; reload < 3; reload++) {

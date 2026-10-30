@@ -75,6 +75,69 @@ console.log('renderer:ok')`
       )
     })
 
+    it("loads the bootstrap and inline script from a separate renderer realm", async ({
+      expect
+    }) => {
+      await withCompatibilityFiles(
+        {
+          "page # ü/index.html": "<!doctype html>",
+          "page # ü/renderer.js": "export const value = 'renderer-realm'",
+          "renderer.js": "throw new Error('must not load the cwd decoy')"
+        },
+        async (directory) => {
+          for (let reload = 0; reload < 2; reload++) {
+            const result = await runNode(
+              [
+                "-e",
+                `const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+const Module = require('node:module')
+const vm = require('node:vm')
+process.versions.electron = '8.0.0'
+process.type = 'renderer'
+const filename = ${JSON.stringify(loader)}
+const bootstrap = new Module(filename, module)
+bootstrap.filename = filename
+bootstrap.paths = Module._nodeModulePaths(path.dirname(filename))
+const sandbox = {
+  process, Buffer, console, Module, assert, fs, path,
+  module: bootstrap,
+  require: Module.createRequire(filename),
+  __filename: filename,
+  __dirname: path.dirname(filename)
+}
+sandbox.global = sandbox
+const context = vm.createContext(sandbox)
+assert.notStrictEqual(vm.runInContext('Function', context), Function)
+vm.runInContext(fs.readFileSync(filename, 'utf8'), context, {filename})
+assert.equal(vm.runInContext('module.exports instanceof Function', context), true)
+vm.runInContext(\`
+  for (const id of ['electron/js2c/renderer_init', 'node:electron/js2c/renderer_init']) {
+    const parent = new Module(id)
+    parent.filename = path.resolve('page # ü/index.html')
+    parent.paths = Module._nodeModulePaths(path.dirname(parent.filename))
+    const before = [parent.id, parent.path, parent.filename]
+    const load = module.exports(parent)
+    assert.equal(fs.realpathSync(load.resolve('./renderer.js')), fs.realpathSync('page # ü/renderer.js'))
+    assert.equal(load('./renderer.js').value, 'renderer-realm')
+    assert.deepEqual([parent.id, parent.path, parent.filename], before)
+  }
+\`, context)
+console.log('renderer-realm:ok')`
+              ],
+              esmEnv,
+              cacheOptions,
+              { cwd: directory, cacheNamespace: "renderer-realm" }
+            )
+            expect(result.exitCode, `reload=${reload}\n${result.stderr}`).toBe(0)
+            expect(result.stdout.trim()).toBe("renderer-realm:ok")
+            expect(result.stderr).toBe("")
+          }
+        }
+      )
+    })
+
     it("keeps application module paths and filename-less renderer modules unchanged", async ({
       expect
     }) => {
@@ -89,14 +152,16 @@ console.log('renderer:ok')`
             [
               "-e",
               `${setup}
-for (const [id, filename] of [['application', path.resolve('page/index.html')], ['electron/js2c/renderer_init', path.resolve('page/index.html')], ['electron/js2c/renderer_init', null]]) {
+for (const customPath of [path.resolve('custom'), 'custom']) {
+for (const [id, filename] of [['application', path.resolve('page/index.html')], ['electron/js2c/renderer_init', path.resolve('page/index.html')], ['node:electron/js2c/renderer_init', path.resolve('page/index.html')], ['electron/js2c/renderer_init', null]]) {
   const parent = new Module(id)
   parent.filename = filename
-  parent.path = path.resolve('custom')
+  parent.path = customPath
   parent.paths = Module._nodeModulePaths(parent.path)
   const load = factory(parent)
   assert.equal(fs.realpathSync(load.resolve('./value.js')), fs.realpathSync('custom/value.js'))
   assert.equal(load('./value.js').value, 42)
+}
 }
 console.log('renderer-paths:ok')`
             ],

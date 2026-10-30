@@ -5,13 +5,13 @@ The fixes below have native Node regression coverage. An emulated module
 record or a mocked host API does not prove an Electron window or VS Code
 extension host works end to end.
 
-| Report                                                    | Result                                                                  | Still needed                                                                              |
-| --------------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [#867](https://github.com/standard-things/esm/issues/867) | Fixed stale renderer-module base directory                              | Real window launch/reload results                                                         |
-| [#915](https://github.com/standard-things/esm/issues/915) | Fixed virtual CommonJS host-module loading; original extension compiles | Desktop extension-host activation logs                                                    |
-| [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained                      | Actual incompatible and compatible native addons, Electron run logs                       |
-| [#691](https://github.com/standard-things/esm/issues/691) | Insufficient evidence to alter Chromium error presentation              | Original failing source or equivalent reproduction, current DevTools/error-event captures |
-| [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below                   | No missing source for the supplied probe                                                  |
+| Report                                                    | Result                                                              | Still needed                                                                              |
+| --------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [#867](https://github.com/standard-things/esm/issues/867) | Fixed stale renderer-module base directory                          | Real window launch/reload results                                                         |
+| [#915](https://github.com/standard-things/esm/issues/915) | Fixed native ESM rejection and virtual CommonJS host-module loading | Desktop activation/reload results from the rebuilt loader                                 |
+| [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained                  | Actual incompatible and compatible native addons, Electron run logs                       |
+| [#691](https://github.com/standard-things/esm/issues/691) | Insufficient evidence to alter Chromium error presentation          | Original failing source or equivalent reproduction, current DevTools/error-event captures |
+| [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below               | No missing source for the supplied probe                                                  |
 
 ## Renderer resolution (#867)
 
@@ -28,8 +28,10 @@ It does not mutate the supplied module record. Ordinary application modules,
 custom paths and filename-less renderer records retain their existing semantics.
 `test/vitest/electron-renderer.test.ts` covers two page directories, a misleading
 cwd, spaces/Unicode/special characters in paths, local dependencies, repeated
-factories and repeated fresh-process cache loads. This is a regression of the
-module shape from the supplied binary, not a Chromium test.
+factories, a bootstrap and inline script in a separate VM realm, and repeated
+fresh-process cache loads. Explicit relative and absolute module paths are
+preserved. These checks reproduce the supplied module shape in Node; they do
+not launch Chromium.
 
 To finish browser verification:
 
@@ -71,6 +73,15 @@ per-extension APIs into a shared cache. Resolution through `exports` remains
 authoritative, `.mjs` imports retain their strict resolution behaviour, and
 execution failures are not retried through the host.
 
+The supplied VS Code 1.66.2 failure logs exposed an earlier step: its native
+`.js` handler rejects `get-port` with `ERR_REQUIRE_ESM` before calling
+`_compile`. Modern Node's native `require(esm)` had hidden that defect in the
+original regression. The loader now falls back to its installed compiler only
+for a `.js` ESM rejection before compilation starts. Errors thrown after
+compilation begins keep their identity and do not trigger a second execution.
+The host regressions disable native `require(esm)` explicitly to retain the
+legacy failure path on current Node versions.
+
 `test/vitest/host-modules.test.ts` verifies host hooks installed before and
 after initialisation, independent extension parents, an asynchronous ESM port
 provider, cold/warm runs, host error identity, exports encapsulation and single
@@ -80,7 +91,7 @@ That check supplied a loopback-only `os.networkInterfaces()` result because
 network-interface enumeration is unavailable in this workspace. It is not an
 actual VS Code activation result.
 
-To obtain the missing host evidence:
+To verify the rebuilt loader in the actual host:
 
 1. Extract the exact source and use its attached dependencies. From its root,
    run `node node_modules/typescript/bin/tsc -p .`. Include **all of `out/`**, its

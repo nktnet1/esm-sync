@@ -76,10 +76,16 @@ Promise.all([first.activate(),second.activate()]).then(results => {
           },
           async (directory) => {
             for (let reload = 0; reload < 2; reload++) {
-              const result = await runNode(["index.cjs"], esmEnv, cacheOptions, {
-                cwd: directory,
-                cacheNamespace: `host-api-${order}`
-              })
+              // Modern Node's require(esm) would hide the legacy Electron failure.
+              const result = await runNode(
+                ["--no-experimental-require-module", "index.cjs"],
+                esmEnv,
+                cacheOptions,
+                {
+                  cwd: directory,
+                  cacheNamespace: `host-api-${order}`
+                }
+              )
               expect(result.exitCode, `reload=${reload}\n${result.stderr}`).toBe(0)
               expect(result.stdout.trim()).toBe("host-api:ok")
               expect(result.stderr).toBe("")
@@ -98,6 +104,8 @@ Promise.all([first.activate(),second.activate()]).then(results => {
           "node_modules/closed/hidden.cjs": "module.exports = 42",
           "node_modules/throws/package.json": '{"main":"index.cjs"}',
           "node_modules/throws/index.cjs": "globalThis.bodyRuns++; throw globalThis.bodyFailure",
+          "body-throws.js": "globalThis.bodyRuns++; throw globalThis.bodyFailure",
+          "esm-throws.js": "export {}; globalThis.bodyRuns++; throw globalThis.bodyFailure",
           "require-throws.cjs": "module.exports = require('throws')",
           "strict.mjs": "import api from 'vscode'; export default api",
           "index.cjs": `const assert = require('node:assert/strict')
@@ -126,15 +134,26 @@ globalThis.bodyFailure = Object.assign(new Error('body failure'), {code:'MODULE_
 assert.throws(() => load('./require-throws.cjs'), error => error === globalThis.bodyFailure)
 assert.equal(globalThis.bodyRuns, 1)
 assert.deepEqual(hostRequests, [])
+for (const request of ['./body-throws.js', './esm-throws.js']) {
+  globalThis.bodyRuns = 0
+  globalThis.bodyFailure = Object.assign(new Error('body ESM failure'), {code:'ERR_REQUIRE_ESM'})
+  assert.throws(() => load(request), error => error === globalThis.bodyFailure)
+  assert.equal(globalThis.bodyRuns, 1, request + ' must not execute again after throwing')
+}
 assert.throws(() => load('https://example.invalid/module.js'), {code:'ERR_INVALID_PROTOCOL'})
 assert.deepEqual(hostRequests, [])
 console.log('host-boundaries:ok')`
         },
         async (directory) => {
-          const result = await runNode(["index.cjs"], esmEnv, cacheOptions, {
-            cwd: directory,
-            cacheNamespace: "host-api-boundaries"
-          })
+          const result = await runNode(
+            ["--no-experimental-require-module", "index.cjs"],
+            esmEnv,
+            cacheOptions,
+            {
+              cwd: directory,
+              cacheNamespace: "host-api-boundaries"
+            }
+          )
           expect(result.exitCode, result.stderr).toBe(0)
           expect(result.stdout.trim()).toBe("host-boundaries:ok")
           expect(result.stderr).toBe("")
