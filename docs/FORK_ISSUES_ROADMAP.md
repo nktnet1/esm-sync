@@ -12,10 +12,10 @@ For the five newly supplied host-integration asset archives, see
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      3 |
+| Investigate                                   |      4 |
 | Documentation follow-ups                      |      0 |
 | Already covered                               |     57 |
-| Not planned                                   |     23 |
+| Not planned                                   |     22 |
 | **Total**                                     | **83** |
 
 ## Verified application integration
@@ -37,7 +37,11 @@ For the five newly supplied host-integration asset archives, see
 ### Electron and extension-host integrations
 
 - **Electron dynamic imports and native-addon failures** - [https://github.com/standard-things/esm/issues/817](https://github.com/standard-things/esm/issues/817). **Node-side cache corruption fixed, Electron hang still unverified.** A real addon built for a different Node ABI rejects with `ERR_DLOPEN_FAILED` on Node 22, 24, and 26. Repeated imports exposed a separate defect: after an ESM re-export failed while requiring a native addon, a later import could reuse an incomplete CommonJS linking record and incorrectly return empty exports. The failed graph now discards only its incomplete staged CommonJS dependencies. Regression coverage exercises repeated and concurrent rejections in preload and factory modes with and without disk caching. The archived `crash.js` uses a valid `.catch(error => ...)` handler, unlike the abbreviated syntax in the issue description. The original Electron 5 process hang still requires a runnable Electron build with a mismatched addon to verify. Do not mark the host-specific failure resolved on Node-only evidence.
-- **Electron renderer error stacks** - [https://github.com/standard-things/esm/issues/691](https://github.com/standard-things/esm/issues/691). **Still missing original/host evidence.** The archive contains an alternative template and a generated substitute, not the deleted upstream reproduction. Node loader exceptions are masked, but Chromium's stored error location and `window.onerror` presentation are not established by `error.stack` alone. No suppressing renderer event handler is installed. See the [diagnostic listener and required captures](host-integrations.md#chromium-error-presentation-691).
+- **Electron renderer error stacks** - [https://github.com/standard-things/esm/issues/691](https://github.com/standard-things/esm/issues/691). **Parser-frame correction implemented; recreated Electron check awaits a host run.** Renderer parser errors now capture their original source location in V8 before their formatted stack is masked. Native inspector regressions check first-line and later-line syntax errors and preserve runtime-error identity. The original branch is absent from the current repository and all seven available Software Heritage snapshots; Wayback was unavailable. The Docker command now adds disabled/cold/warm checks of a clearly labelled Electron 8 reconstruction, collecting both window error events and DevTools exception details. No suppressing renderer error handler is installed. See [reconstruction and verification](host-integrations.md#chromium-error-presentation-691).
+
+### Embedded VM hosts
+
+- **StackBlitz/WebContainers (#917)** - [https://github.com/standard-things/esm/issues/917](https://github.com/standard-things/esm/issues/917). **Shared-realm global corruption fixed in a native regression; actual WebContainers verification remains open.** The linked StackBlitz reports identify VM emulation modifying the host global and `Object` disappearing. A VM context that shares host intrinsics now bypasses the builtin deletion/reparenting path. The native regression fails before the change and passes with disabled, cold and warm caches after it, checking that ESM loads and host builtin descriptors survive. It emulates the documented VM behaviour; it does not run the proprietary WebContainers runtime or prove the historical Ember application starts. See [scope and evidence](host-integrations.md#shared-realm-vm-emulation-917).
 
 ### VM API boundary
 
@@ -68,11 +72,11 @@ reproduction.
 846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706.
 
-The following **23** reports are _not planned_: they concern external tooling,
+The following **22** reports are _not planned_: they concern external tooling,
 obsolete environments, different products, unsupported feature requests, or
 insufficient reproductions.
 
-930, 929, 928, 927, 920, 919, 917, 907, 903, 893, 892, 890, 884, 869, 862,
+930, 929, 928, 927, 920, 919, 907, 903, 893, 892, 890, 884, 869, 862,
 861, 859, 845, 833, 829, 828, 791, 780.
 
 For build, fixture, and compatibility-test commands, see the

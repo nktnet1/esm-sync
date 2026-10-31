@@ -1,6 +1,6 @@
-# Original desktop-host reproductions
+# Desktop-host reproductions
 
-These small fixtures are copied verbatim from the supplied upstream archives.
+The original #867/#915 and get-port fixtures are copied verbatim from the supplied upstream archives.
 They retain the original file names, module syntax, package manifests and
 licences. The host verifier stages private copies, supplies the built fork as
 `esm`, and compiles the original extension TypeScript. It never installs the
@@ -20,4 +20,15 @@ SHA-256 hashes. Updating the fixtures requires an explicit provenance review.
 The two desktop runtime archives are fetched separately by the TypeScript
 downloader during the Docker build, verified against pinned SHA-256 hashes,
 and cached under the ignored `.cache/host-runtimes/` directory. The built image
-contains everything needed to run both reproductions offline.
+contains everything needed to run the reproductions offline.
+
+`issue-691` is a newly authored reconstruction of the invalid renderer `await`
+in [the original report](https://github.com/standard-things/esm/issues/691), plus
+a runtime-error control. It uses this repository's MIT licence. It is not the
+deleted `stack-trace-repro` branch: the current GitHub repository and all seven
+Software Heritage snapshots available on 31 October 2026 lacked that branch;
+Wayback returned its temporarily-offline page. The earliest available snapshot
+is [adb9b2f59fa0ffe103ad5c16e182a52cc25c2e7c](https://archive.softwareheritage.org/api/1/snapshot/adb9b2f59fa0ffe103ad5c16e182a52cc25c2e7c/).
+The reconstruction reuses Electron 8.0.0 from #867 and records both native
+DevTools exception frames and unsuppressed window error events. It does not
+establish a result for the original deleted application or Electron version.

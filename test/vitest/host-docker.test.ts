@@ -137,12 +137,14 @@ describe("self-contained desktop host verification", () => {
   it("stages the checked-in original sources and real get-port without archives or downloads", async () => {
     await withDirectory(async (directory) => {
       const fixture = path.resolve("test/fixture/hosts")
-      for (const issue of [867, 915] as const) {
+      for (const issue of [867, 915, 691] as const) {
         const project = await prepareProject(issue, directory)
         const names =
           issue === 867
             ? ["index.html", "renderer.js", "package.json"]
-            : ["src/extension.ts", "src/main.ts", "package.json"]
+            : issue === 691
+              ? ["index.html", "syntax.js", "runtime.js", "healthy.js", "package.json"]
+              : ["src/extension.ts", "src/main.ts", "package.json"]
         for (const file of names)
           expect(await readFile(path.join(project, file))).toEqual(
             await readFile(path.join(fixture, `issue-${issue}`, file))
@@ -235,7 +237,7 @@ await verifyHostsContainer(process.argv[1])`
           samples: { passed: boolean; error: string }[]
         }
         expect(report.passed).toBe(false)
-        expect(report.samples).toHaveLength(2)
+        expect(report.samples).toHaveLength(3)
         expect(report.samples.every((sample) => sample.passed === false)).toBe(true)
         expect(report.samples.every((sample) => /missing runtime archive/.test(sample.error))).toBe(
           true
@@ -252,7 +254,7 @@ await verifyHostsContainer(process.argv[1])`
   const validReport = {
     passed: true,
     loaderSHA256: "b".repeat(64),
-    samples: [867, 915].flatMap((issue) =>
+    samples: [867, 915, 691].flatMap((issue) =>
       ["disabled", "cold", "warm"].map((phase) => ({ issue, phase, passed: true }))
     )
   }

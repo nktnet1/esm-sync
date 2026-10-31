@@ -25,6 +25,77 @@ function parentFor(id, page) {
 for (const esmEnv of testEnvironments) {
   const cacheOptions = { ESM_DISABLE_CACHE: esmEnv.endsWith("-cached") ? "false" : "true" }
   describe(`Electron renderer module bases (${esmEnv})`, () => {
+    it("keeps parser locations in V8's inspector data as well as the formatted stack", async ({
+      expect
+    }) => {
+      await withCompatibilityFiles(
+        {
+          "first # ü.js": "export const invalid = ;\n// source-map marker: # % ü\n",
+          "syntax.js": "export function invalid() {\n  await Promise.resolve()\n}\n",
+          "runtime.js":
+            "export const error = globalThis.rendererError = new Error('renderer-runtime-marker')\nthrow error\n"
+        },
+        async (directory) => {
+          const result = await runNode(
+            [
+              "-e",
+              `${setup}
+const inspector = require('node:inspector')
+const {SourceMap} = require('node:module')
+const {fileURLToPath} = require('node:url')
+const load = factory(parentFor('electron/js2c/renderer_init','.'))
+const session = new inspector.Session()
+session.connect()
+const scripts = new Map()
+session.on('Debugger.scriptParsed', ({params}) => scripts.set(params.scriptId,params))
+const post = (method,params={}) => new Promise((resolve,reject) => session.post(method,params,(error,value) => error ? reject(error) : resolve(value)))
+;(async () => {
+  await post('Runtime.enable')
+  await post('Debugger.enable')
+  for (const [file,line,column] of [['first # ü.js',0,23],['syntax.js',1,null],['runtime.js',0,null]]) {
+    let caught
+    globalThis.throwRenderer = () => {
+      try { load('./' + file) } catch(error) { caught = error; throw error }
+    }
+    const response = await post('Runtime.evaluate',{expression:'throwRenderer()'})
+    const details = response.exceptionDetails
+    assert.ok(details && details.stackTrace && details.exception,JSON.stringify(response))
+    const frame = details.stackTrace.callFrames[0]
+    const actual = frame.url.startsWith('file:') ? fileURLToPath(frame.url) : frame.url
+    assert.equal(fs.realpathSync(actual),fs.realpathSync(path.resolve(file)),JSON.stringify(details))
+    assert.equal(frame.lineNumber,line)
+    if (column !== null) assert.equal(frame.columnNumber,column)
+    if (file !== 'runtime.js') {
+      const script = scripts.get(frame.scriptId)
+      assert.ok(script && script.sourceMapURL,JSON.stringify(script))
+      const map = JSON.parse(Buffer.from(script.sourceMapURL.split(',')[1],'base64').toString())
+      assert.equal(map.sourcesContent[0],fs.readFileSync(actual,'utf8'))
+      const entry = new SourceMap(map).findEntry(frame.lineNumber-script.startLine,frame.columnNumber-script.startColumn)
+      assert.equal(fs.realpathSync(fileURLToPath(entry.originalSource)),fs.realpathSync(actual))
+      assert.equal(entry.originalLine,line)
+      assert.equal(entry.originalColumn,frame.columnNumber)
+    }
+    assert.ok(details.exception.description.includes(caught.name),details.exception.description)
+    assert.ok(caught.stack.includes(file),caught.stack)
+    assert.ok(!caught.stack.includes(${JSON.stringify(loader)} + ':'),caught.stack)
+    if (file === 'runtime.js') assert.strictEqual(caught,globalThis.rendererError)
+  }
+  delete globalThis.throwRenderer
+  delete globalThis.rendererError
+  session.disconnect()
+  console.log('renderer-inspector:pass')
+})().catch(error => { session.disconnect(); console.error(error); process.exitCode = 1 })`
+            ],
+            esmEnv,
+            cacheOptions,
+            { cwd: directory, cacheNamespace: "renderer-inspector" }
+          )
+          expect(result.exitCode, result.stderr || result.stdout).toBe(0)
+          expect(result.stdout.trim()).toBe("renderer-inspector:pass")
+        }
+      )
+    })
+
     it("resolves inline scripts against their HTML page across factories and disk-cache reloads", async ({
       expect
     }) => {

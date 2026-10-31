@@ -50,18 +50,21 @@ function validateDockerReport(value: unknown): void {
   const report = value as Record<string, unknown>
   assert.equal(report.passed, true, "Container reported failed host verification")
   assert.match(String(report.loaderSHA256), /^[a-f0-9]{64}$/, "Missing tested loader digest")
-  assert.ok(Array.isArray(report.samples) && report.samples.length === 6, "Expected six host cases")
+  assert.ok(
+    Array.isArray(report.samples) && report.samples.length === 9,
+    "Expected nine host cases"
+  )
   const seen = new Set<string>()
   const samples: unknown[] = report.samples
   for (const sample of samples) {
     assert.ok(sample && typeof sample === "object")
     const entry = sample as Record<string, unknown>
-    assert.ok(entry.issue === 867 || entry.issue === 915)
+    assert.ok(entry.issue === 691 || entry.issue === 867 || entry.issue === 915)
     assert.ok(["disabled", "cold", "warm"].includes(String(entry.phase)))
     assert.equal(entry.passed, true)
     seen.add(`${entry.issue}:${entry.phase}`)
   }
-  assert.equal(seen.size, 6, "Duplicate or missing host cache phases")
+  assert.equal(seen.size, 9, "Duplicate or missing host cache phases")
 }
 
 export async function verifyHostsDocker(
@@ -185,7 +188,7 @@ if (
   const { values } = parseArgs({ options: { help: { type: "boolean", short: "h" } } })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts:docker\nBuilds a cached Linux/amd64 image, runs both original host reproductions offline, and exports logs to .cache/host-verification. Requires Docker Engine/Desktop. No external assets or host display are needed."
+      "pnpm verify:hosts:docker\nBuilds a cached Linux/amd64 image, runs the #867/#915 originals and the #691 renderer reconstruction offline, and exports logs to .cache/host-verification. Requires Docker Engine/Desktop. No external assets or host display are needed."
     )
   } else {
     verifyHostsDocker().catch((error: unknown) => {

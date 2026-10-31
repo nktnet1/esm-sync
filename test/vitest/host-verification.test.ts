@@ -1,12 +1,24 @@
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink } from "node:fs/promises"
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  symlink,
+  writeFile
+} from "node:fs/promises"
+import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
-import { electronProbe, vscodeProbe } from "../../script/src/esm/host-probes.ts"
+import { electronProbe, rendererErrorProbe, vscodeProbe } from "../../script/src/esm/host-probes.ts"
 import {
   hostLaunchArgs,
   hostLaunchCommand,
   hostLaunchEnv,
+  extractRuntimeZip,
   runHostCase,
   runCommand,
   safeTarget,
@@ -28,6 +40,23 @@ const success = {
   version: "1.66.2",
   commandExecuted: true,
   ports: [13604]
+}
+
+function writeZip(filename: string, name: string, mode = 0o100755): void {
+  const require = createRequire(import.meta.url)
+  const Zip = require("adm-zip") as new () => {
+    addFile(name: string, content: Buffer): void
+    getEntries(): { entryName: string; header: { attr: number } }[]
+    writeZip(filename: string): void
+  }
+  const zip = new Zip()
+  zip.addFile("safe-entry", Buffer.from("runtime-bytes"))
+  const entry = zip.getEntries()[0]!
+  // addFile normalises names, so set the raw entry name to exercise genuinely
+  // hostile archives rather than silently sanitising the test's input.
+  entry.entryName = name
+  entry.header.attr = (mode * 0x10000) >>> 0
+  zip.writeZip(filename)
 }
 
 describe("desktop host verification", () => {
@@ -81,6 +110,72 @@ describe("desktop host verification", () => {
     ).toThrow()
   })
 
+  it("requires both window error and native inspector evidence for the renderer reconstruction", async () => {
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-errors-")))
+    try {
+      for (const kind of ["syntax", "runtime"])
+        await writeFile(path.join(directory, kind + ".js"), "// source\n")
+      const expected = {
+        ...identity,
+        issue: 691,
+        loader: path.join(directory, "node_modules/esm/dist/esm.js")
+      } as const
+      const cases = ["syntax", "runtime"].map((kind) => ({
+        kind,
+        windowEvent: {
+          filename: path.join(directory, kind + ".js"),
+          line: 2,
+          column: 3,
+          stack: kind + ".js:2:3",
+          defaultPrevented: false
+        },
+        exception: {
+          stackTrace: { callFrames: [{ url: path.join(directory, kind + ".js"), lineNumber: 1 }] }
+        }
+      }))
+      const report = { ...expected, passed: true, errors: [], version: "8.0.0", cases }
+      expect(() => validateReport(report, expected, 0)).not.toThrow()
+      for (const change of [
+        (value: typeof report) => {
+          value.cases.pop()
+        },
+        (value: typeof report) => {
+          value.cases[0]!.windowEvent.defaultPrevented = true
+        },
+        (value: typeof report) => {
+          value.cases[0]!.windowEvent.filename = path.join(directory, "runtime.js")
+        },
+        (value: typeof report) => {
+          value.cases[0]!.windowEvent.line = 1
+        },
+        (value: typeof report) => {
+          value.cases[0]!.windowEvent.column = 0
+        },
+        (value: typeof report) => {
+          value.cases[0]!.windowEvent.stack = "esm.js:1:1"
+        },
+        (value: typeof report) => {
+          value.cases[0]!.exception.stackTrace.callFrames = []
+        },
+        (value: typeof report) => {
+          value.cases[0]!.exception.stackTrace.callFrames[0]!.url = path.join(
+            directory,
+            "runtime.js"
+          )
+        },
+        (value: typeof report) => {
+          value.cases[0]!.exception.stackTrace.callFrames[0]!.lineNumber = 0
+        }
+      ]) {
+        const invalid = structuredClone(report)
+        change(invalid)
+        expect(() => validateReport(invalid, expected, 0)).toThrow()
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("rejects archive paths that could escape the private workspace", async () => {
     const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-paths-")))
     try {
@@ -93,6 +188,68 @@ describe("desktop host verification", () => {
         "dir\\..\\escape"
       ]) {
         expect(() => safeTarget(directory, filename)).toThrow(/archive path/)
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  for (const name of [
+    "../escape",
+    "../extract-sibling/escape",
+    "nested/../../escape",
+    "/absolute",
+    "C:/absolute",
+    "dir\\..\\escape",
+    "nul\0entry"
+  ]) {
+    it(`rejects the ZIP entry ${JSON.stringify(name)} before writing any files`, async () => {
+      const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-zip-")))
+      try {
+        const archive = path.join(directory, "runtime.zip")
+        const destination = path.join(directory, "extract")
+        writeZip(archive, name)
+        expect(() => extractRuntimeZip(archive, destination)).toThrow(/archive path/)
+        expect(await readdir(destination)).toEqual([])
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+  }
+
+  it("rejects ZIP symlinks and nonempty destinations containing existing symlinks", async () => {
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-zip-link-")))
+    try {
+      const archive = path.join(directory, "runtime.zip")
+      const destination = path.join(directory, "extract")
+      const outside = path.join(directory, "outside")
+      await mkdir(outside)
+      writeZip(archive, "link", 0o120777)
+      expect(() => extractRuntimeZip(archive, destination)).toThrow(/symlinks/)
+      await symlink(outside, path.join(destination, "link"), "junction")
+      writeZip(archive, "link/escape")
+      expect(() => extractRuntimeZip(archive, destination)).toThrow(/must be empty/)
+      expect(await readdir(outside)).toEqual([])
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("extracts valid nested runtime files through a canonical destination", async () => {
+    const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-zip-ok-")))
+    try {
+      const archive = path.join(directory, "runtime.zip")
+      const destination = path.join(directory, "extract")
+      await mkdir(destination)
+      const alias = path.join(directory, "alias")
+      await symlink(destination, alias, "junction")
+      writeZip(archive, "nested/electron")
+      extractRuntimeZip(archive, alias)
+      expect(await readFile(path.join(destination, "nested/electron"), "utf8")).toBe(
+        "runtime-bytes"
+      )
+      if (process.platform !== "win32") {
+        expect((await stat(path.join(destination, "nested/electron"))).mode & 0o777).toBe(0o755)
       }
     } finally {
       await rm(directory, { recursive: true, force: true })
@@ -130,6 +287,7 @@ describe("desktop host verification", () => {
 
   it("emits host probes that parse without TypeScript or modern module syntax", () => {
     expect(() => new Script(electronProbe)).not.toThrow()
+    expect(() => new Script(rendererErrorProbe)).not.toThrow()
     expect(() => new Script(vscodeProbe)).not.toThrow()
   })
 
@@ -254,7 +412,7 @@ const config = JSON.parse(process.env.ESM_HOST_CHECK)
     })
   }
 
-  for (const issue of [867, 915] as const) {
+  for (const issue of [867, 915, 691] as const) {
     it(`passes Linux startup flags and private paths intact to host #${issue}`, async () => {
       const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-args ü -")))
       try {
@@ -284,7 +442,7 @@ process.exitCode = result.status ?? 1`
         const received: unknown = JSON.parse(result.stdout)
         expect(received).toEqual(args)
         expect(args).toContain("--no-sandbox")
-        if (issue === 867) expect(args).toContain(probe)
+        if (issue !== 915) expect(args).toContain(probe)
         else {
           expect(args).toContain(`--extensionDevelopmentPath=${project}`)
           expect(args).toContain(`--extensionTestsPath=${probe}`)

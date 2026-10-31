@@ -1,6 +1,9 @@
 # Host integration verification and remaining scope
 
-**#867 and #915 are resolved for the original Linux reproductions.** The supplied
+**#867 and #915 are resolved for the original Linux reproductions.**
+#691 now has a recreated renderer check; #917 has a shared-realm VM regression.
+Both new integration fixes still require their actual host verification.
+ The supplied
 Arch Linux/Wayland run passed all six real-host cases: disabled, cold and warm
 caches for Electron 8.0.0 and VS Code 1.66.2. Electron completed the first load
 and three reloads per mode; VS Code activated the extension, executed its
@@ -43,13 +46,20 @@ available as `esm-sync-hosts:local`; report paths such as `/reports` and `/tmp`
 inside the logs refer to the container. The wrapper prints the host artifact
 directory and returns nonzero for failed or missing verification evidence.
 
+ZIP extraction uses a canonical empty destination, rejects traversal paths and
+symlinks, and checks the resolved target's containment immediately before its
+filesystem operations. Archive regressions exercise malicious raw ZIP entries
+and destinations containing existing symlinks. This addresses the reported
+unsanitized archive-entry warning without suppressing the scanner.
+
 ## Checks and diagnostics
 
 Docker is the only supported verification entry point. The container's internal
 TypeScript verifier uses the production build and runtime archives already in
 the image. It has no native CLI, external-assets option or runtime overrides.
 
-The checker runs disabled, cold and warm disk-cache launches. Electron must
+The checker runs nine cases: disabled, cold and warm disk-cache launches for
+#867, #915 and the #691 reconstruction. Electron must
 load the original HTML/renderer successfully and greet once on the first load
 and each of three reloads. Each VS Code launch must activate the original
 extension, execute its command through the real host API, and log a valid port
@@ -87,7 +97,8 @@ is insufficient evidence.
 | [#867](https://github.com/standard-things/esm/issues/867) | Resolved: real Electron 8 first load and reloads pass             | None for the original Linux reproduction                                                  |
 | [#915](https://github.com/standard-things/esm/issues/915) | Resolved: real VS Code 1.66.2 activation and port allocation pass | None for the original reproduction; UI Reload Window was not automated                    |
 | [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained                | Actual incompatible and compatible native addons, Electron run logs                       |
-| [#691](https://github.com/standard-things/esm/issues/691) | Insufficient evidence to alter Chromium error presentation        | Original failing source or equivalent reproduction, current DevTools/error-event captures |
+| [#691](https://github.com/standard-things/esm/issues/691) | Native parser-frame correction; recreated renderer test added | Run the updated Docker command to collect actual Electron error events and DevTools frames |
+| [#917](https://github.com/standard-things/esm/issues/917) | Shared-realm VM global corruption fixed in a native regression | Confirm the patched package in a real WebContainers session and the affected application |
 | [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below             | No missing source for the supplied probe                                                  |
 
 ## Renderer resolution (#867)
@@ -197,36 +208,62 @@ To provide the missing files:
 
 ## Chromium error presentation (#691)
 
-The reported `stack-trace-repro` branch is unavailable. The archive explicitly
-contains a different upstream template at
-`70df69ddc689ced92a492ccb9018cd2a7801287a`, historical screenshots, and a
-**generated substitute** under `repro/renderer-stack/`. These do not establish
-the current DevTools behaviour of the original application.
+The deleted `dsanders11/electron-quick-start` branch `stack-trace-repro` could
+not be recovered. The current repository was created after the original report.
+All seven available Software Heritage snapshots (2020–2023) were checked;
+none contains that branch. Wayback's index returned its temporarily-offline
+page. This search does not establish that every possible archive is absent.
 
-Run that substitute on a host with the attached Electron 5.0.6 and a display,
-or supply the original failing renderer/preload files. Before the failing
-inline script executes, add this diagnostic listener to the HTML page:
+The original [issue and example](https://github.com/standard-things/esm/issues/691)
+describe an invalid `await` in a renderer module. The committed
+`test/fixture/hosts/issue-691` recreates that case and adds a normal runtime
+exception as a control. It is newly authored under this repository's licence,
+not a copy of the deleted branch. It uses the same pinned Electron 8.0.0 runtime
+as #867, so it adds no runtime download.
 
-```javascript
-window.__esmErrorReports = []
-window.addEventListener("error", (event) => {
-  window.__esmErrorReports.push({
-    message: event.message,
-    filename: event.filename,
-    line: event.lineno,
-    column: event.colno,
-    stack: event.error && event.error.stack,
-    versions: typeof process === "undefined" ? null : Object.assign({}, process.versions)
-  })
-})
-```
+The loader already formatted `error.stack`, but DevTools also reads native V8
+capture data. Parser-created renderer errors now recapture their original file,
+line and column before the stack getter is installed. A source map includes the
+original source and maps the generated capture back to its exact position.
+Runtime errors retain their existing capture and identity.
+This change installs no renderer error listener in the loader.
 
-In DevTools, copy `JSON.stringify(window.__esmErrorReports, null, 2)` and take
-a screenshot showing the console's linked source location and expanded error.
-Attach those with the page/renderer/preload files, exact window preferences,
-and terminal output. Capture both syntax and runtime errors if possible.
-Keep the listener diagnostic: do not suppress events or replace `window.onerror`.
-Rewriting `error.stack` alone does not control Chromium's stored error location.
+Run `pnpm verify:hosts:docker` to exercise all nine host cases. The three #691
+cases require both `window` error events and DevTools `Runtime.exceptionThrown`
+data to name the failing source and line. The probe also checks that errors
+remain unsuppressed, records raw event fields and inspector frames in
+`691-<phase>.json`, and tests a successful module so cache persistence is
+verified. The window listener only records evidence; it does not call
+`preventDefault`, return a suppression value or replace `window.onerror`.
+
+Native Node inspector regressions cover first-line and later-line syntax
+errors and a runtime-error control. They demonstrate the V8 capture correction,
+but they do not establish Chromium's event presentation. The recreated
+Electron check must pass in the actual container before this integration is
+marked resolved. No result is claimed for the deleted original application or
+its historical Electron version.
+
+## Shared-realm VM emulation (#917)
+
+The [upstream report](https://github.com/standard-things/esm/issues/917) links
+StackBlitz's loader conflict. Its maintainers later traced the missing `Object`
+to [VM emulation modifying the host global](https://github.com/stackblitz/webcontainer-core/issues/692#issuecomment-1122128649).
+
+The loader previously deleted shadowed builtin properties while discovering
+an isolated context's intrinsics, then restored them and connected their
+prototypes. In an emulated context backed by the host realm, that process can
+delete live host globals. Context preparation now first evaluates a literal's
+intrinsic constructor without changing any global. If the context shares the
+host's `Object`, it uses that existing realm directly. Isolated native VM
+contexts continue through the existing preparation path.
+
+`test/vitest/webcontainer.test.ts` emulates that shared-realm context and loads
+an ESM file through the built loader. It checks host builtin descriptors with
+disabled, cold and warm caches. The old loader fails with `Object` missing;
+the patched loader passes. This is a regression of the behaviour described by
+the maintainer, not an execution of WebContainers. A real StackBlitz session
+with the patched package and the affected application remains necessary to
+close #917. An ordinary Docker Node process cannot supply that evidence.
 
 ## Static imports in VM scripts (#886)
 
@@ -265,11 +302,28 @@ Validation used only the supplied dependencies and runtimes on Linux x64:
 - The supplied VM probe and original compiled extension mechanisms were checked
   on Node 22/24/26, within the host limitations described above.
 
-The supplied six-case real-host run confirms #867 and #915 as described above.
+The supplied six-case real-host runs confirm #867 and #915 as described above.
+The updated nine-case command adds the recreated #691 checks; those new cases
+have not yet run in the authoring environment.
 The Docker command itself could not be executed in this authoring workspace,
 which has no Docker CLI/daemon. Its downloader, cache reuse, fixture fidelity,
 offline run arguments, report export and failure/cleanup contracts have tests
 on Node 22, 24 and 26; these do not substitute for a container run. The canonical
 production build, complete typechecks/type audit, Biome and Knip were checked.
-Only the small original source fixtures and their licences are checked in;
-runtime archives, generated outputs, downloaded files and reports are ignored.
+Additional verification for the #917/#691/archive changes:
+
+- The shared-realm VM regression failed before the fix with the host's `Object`
+  missing. Disabled, cold and warm runs pass after the fix.
+- Native renderer inspector checks pass on Node 22.23.4, 24.21.0 and 26.12.0.
+  They verify raw V8 locations, independently decoded source-map file/line/column
+  mappings (including special-character paths), and runtime-error identity.
+- All 1,646 production cases were covered across the broad run and the corrected
+  PATH rerun: 1,626 passed initially, and all 106 scenario cases passed after
+  adding the normal `node_modules/.bin` script PATH, including the 20 initial
+  command-not-found failures.
+- ZIP extraction tests exercise raw traversal entries, symlinks, executable
+  permissions and canonical destinations. Typechecks/type audit, the production
+  build, Biome and Knip pass.
+
+Only the small source fixtures and their licences are checked in; runtime
+archives, generated outputs, downloaded files and reports are ignored.

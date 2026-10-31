@@ -7,6 +7,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   writeFileSync
@@ -16,7 +17,7 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { styleText } from "node:util"
-import { electronProbe, vscodeProbe } from "./host-probes.ts"
+import { electronProbe, rendererErrorProbe, vscodeProbe } from "./host-probes.ts"
 import { hostRuntimeCache, hostRuntimes } from "./host-runtimes.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
@@ -24,7 +25,8 @@ const require = createRequire(import.meta.url)
 type ZipEntry = { entryName: string; isDirectory: boolean; attr: number; getData(): Buffer }
 type Zip = { getEntries(): ZipEntry[] }
 type Phase = "disabled" | "cold" | "warm"
-type Identity = { issue: 867 | 915; phase: Phase; nonce: string; loader: string }
+type Issue = 691 | 867 | 915
+type Identity = { issue: Issue; phase: Phase; nonce: string; loader: string }
 type CommandResult = {
   code: number | null
   signal: NodeJS.Signals | null
@@ -68,22 +70,33 @@ function hash(file: string): string {
 }
 
 export function safeTarget(directory: string, filename: string): string {
-  assert.ok(!filename.includes("\\") && !/^[A-Za-z]:/.test(filename), "Invalid archive path")
+  assert.ok(
+    !filename.includes("\\") && !filename.includes("\0") && !/^[A-Za-z]:/.test(filename),
+    "Invalid archive path"
+  )
   assert.ok(
     !path.posix.isAbsolute(filename) && !filename.split("/").includes(".."),
     "Invalid archive path"
   )
-  return path.join(directory, filename)
+  const target = path.resolve(directory, filename)
+  if (!target.startsWith(path.resolve(directory) + path.sep))
+    throw new Error("Invalid archive path")
+  return target
 }
 
-function unzip(archive: string, destination: string): void {
+export function extractRuntimeZip(archive: string, destination: string): void {
   const AdmZip = require("adm-zip") as new (file: string) => Zip
   mkdirSync(destination, { recursive: true })
+  const directory = realpathSync(destination)
+  assert.equal(readdirSync(directory).length, 0, "ZIP destination must be empty")
   for (const entry of new AdmZip(archive).getEntries()) {
-    safeTarget(destination, entry.entryName)
+    // Keep the resolved-path containment guard at the filesystem sink so both
+    // runtime checks and archive-entry dataflow analysis can follow it.
+    const target = path.resolve(directory, entry.entryName)
+    if (!target.startsWith(directory + path.sep)) throw new Error("Invalid archive path")
+    safeTarget(directory, entry.entryName)
     assert.notEqual((entry.attr >>> 16) & 0o170000, 0o120000, "ZIP symlinks are not supported")
     if (entry.isDirectory) continue
-    const target = safeTarget(destination, entry.entryName)
     mkdirSync(path.dirname(target), { recursive: true })
     writeFileSync(target, entry.getData())
     const mode = (entry.attr >>> 16) & 0o777
@@ -188,6 +201,41 @@ export function validateReport(value: unknown, expected: Identity, code: number 
       assert.equal(load.index, index)
       assert.equal(load.hello, 1)
       assert.equal(load.versions.electron, "8.0.0")
+    }
+  } else if (expected.issue === 691) {
+    assert.equal(value.version, "8.0.0")
+    assert.ok(
+      Array.isArray(value.cases) && value.cases.length === 2,
+      "Missing renderer error cases"
+    )
+    for (const [index, kind] of ["syntax", "runtime"].entries()) {
+      const item: unknown = value.cases[index]
+      assert.ok(
+        record(item) && item.kind === kind && record(item.windowEvent) && record(item.exception)
+      )
+      const expectedFile = realpathSync(
+        path.resolve(path.dirname(expected.loader), "../../..", kind + ".js")
+      )
+      const event = item.windowEvent
+      assert.equal(typeof event.filename, "string")
+      const filename = String(event.filename)
+      assert.equal(
+        realpathSync(filename.startsWith("file:") ? fileURLToPath(filename) : filename),
+        expectedFile
+      )
+      assert.equal(event.line, 2)
+      assert.ok(typeof event.column === "number" && event.column > 0)
+      assert.equal(event.defaultPrevented, false)
+      assert.ok(typeof event.stack === "string" && event.stack.includes(kind + ".js"))
+      const trace = item.exception.stackTrace
+      assert.ok(record(trace) && Array.isArray(trace.callFrames))
+      const frame: unknown = trace.callFrames[0]
+      assert.ok(record(frame) && typeof frame.url === "string")
+      assert.equal(
+        realpathSync(frame.url.startsWith("file:") ? fileURLToPath(frame.url) : frame.url),
+        expectedFile
+      )
+      assert.equal(frame.lineNumber, 1)
     }
   } else {
     assert.equal(value.version, "1.66.2")
@@ -294,7 +342,7 @@ export async function runHostCase(
   return details
 }
 
-export async function prepareProject(issue: 867 | 915, directory: string): Promise<string> {
+export async function prepareProject(issue: Issue, directory: string): Promise<string> {
   const source = path.join(root, "test/fixture/hosts", `issue-${issue}`)
   const project = path.join(directory, `issue-${issue}`)
   cpSync(source, project, { recursive: true })
@@ -347,15 +395,15 @@ export async function prepareProject(issue: 867 | 915, directory: string): Promi
   return realpathSync(project)
 }
 
-function runtime(issue: 867 | 915, directory: string): string {
-  const input = hostRuntimes.find((item) => item.issue === issue)!
+function runtime(issue: Issue, directory: string): string {
+  const input = hostRuntimes.find((item) => item.issue === (issue === 691 ? 867 : issue))!
   const archive = path.join(hostRuntimeCache, input.file)
   assert.ok(existsSync(archive), `Host image is missing runtime archive: ${input.file}`)
   assert.equal(hash(archive), input.sha256, `Runtime checksum mismatch: ${input.file}`)
   const target = path.join(directory, `runtime-${issue}`)
   mkdirSync(target)
-  if (issue === 867) {
-    unzip(archive, target)
+  if (issue !== 915) {
+    extractRuntimeZip(archive, target)
   } else {
     const listing = tar(archive, ["-tzf"]).toString().split("\n").filter(Boolean)
     for (const name of listing) safeTarget(target, name)
@@ -368,7 +416,7 @@ function runtime(issue: 867 | 915, directory: string): string {
     )
     assert.equal(result.status, 0, result.error?.message ?? result.stderr)
   }
-  const executable = path.join(target, issue === 867 ? "electron" : "code")
+  const executable = path.join(target, issue !== 915 ? "electron" : "code")
   chmodSync(executable, 0o755)
   return realpathSync(executable)
 }
@@ -398,7 +446,7 @@ export function hostLaunchEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 export function hostLaunchArgs(
-  issue: 867 | 915,
+  issue: Issue,
   probe: string,
   project: string,
   directory: string,
@@ -409,7 +457,7 @@ export function hostLaunchArgs(
   // modern hosts may also prohibit unprivileged user namespaces. Limit this
   // testing-only flag to the disposable verifier processes, regardless of UID.
   const flags = ["--no-sandbox"]
-  return issue === 867
+  return issue !== 915
     ? [...flags, probe]
     : [
         ...flags,
@@ -446,7 +494,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
   }
   delete env.ELECTRON_RUN_AS_NODE
   console.log(`${styleText("cyan", "REPORT")} ${output}`)
-  for (const issue of [867, 915] as const) {
+  for (const issue of [867, 915, 691] as const) {
     let context: Record<string, unknown> = {}
     try {
       const executable = runtime(issue, directory)
@@ -454,7 +502,10 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
       const project = await prepareProject(issue, directory)
       const loader = realpathSync(path.join(project, "node_modules/esm/dist/esm.js"))
       const probe = path.join(project, "host-probe.cjs")
-      writeFileSync(probe, issue === 867 ? electronProbe : vscodeProbe)
+      writeFileSync(
+        probe,
+        issue === 867 ? electronProbe : issue === 691 ? rendererErrorProbe : vscodeProbe
+      )
       const compilerCache = path.join(project, "compiler-cache")
       const bootstrapCache = path.join(
         project,
@@ -499,7 +550,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
         )
         samples.push({ issue, phase, passed: true, executable, result: resultFile, log: files.log })
         console.log(
-          `${styleText("green", "PASS")} #${issue} ${phase}${issue === 867 ? " - first load + 3 reloads" : " - activation + command + allocated port"}`
+          `${styleText("green", "PASS")} #${issue} ${phase}${issue === 867 ? " - first load + 3 reloads" : issue === 691 ? " - renderer syntax + runtime error locations" : " - activation + command + allocated port"}`
         )
       }
     } catch (error) {
@@ -514,7 +565,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
       console.error(`${styleText("red", "FAIL")} #${issue} ${message}`)
     }
   }
-  const passed = samples.length === 6 && samples.every((sample) => sample.passed)
+  const passed = samples.length === 9 && samples.every((sample) => sample.passed)
   writeFileSync(
     output,
     JSON.stringify(

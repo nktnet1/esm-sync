@@ -68,6 +68,89 @@ electron.app.on('ready', async () => {
 setTimeout(() => finish(new Error('Electron verification timed out')), 45000);
 `
 
+// Recreated from #691's invalid-await example. The deleted original branch
+// was not recovered; this uses the already-pinned Electron 8 runtime.
+export const rendererErrorProbe = `
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const { fileURLToPath } = require('url');
+const electron = require('electron');
+const config = JSON.parse(process.env.ESM_HOST_CHECK);
+const report = { ...config, issue: 691, cases: [], errors: [], passed: false };
+let window, finished = false;
+function finish(error) {
+  if (finished) return;
+  finished = true;
+  if (error) report.errors.push(String(error.stack || error));
+  report.passed = !report.errors.length && report.cases.length === 2;
+  fs.writeFileSync(config.result, JSON.stringify(report, null, 2));
+  const code = report.passed ? 0 : 1;
+  if (window && !window.isDestroyed()) {
+    window.once('closed', () => setTimeout(() => electron.app.exit(code), 100));
+    window.close();
+  } else electron.app.exit(code);
+}
+process.on('uncaughtException', finish);
+process.on('unhandledRejection', finish);
+electron.app.on('ready', async () => {
+  try {
+    assert.equal(process.versions.electron, '8.0.0');
+    report.version = process.versions.electron;
+    window = new electron.BrowserWindow({
+      show: true, width: 800, height: 600,
+      webPreferences: { nodeIntegration: true, contextIsolation: false, sandbox: false }
+    });
+    const exceptions = [];
+    const debuggerClient = window.webContents.debugger;
+    debuggerClient.attach('1.3');
+    debuggerClient.on('message', (_event, method, params) => {
+      if (method === 'Runtime.exceptionThrown') exceptions.push(params.exceptionDetails);
+    });
+    await debuggerClient.sendCommand('Runtime.enable');
+    await debuggerClient.sendCommand('Debugger.enable');
+    window.webContents.on('crashed', () => finish(new Error('Renderer crashed')));
+    await window.loadFile(path.join(config.project, 'index.html'));
+    const details = await window.webContents.executeJavaScript(
+      "({loader:require.resolve('esm'),healthy:window.__esmHealthy,versions:process.versions,type:process.type})"
+    );
+    assert.equal(fs.realpathSync(details.loader), config.loader);
+    assert.equal(details.type, 'renderer');
+    assert.equal(details.healthy, true);
+    report.versions = details.versions;
+    for (const kind of ['syntax', 'runtime']) {
+      const before = exceptions.length;
+      await window.webContents.executeJavaScript('window.__esmTriggerError(' + JSON.stringify(kind) + ')');
+      const deadline = Date.now() + 10000;
+      let events;
+      do {
+        events = await window.webContents.executeJavaScript('window.__esmErrorReports');
+        if (events.length === report.cases.length + 1 && exceptions.length === before + 1) break;
+        await new Promise(resolve => setTimeout(resolve, 25));
+      } while (Date.now() < deadline);
+      const item = { kind, windowEvent: events[report.cases.length], exception: exceptions[before] };
+      report.cases.push(item);
+      assert.equal(events.length, report.cases.length, 'Missing or extra window error events');
+      assert.equal(exceptions.length, before + 1, 'Missing or extra DevTools exceptions');
+      const expected = fs.realpathSync(path.join(config.project, kind + '.js'));
+      const canonical = name => fs.realpathSync(name.startsWith('file:') ? fileURLToPath(name) : name);
+      assert.equal(canonical(item.windowEvent.filename), expected, 'window error points at the loader');
+      assert.equal(item.windowEvent.line, 2);
+      assert.ok(item.windowEvent.column > 0);
+      assert.equal(item.windowEvent.defaultPrevented, false, 'Error reporting was suppressed');
+      assert.ok(item.windowEvent.stack.includes(kind + '.js'));
+      assert.ok(!item.windowEvent.stack.includes(config.loader + ':'));
+      const frame = item.exception.stackTrace.callFrames[0];
+      assert.equal(canonical(frame.url), expected, 'DevTools points at the loader');
+      assert.equal(frame.lineNumber, 1);
+    }
+    debuggerClient.detach();
+    finish();
+  } catch (error) { finish(error); }
+});
+setTimeout(() => finish(new Error('Renderer error verification timed out')), 45000);
+`
+
 export const vscodeProbe = `
 const assert = require('assert');
 const fs = require('fs');

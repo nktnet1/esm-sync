@@ -36,5 +36,6 @@ export const runtimeTests = [
   "test262-instantiation",
   "top-level-await",
   "upstream-regressions",
-  "value-imports"
+  "value-imports",
+  "webcontainer"
 ].map((name) => `test/vitest/${name}.test.ts`)
