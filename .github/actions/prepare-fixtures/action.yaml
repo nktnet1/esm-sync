@@ -1,0 +1,38 @@
+name: Prepare vendor fixtures
+description: Restore versioned source fixtures and validate or repair them before use
+inputs:
+  save-cache:
+    description: Save prepared fixtures from a trusted main-branch job
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Read installed Acorn version
+      id: acorn
+      shell: bash
+      run: node -p "'version=' + require('acorn/package.json').version" >> "$GITHUB_OUTPUT"
+
+    - name: Restore source fixtures
+      id: fixtures
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          src/vendor/acorn
+          test/vendor/test262
+        key: vendor-fixtures-v1-${{ runner.os }}-${{ steps.acorn.outputs.version }}-${{ hashFiles('pnpm-lock.yaml', 'script/src/setup-acorn.ts', 'script/src/setup-test262.ts', 'script/src/setup-fixtures.ts') }}
+
+    # Both setup functions check versions and required files. A partial or
+    # stale restore must be repaired, rather than treated as a successful hit.
+    - name: Validate and prepare fixtures
+      shell: bash
+      run: pnpm fixtures:prepare
+
+    - name: Save prepared source fixtures
+      if: inputs.save-cache == 'true' && steps.fixtures.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          src/vendor/acorn
+          test/vendor/test262
+        key: ${{ steps.fixtures.outputs.cache-primary-key }}

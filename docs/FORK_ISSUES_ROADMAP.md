@@ -1,19 +1,22 @@
 # Upstream issue roadmap
 
-Status as of 30 October 2026 for the 83 reports in
+Status as of 31 October 2026 for the 83 reports in
 [`standard-things/esm`](https://github.com/standard-things/esm/issues).
 The tests and source code, not a historical status label, are authoritative for
-current behaviour. Keep an issue open when its exact integration has not been
-verified. See [tooling and performance](tooling-and-performance.md) for evidence
+current behaviour. Keep an issue open until its agreed resolution criterion has
+been verified. For #691, the passing Electron reconstruction satisfies that
+criterion; recovering the deleted original application is not required.
+See [tooling and performance](tooling-and-performance.md) for evidence
 on the two application reproductions.
+For the scoped host reports, see the [full/partial/not-implemented status table](host-integrations.md) and verification instructions.
 
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      5 |
+| Investigate                                   |      3 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     55 |
-| Not planned                                   |     23 |
+| Already covered                               |     58 |
+| Not planned                                   |     22 |
 | **Total**                                     | **83** |
 
 ## Verified application integration
@@ -26,18 +29,25 @@ on the two application reproductions.
 
 - **Programmatic REPL static imports** - [https://github.com/standard-things/esm/issues/854](https://github.com/standard-things/esm/issues/854). **Fixed for the tested Node 22, 24, and 26 preload path**. An application's `repl.start()` does not enter the same startup branch as `node -i`. A one-time, lazy context hook now activates REPL compilation when the application first creates a server. Non-REPL `vm.createScript()` calls retain their normal behaviour, including after creating multiple REPL servers. Tests cover cached and uncached configurations, custom prompts, sloppy mode, isolated contexts, relative-file imports, repeated imports, and a second active server. This does not change arbitrary `vm` script evaluation or promise rejection handling in the Node REPL.
 
+## Verified desktop hosts
+
+- **Electron renderer module loading (#867)** and **VS Code extension-host ESM loading (#915)** are **resolved for the original Linux reproductions**. The supplied Arch Linux/Wayland run passed all six disabled/cold/warm host cases using Electron 8.0.0 and VS Code 1.66.2 under Xvfb. Electron greeted exactly once on the first page load and each of three reloads in every cache mode. VS Code activated the original extension, executed its command and allocated a valid port in every mode. VS Code checks use fresh host processes; UI Reload Window is not automated. See [host verification](host-integrations.md) and run `pnpm verify:hosts:docker` for the self-contained Docker path.
+
+- **Electron renderer error stacks (#691)** - **Resolved.** Captured frames alone were insufficient: Chromium still reported the outer loader rethrow. Renderer errors now leave that boundary through a source-mapped function at their original location, preserving the error object. The user confirmed that all twelve Docker cases pass, including #691 syntax and runtime errors in disabled/cold/warm modes, followed by a healthy reload. The reconstruction satisfies the agreed resolution criterion; the deleted original application is not a remaining requirement. See [reconstruction and verification](host-integrations.md#chromium-error-presentation-691).
+
 ## Active investigations
 
 ### Electron and extension-host integrations
 
-- **VS Code extension-host ESM loading** - [https://github.com/standard-things/esm/issues/915](https://github.com/standard-things/esm/issues/915). The original TypeScript extension was compiled to CommonJS and attempted to require the ESM-only `get-port` package. The fork's loader supports synchronous ESM interop in Node, but an actual extension activation must be tested in the VS Code Node extension host. The browser extension host has different capabilities. Obtain the compiled extension and its host/version details before changing the loader.
-- **Electron renderer module loading** - [https://github.com/standard-things/esm/issues/867](https://github.com/standard-things/esm/issues/867). The failing inline HTML script resolves `./renderer.js` from Electron's internal `renderer_init`, not necessarily from the application's page. The reported workaround mutates the injected `module` record and disables the cache. A safe fix would need explicit base-path semantics and tests across the relevant `nodeIntegration`, sandbox, and context-isolation settings. Modern isolated preload scripts are a separate migration option.
-- **Electron dynamic imports and native-addon failures** - [https://github.com/standard-things/esm/issues/817](https://github.com/standard-things/esm/issues/817). Plain JavaScript throws and malformed `.node` files already reject dynamic-import promises in the fork's Node runtime on Node 22, 24, and 26. The upstream example uses `.catch('error')`, which is not a valid rejection handler. The native-addon ABI failure, renderer hang, and DevTools disconnect still require the exact Electron/Node/native-addon combination to reproduce. Do not infer an Electron fix from the Node-only rejection test.
-- **Electron renderer error stacks** - [https://github.com/standard-things/esm/issues/691](https://github.com/standard-things/esm/issues/691). Node loader exceptions are masked and the original `error.stack` is available, but the renderer's `window.onerror` and Chromium DevTools presentation are not verified. The existing stack-scrubbing path does not install a renderer event handler. Test the upstream renderer reproduction before introducing a DevTools-specific or source-map change.
+- **Electron dynamic imports and native-addon failures (#817)** - **Partially resolved; full USB case open.** The incomplete-CommonJS-cache correction has regression coverage. Actual Electron 5.0.6 also passes disabled/cold/warm checks using real minimal addons for ABIs 137 and 70, including repeated/concurrent imports, a rebuilt control and a responsive debugger. These controls also pass upstream esm and do not reproduce the USB-specific hang. A real USB 1.6.0 ABI-72 build also crashes ordinary require without esm, so that native build cannot establish a loader-specific failure. Do not close the full issue on the minimal controls. See [scope and evidence](host-integrations.md#electron-dynamic-imports-and-native-addons-817).
+
+### Embedded VM hosts
+
+- **StackBlitz/WebContainers (#917)** - **Partially resolved.** The shared-intrinsic guard fixes live-global corruption in native regressions across cache modes. A real WebContainer on Node 22.22.3 loads a smoke module with the published fork and retains Object; upstream esm fails that smoke load. The guard was applied to an isolated test package, but the full historically failing application path was not established. Preserve this distinction before closing the issue. See [scope and evidence](host-integrations.md#shared-realm-vm-emulation-917).
 
 ### VM API boundary
 
-- **Static imports in `vm.runInThisContext`** - [https://github.com/standard-things/esm/issues/886](https://github.com/standard-things/esm/issues/886). Reproduced on Node 22, 24, and 26. This API compiles script-goal code and does not accept static `import` declarations. Node's `vm.SourceTextModule` supports module-goal linking through a separate asynchronous API. Automatic transpilation or a new opt-in module evaluator would change the contract of the VM API and needs an explicit feature decision rather than a patch to ordinary `require()` hooks.
+- **Static imports in `vm.runInThisContext`** - [https://github.com/standard-things/esm/issues/886](https://github.com/standard-things/esm/issues/886). **Not implemented: API boundary.** Reproduced on Node 22, 24, and 26, including the supplied probe. This API compiles script-goal code and does not accept static `import` declarations. Use the existing loader factory for the supplied file, or Node's separate `vm.SourceTextModule` API with an explicit linker. See [supported alternatives](host-integrations.md#static-imports-in-vm-scripts-886). Automatic transpilation of arbitrary VM scripts remains a separate feature decision.
 
 ## Completed documentation follow-ups
 
@@ -54,21 +64,21 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **55** reports are classified _already covered_ by an existing
+The following **58** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
-931, 926, 924, 922, 921, 918, 916, 914, 913, 910, 909, 904, 900, 898, 897,
-896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 866, 865, 864, 863, 855, 854, 852,
+931, 926, 924, 922, 921, 918, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
+896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
 846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
-786, 779, 775, 706.
+786, 779, 775, 706, 691.
 
-The following **23** reports are _not planned_: they concern external tooling,
+The following **22** reports are _not planned_: they concern external tooling,
 obsolete environments, different products, unsupported feature requests, or
 insufficient reproductions.
 
-930, 929, 928, 927, 920, 919, 917, 907, 903, 893, 892, 890, 884, 869, 862,
+930, 929, 928, 927, 920, 919, 907, 903, 893, 892, 890, 884, 869, 862,
 861, 859, 845, 833, 829, 828, 791, 780.
 
 For build, fixture, and compatibility-test commands, see the

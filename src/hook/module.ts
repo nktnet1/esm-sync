@@ -163,12 +163,15 @@ function hook(Mod: ModuleConstructor, parent?: unknown) {
 
     const { _compile } = mod
     const shouldRestore = shouldOverwrite && has(mod, "_compile")
+    let compileStarted = false
 
     const compileWrapper = toExternalFunction(function (
       this: ModuleRecord,
       content: string,
       filename: string
     ) {
+      compileStarted = true
+
       if (shouldOverwrite) {
         if (shouldRestore) {
           setProperty(this, "_compile", _compile)
@@ -211,7 +214,22 @@ function hook(Mod: ModuleConstructor, parent?: unknown) {
       (compileData === null || compileData.transforms === 0) &&
       passthruMap.get(func)
     ) {
-      return tryPassthru.call(this, func, args, pkg)
+      try {
+        return tryPassthru.call(this, func, args, pkg)
+      } catch (error) {
+        // Older Node/Electron handlers reject type:module .js files before
+        // invoking _compile. Let our installed compiler handle that source.
+        // Once compilation starts, the error may come from a module body;
+        // retrying would execute application code twice.
+        if (
+          ext !== ".js" ||
+          compileStarted ||
+          !isError(error) ||
+          error.code !== "ERR_REQUIRE_ESM"
+        ) {
+          throw error
+        }
+      }
     }
 
     mod._compile(readFile(filename, "utf8")!, filename)

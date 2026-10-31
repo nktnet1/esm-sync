@@ -1,7 +1,11 @@
 import Reflect from "../reflection.js"
+import ENV from "../constant/env.js"
 import WASM from "../constant/wasm.js"
 
 import Module from "../module.js"
+import SafeBuffer from "../safe/buffer.js"
+import SafeJSON from "../safe/json.js"
+import { Script } from "../safe/vm.js"
 
 import decorateStackTrace from "./decorate-stack-trace.js"
 import { extname } from "../safe/path.js"
@@ -67,6 +71,10 @@ function init() {
       return error
     }
 
+    if (fromParser && ENV.ELECTRON_RENDERER && typeof filename === "string") {
+      captureRendererLocation(error, filename, lineNumber, column, content)
+    }
+
     const oldString = tryErrorToString(error)
 
     // Defer any file read operations until `error.stack` is accessed. Ideally,
@@ -108,6 +116,54 @@ function init() {
     decorateStackTrace(error)
 
     return error
+  }
+
+  function captureRendererLocation(
+    error: Error,
+    filename: string,
+    line = 1,
+    column = 0,
+    content?: string | null
+  ): void {
+    // DevTools reads V8's captured frames as well as the formatted stack. An
+    // Acorn error is constructed inside the loader, so give its native capture
+    // the original source location before installing the formatted-stack getter.
+    // Runtime exceptions keep their existing capture and object identity.
+    const prefix = "(function (capture, error) {"
+    const source = typeof content === "string" ? content : (readFile(filename, "utf8") ?? "")
+    try {
+      const sourceMap = SafeJSON.stringify({
+        version: 3,
+        sources: [getModuleURL(filename)],
+        sourcesContent: [source],
+        names: [],
+        // The capture call is on physical line zero, after the function prefix.
+        // Map it to the original parser location, accounting for VM offsets.
+        mappings: encodeVLQ(prefix.length) + "A" + encodeVLQ(line - 1) + encodeVLQ(column)
+      })
+      const capture = new Script(
+        prefix +
+          "capture(error)})\n//# sourceMappingURL=data:application/json;base64," +
+          SafeBuffer.from(sourceMap).toString("base64"),
+        { filename, lineOffset: line - 1, columnOffset: column - prefix.length }
+      ).runInThisContext() as (capture: typeof Error.captureStackTrace, error: Error) => void
+      capture(Error.captureStackTrace, error)
+    } catch {
+      // Hosts without a working VM capture still receive the ordinary masked
+      // stack; never replace the original syntax error with a tooling failure.
+    }
+  }
+
+  function encodeVLQ(value: number): string {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    let remaining = value * 2
+    let result = ""
+    do {
+      const digit = remaining % 32
+      remaining = Math.floor(remaining / 32)
+      result += alphabet[digit + (remaining ? 32 : 0)]
+    } while (remaining)
+    return result
   }
 
   function maskEngineStack(

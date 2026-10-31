@@ -47,6 +47,53 @@ function checkSuccess(
 // overlap; repeated processes within a case still run in their original order.
 for (const esmEnv of testEnvironments) {
   describe.concurrent(`resolved upstream regressions (${esmEnv})`, () => {
+    // https://github.com/standard-things/esm/issues/867
+    // Use the module metadata captured from the real Electron 8 renderer.
+    // This exercises its resolution shape in Node; GUI validation remains
+    // a separate check against the original application in Electron.
+    it("resolves renderer imports beside the document while preserving absolute module paths", async ({
+      expect
+    }) => {
+      await withFiles(
+        {
+          "index.html": "<!doctype html>\n",
+          "renderer.js": "export default 'renderer-ok'\n",
+          "unrelated/index.html": "<!doctype html>\n",
+          "unrelated/renderer.js": "export default 'wrong-base'\n",
+          "entry.cjs": `const Module = require('module')
+const path = require('path')
+process.versions.electron = '8.0.0'
+process.type = 'renderer'
+const factory = require(${JSON.stringify(loaderPath)})
+for (const absolutePath of [false, true]) {
+  for (let reload = 0; reload < 3; reload++) {
+    const parent = new Module('electron/js2c/renderer_init')
+    parent.path = absolutePath ? __dirname : 'electron/js2c'
+    parent.filename = path.join(__dirname, absolutePath ? 'unrelated/index.html' : 'index.html')
+    parent.paths = Module._nodeModulePaths(__dirname)
+    console.log(factory(parent)('./renderer.js').default)
+  }
+}
+`
+        },
+        async (directory) => {
+          const cache = esmEnv.endsWith("-cached") ? path.join(directory, "esm-cache") : false
+          const options = {
+            ESM_DISABLE_CACHE: cache === false ? "true" : "false",
+            ESM_OPTIONS: JSON.stringify({ cjs: true, mode: "auto", cache })
+          }
+
+          for (let attempt = 0; attempt < 2; attempt++) {
+            checkSuccess(
+              expect,
+              await runNode(["entry.cjs"], esmEnv, options, { cwd: directory }),
+              Array(6).fill("renderer-ok").join("\n")
+            )
+          }
+        }
+      )
+    })
+
     // https://github.com/standard-things/esm/issues/817
     // A failed dlopen should reject the import Promise. This tests only the
     // Node runtime, not Electron's renderer or mismatched addon ABI handling.
@@ -67,6 +114,51 @@ for (const esmEnv of testEnvironments) {
           checkSuccess(expect, result, "ERR_DLOPEN_FAILED")
         }
       )
+    })
+
+    // https://github.com/standard-things/esm/issues/817
+    // Importing a native addon can fail after its CommonJS parent was staged
+    // during ESM linking. Do not reuse the staged parent's empty exports.
+    it("rejects repeated imports after a native dependency fails during linking", async ({
+      expect
+    }) => {
+      const files = {
+        "invalid.node": "not an addon\n",
+        "node_modules/usb/index.js": "module.exports = require('../../invalid.node')\n",
+        "re-export.js": "export { default } from 'usb'\n",
+        "static-wrapper.js": "import usb from 'usb'; export default usb\n",
+        "working.js": "export const value = 42\n",
+        "entry.js": `const assert = require('node:assert/strict')
+async function rejects(request) {
+  const error = await import(request).then(() => null, error => error)
+  assert.notEqual(error, null, request + ' unexpectedly resolved')
+  assert.equal(error.code, 'ERR_DLOPEN_FAILED')
+  assert.match(error.message, /invalid.node/)
+}
+async function main() {
+  for (const request of process.argv.slice(2)) await rejects(request)
+  await Promise.all([rejects('usb'), rejects('usb')])
+  assert.equal((await import('./working.js')).value, 42)
+  console.log('failed-native-imports:pass')
+}
+main().catch(error => { console.error(error); process.exitCode = 1 })
+`,
+        "start.cjs": `require(${JSON.stringify(loaderPath)})(module)('./entry.js')\n`
+      }
+      for (const [args, sequence] of [
+        [
+          ["-r", loaderPath, "entry.js"],
+          ["./re-export.js", "./static-wrapper.js", "usb"]
+        ],
+        [["start.cjs"], ["./static-wrapper.js", "usb", "./re-export.js"]]
+      ] as const) {
+        await withFiles(files, async (directory) => {
+          const result = await runNode([...args, ...sequence], esmEnv, loaderOptions, {
+            cwd: directory
+          })
+          checkSuccess(expect, result, "failed-native-imports:pass")
+        })
+      }
     })
 
     // https://github.com/standard-things/esm/issues/910

@@ -1,5 +1,8 @@
 *.log
 .cache
+# Downloaded desktop runtimes and exported Docker verification diagnostics.
+/.cache/host-runtimes/
+/.cache/host-verification/
 .config
 .DS_Store
 .node_repl_history
