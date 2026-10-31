@@ -39,4 +39,6 @@ Wayback returned its temporarily-offline page. The earliest available snapshot
 is [adb9b2f59fa0ffe103ad5c16e182a52cc25c2e7c](https://archive.softwareheritage.org/api/1/snapshot/adb9b2f59fa0ffe103ad5c16e182a52cc25c2e7c/).
 The reconstruction reuses Electron 8.0.0 from #867 and records both native
 DevTools exception frames and unsuppressed window error events. It does not
-establish a result for the original deleted application or Electron version.
+claim to reproduce the original deleted application or Electron version. The
+passing Docker reconstruction satisfies the agreed resolution criterion for
+#691; recovering that application is not required to mark the issue resolved.

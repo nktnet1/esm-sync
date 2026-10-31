@@ -1,19 +1,21 @@
 # Host integration verification and issue status
 
-These statuses distinguish the reproduced behaviour from historical application
-coverage. A passing control does not close an issue whose original failure is
-still unverified. This pass focuses on #691, #817 and #917; #886 is deferred.
+These statuses distinguish resolved failures from partial controls. The passing
+Electron 8 reconstruction is the agreed resolution criterion for #691; recovering
+the deleted original application is not required. The minimal #817 controls and
+#917 smoke check leave their full application failures open. This pass focuses
+on #691, #817 and #917; #886 is deferred.
 
 | Issue | Status | Verified | Still needed |
 | --- | --- | --- | --- |
 | [#867](https://github.com/standard-things/esm/issues/867) | **Fully resolved for the original Linux reproduction** | Electron 8.0.0: first load and three reloads, disabled/cold/warm caches; confirmed again in the latest Docker run | None for this reproduction |
 | [#915](https://github.com/standard-things/esm/issues/915) | **Fully resolved for the original reproduction** | VS Code 1.66.2: activation, command and valid allocated port in all three cache modes; confirmed again in Docker | UI Reload Window remains outside the automated checks |
-| [#691](https://github.com/standard-things/esm/issues/691) | **Resolved for the recreated Electron renderer failure** | Actual Electron 8: unsuppressed window events, console and native DevTools locations; syntax/runtime controls, recovery reload and all three cache modes | Deleted original application and its historical runtime remain unavailable |
+| [#691](https://github.com/standard-things/esm/issues/691) | **Resolved** | Docker passes the Electron 8 reconstruction: unsuppressed window events, console and native DevTools locations; syntax/runtime controls, recovery reload and all three cache modes | None; the passing reconstruction satisfies the agreed resolution criterion |
 | [#917](https://github.com/standard-things/esm/issues/917) | **Partially resolved** | Shared-VM corruption regression fixed; published fork loads a smoke module in real WebContainers | Confirm the original failing application path with the guard |
 | [#817](https://github.com/standard-things/esm/issues/817) | **Partially resolved; full USB case open** | Actual Electron 5: minimal ABI 137/70 addons, repeated/concurrent rejection, rebuilt control and responsive debugger | Full USB mismatch also crashes ordinary require in the new native build; original loader-specific hang remains unverified |
 | [#886](https://github.com/standard-things/esm/issues/886) | **Deferred for this pass** | Existing VM boundary documentation retained | No implementation changes requested |
 
-Overall Docker success requires twelve cases. Reports label #817 samples as
+The user confirmed that all twelve Docker cases pass. Reports label #817 samples as
 `minimal-native-addon` and #691 samples as `reconstructed-renderer`. These
 scopes prevent a passing control from being mistaken for a full historical
 application result. The six #867/#915 passes retain their original scope. The ZIP
@@ -249,10 +251,10 @@ DevTools locations name the source. Native inspector regressions also cover
 first-line errors, special-character paths, source maps, repeated errors,
 runtime-error identity and invalid user-supplied stack locations.
 
-Run `pnpm verify:hosts:docker` for the updated twelve-case image. The original
-deleted application and its historical Electron version remain unverified.
-The direct Electron execution is separate from a Docker build/run; no Docker
-daemon was available in the authoring environment.
+The user confirmed that `pnpm verify:hosts:docker` passes all twelve cases,
+including the three #691 cache modes. **#691 is resolved.** The passing
+reconstruction satisfies the agreed resolution criterion; recovering the deleted
+branch or its historical Electron version is not a remaining requirement.
 
 ## Shared-realm VM emulation (#917)
 
@@ -298,7 +300,10 @@ change to the script API is included here.
 
 Actual pinned Electron checks passed for #691,
 #817's minimal addon controls and #867, each with disabled, cold and warm caches.
-The user-provided Docker results separately verify #867 and #915.
+The latest user-confirmed Docker run passes all twelve cases for #867, #915,
+#691 and #817's minimal addon controls. This completes #691 verification; the
+limited #817 controls do not close the full USB issue. #917 remains partially
+resolved and is not covered by the Docker host cases.
 
 Focused host/renderer/shared-VM/upstream checks passed 132 tests each on Node 22
 and 26. The Node 24 production run covered 1,655 tests: 1,510 passed initially;

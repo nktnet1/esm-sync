@@ -3,17 +3,19 @@
 Status as of 31 October 2026 for the 83 reports in
 [`standard-things/esm`](https://github.com/standard-things/esm/issues).
 The tests and source code, not a historical status label, are authoritative for
-current behaviour. Keep an issue open when its exact integration has not been
-verified. See [tooling and performance](tooling-and-performance.md) for evidence
+current behaviour. Keep an issue open until its agreed resolution criterion has
+been verified. For #691, the passing Electron reconstruction satisfies that
+criterion; recovering the deleted original application is not required.
+See [tooling and performance](tooling-and-performance.md) for evidence
 on the two application reproductions.
 For the scoped host reports, see the [full/partial/not-implemented status table](host-integrations.md) and verification instructions.
 
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      4 |
+| Investigate                                   |      3 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     57 |
+| Already covered                               |     58 |
 | Not planned                                   |     22 |
 | **Total**                                     | **83** |
 
@@ -31,12 +33,13 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 
 - **Electron renderer module loading (#867)** and **VS Code extension-host ESM loading (#915)** are **resolved for the original Linux reproductions**. The supplied Arch Linux/Wayland run passed all six disabled/cold/warm host cases using Electron 8.0.0 and VS Code 1.66.2 under Xvfb. Electron greeted exactly once on the first page load and each of three reloads in every cache mode. VS Code activated the original extension, executed its command and allocated a valid port in every mode. VS Code checks use fresh host processes; UI Reload Window is not automated. See [host verification](host-integrations.md) and run `pnpm verify:hosts:docker` for the self-contained Docker path.
 
+- **Electron renderer error stacks (#691)** - **Resolved.** Captured frames alone were insufficient: Chromium still reported the outer loader rethrow. Renderer errors now leave that boundary through a source-mapped function at their original location, preserving the error object. The user confirmed that all twelve Docker cases pass, including #691 syntax and runtime errors in disabled/cold/warm modes, followed by a healthy reload. The reconstruction satisfies the agreed resolution criterion; the deleted original application is not a remaining requirement. See [reconstruction and verification](host-integrations.md#chromium-error-presentation-691).
+
 ## Active investigations
 
 ### Electron and extension-host integrations
 
 - **Electron dynamic imports and native-addon failures (#817)** - **Partially resolved; full USB case open.** The incomplete-CommonJS-cache correction has regression coverage. Actual Electron 5.0.6 also passes disabled/cold/warm checks using real minimal addons for ABIs 137 and 70, including repeated/concurrent imports, a rebuilt control and a responsive debugger. These controls also pass upstream esm and do not reproduce the USB-specific hang. A real USB 1.6.0 ABI-72 build also crashes ordinary require without esm, so that native build cannot establish a loader-specific failure. Do not close the full issue on the minimal controls. See [scope and evidence](host-integrations.md#electron-dynamic-imports-and-native-addons-817).
-- **Electron renderer error stacks (#691)** - **Resolved for the recreated Electron 8 failure.** Captured frames alone were insufficient: Chromium still reported the outer loader rethrow. Renderer errors now leave that boundary through a source-mapped function at their original location, preserving the error object. Actual window events, console output and DevTools exception locations pass for syntax and runtime errors in disabled/cold/warm modes, followed by a healthy reload. The deleted original application and its historical Electron version remain unavailable. See [reconstruction and verification](host-integrations.md#chromium-error-presentation-691).
 
 ### Embedded VM hosts
 
@@ -61,7 +64,7 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **57** reports are classified _already covered_ by an existing
+The following **58** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
@@ -69,7 +72,7 @@ reproduction.
 931, 926, 924, 922, 921, 918, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
 896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
 846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
-786, 779, 775, 706.
+786, 779, 775, 706, 691.
 
 The following **22** reports are _not planned_: they concern external tooling,
 obsolete environments, different products, unsupported feature requests, or
