@@ -16,7 +16,7 @@ import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { styleText } from "node:util"
+import { hostCaseLine, hostLabel, hostSection } from "./host-output.ts"
 import { electronProbe, rendererErrorProbe, vscodeProbe } from "./host-probes.ts"
 import { hostRuntimeCache, hostRuntimes } from "./host-runtimes.ts"
 
@@ -191,7 +191,10 @@ export function validateReport(value: unknown, expected: Identity, code: number 
   for (const [key, identity] of Object.entries(expected)) {
     assert.equal(value[key], identity, `Unexpected host result: ${key}`)
   }
-  assert.equal(value.passed, true, JSON.stringify(value.errors))
+  if (value.passed !== true) {
+    const stage = typeof value.stage === "string" ? ` during ${value.stage}` : ""
+    throw new Error(`Host probe failed${stage}`)
+  }
   assert.deepEqual(value.errors, [], "Host reported runtime errors")
   if (expected.issue === 867) {
     assert.ok(Array.isArray(value.loads) && value.loads.length === 4, "Missing renderer reloads")
@@ -493,9 +496,18 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
     ESM_ENV: "production"
   }
   delete env.ELECTRON_RUN_AS_NODE
-  console.log(`${styleText("cyan", "REPORT")} ${output}`)
-  for (const issue of [867, 915, 691] as const) {
-    let context: Record<string, unknown> = {}
+  console.log(`${hostLabel("cyan", "REPORT")} ${output}`)
+  const issues = [867, 915, 691] as const
+  const phases = ["disabled", "cold", "warm"] as const
+  for (const [group, issue] of issues.entries()) {
+    hostSection(
+      group + 1,
+      issues.length,
+      `#${issue} — ${issue === 915 ? "VS Code 1.66.2" : "Electron 8.0.0"}`,
+      "Issue"
+    )
+    let context: Record<string, unknown> = { phase: "disabled" }
+    let currentPhase = 0
     try {
       const executable = runtime(issue, directory)
       preflight(executable)
@@ -511,7 +523,10 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
         project,
         "node_modules/esm/node_modules/.cache/esm/.data.json"
       )
-      for (const phase of ["disabled", "cold", "warm"] as const) {
+      for (const [phaseIndex, phase] of phases.entries()) {
+        currentPhase = phaseIndex
+        context = { phase }
+        hostCaseLine(group * 3 + phaseIndex + 1, 9, "RUN", issue, phase, "checking host")
         const identity: Identity = { issue, phase, nonce: randomUUID(), loader }
         const resultFile = path.join(reports, `${issue}-${phase}.json`)
         const config = { ...identity, project, result: resultFile }
@@ -549,8 +564,17 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
           "Unexpected compiler cache after launch"
         )
         samples.push({ issue, phase, passed: true, executable, result: resultFile, log: files.log })
-        console.log(
-          `${styleText("green", "PASS")} #${issue} ${phase}${issue === 867 ? " - first load + 3 reloads" : issue === 691 ? " - renderer syntax + runtime error locations" : " - activation + command + allocated port"}`
+        hostCaseLine(
+          group * 3 + phaseIndex + 1,
+          9,
+          "PASS",
+          issue,
+          phase,
+          issue === 867
+            ? "first load + 3 reloads"
+            : issue === 691
+              ? "syntax + runtime error locations"
+              : "activation + command + allocated port"
         )
       }
     } catch (error) {
@@ -562,21 +586,47 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
         passed: false,
         error: message
       })
-      console.error(`${styleText("red", "FAIL")} #${issue} ${message}`)
+      hostCaseLine(
+        group * 3 + currentPhase + 1,
+        9,
+        "FAIL",
+        issue,
+        phases[currentPhase]!,
+        "see diagnostics below"
+      )
+      console.error("\n" + message + "\n")
+      for (let skipped = currentPhase + 1; skipped < phases.length; skipped++)
+        hostCaseLine(
+          group * 3 + skipped + 1,
+          9,
+          "SKIP",
+          issue,
+          phases[skipped]!,
+          "earlier case failed"
+        )
     }
   }
   const passed = samples.length === 9 && samples.every((sample) => sample.passed)
+  const successes = samples.filter((sample) => sample.passed).length
+  const failures = samples.filter((sample) => !sample.passed).length
+  const counts = {
+    planned: 9,
+    passed: successes,
+    failed: failures,
+    skipped: 9 - successes - failures
+  }
   writeFileSync(
     output,
     JSON.stringify(
-      { passed, loaderSHA256: hash(path.join(root, "dist/esm/loader.js")), samples },
+      { passed, loaderSHA256: hash(path.join(root, "dist/esm/loader.js")), counts, samples },
       null,
       2
     )
   )
   console.log(
-    `${styleText(passed ? "green" : "red", passed ? "PASS" : "FAIL")} host verification; report: ${output}`
+    `\n${hostLabel(passed ? "green" : "red", passed ? "PASS" : "FAIL")}  ${successes} passed, ${failures} failed, ${9 - successes - failures} skipped / 9 planned\n`
   )
+  console.log(`${hostLabel("cyan", "REPORT")} ${output}\n`)
   if (!passed) process.exitCode = 1
 }
 
@@ -587,7 +637,7 @@ if (
 ) {
   verifyHostsContainer("/reports").catch((error: unknown) => {
     console.error(
-      `${styleText("red", "FAIL")} ${error instanceof Error ? error.message : String(error)}`
+      `${hostLabel("red", "FAIL")} ${error instanceof Error ? error.message : String(error)}`
     )
     process.exitCode = 1
   })

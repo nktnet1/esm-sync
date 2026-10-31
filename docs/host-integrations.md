@@ -1,15 +1,22 @@
-# Host integration verification and remaining scope
+# Host integration verification and issue status
 
-**#867 and #915 are resolved for the original Linux reproductions.**
-#691 now has a recreated renderer check; #917 has a shared-realm VM regression.
-Both new integration fixes still require their actual host verification.
- The supplied
-Arch Linux/Wayland run passed all six real-host cases: disabled, cold and warm
-caches for Electron 8.0.0 and VS Code 1.66.2. Electron completed the first load
-and three reloads per mode; VS Code activated the extension, executed its
-command and allocated a valid port per mode. A subsequent self-contained Docker
-run also passed all six cases. These results cover the tested historical
-integrations.
+These statuses cover the historical Linux integrations tested in this work.
+"Fully resolved" means the original host reproduction passed. "Partially
+resolved" means a verified component fix exists, with host work still open.
+
+| Issue | Status | Verified | Still needed |
+| --- | --- | --- | --- |
+| [#867](https://github.com/standard-things/esm/issues/867) | **Fully resolved for the original Linux reproduction** | Electron 8.0.0: first load and three reloads, disabled/cold/warm caches; confirmed again in the latest Docker run | None for this reproduction |
+| [#915](https://github.com/standard-things/esm/issues/915) | **Fully resolved for the original reproduction** | VS Code 1.66.2: activation, command and valid allocated port in all three cache modes; confirmed again in Docker | UI Reload Window remains outside the automated checks |
+| [#691](https://github.com/standard-things/esm/issues/691) | **Partially resolved; Electron verification pending** | Native V8 locations and source maps pass regression tests; the reproduced Docker check exposed a probe startup deadlock, fixed in this patch | Rerun the updated Docker command and inspect the actual window events and DevTools frames |
+| [#917](https://github.com/standard-things/esm/issues/917) | **Partially resolved; StackBlitz verification pending** | Shared-VM global corruption reproduced and fixed in native regressions | Run the patched package in real WebContainers and the affected application |
+| [#817](https://github.com/standard-things/esm/issues/817) | **Partially resolved** | Node rejection and cache-corruption fixes verified | Original Electron 5 native-addon mismatch/hang, using actual incompatible and rebuilt addons |
+| [#886](https://github.com/standard-things/esm/issues/886) | **Not implemented: API boundary** | `vm.runInThisContext` accepts scripts; documented alternatives can load modules | Automatic static-import support would require a separate feature decision |
+
+Overall Docker success requires all nine cases. The six recorded #867/#915
+passes establish their individual results while #691 remains open. The ZIP
+extraction code fix and security regressions are complete; a CodeQL rerun has
+not been observed in this authoring environment.
 
 ## Docker verification
 
@@ -52,6 +59,19 @@ filesystem operations. Archive regressions exercise malicious raw ZIP entries
 and destinations containing existing symlinks. This addresses the reported
 unsanitized archive-entry warning without suppressing the scanner.
 
+## Output
+
+The wrapper numbers build/run/export as `[Step 1/3]` through `[Step 3/3]`.
+Inside the image, issue groups use `[Issue 1/3]` and individual cache cases
+use `[1/9]` through `[9/9]`. Each case prints its RUN and PASS/FAIL result;
+subsequent cases skipped after a failure are labelled SKIP. The final summary
+and `report.json` counts distinguish passed, failed and skipped cases.
+
+Status labels retain ANSI colours through Docker's piped output, without a
+pseudo-terminal. Set `NO_COLOR=1` or `FORCE_COLOR=0` to disable colours. The
+wrapper passes the chosen policy into the container. Successful Docker copy,
+cleanup and daemon-version output is quiet; failures retain diagnostics.
+
 ## Checks and diagnostics
 
 Docker is the only supported verification entry point. The container's internal
@@ -91,15 +111,6 @@ the duration of the test and restores the original descriptor on success or
 failure. The probe requires a valid port from the original activation,
 successful command execution, and no rejection; the activation greeting alone
 is insufficient evidence.
-
-| Report                                                    | Result                                                            | Still needed                                                                              |
-| --------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [#867](https://github.com/standard-things/esm/issues/867) | Resolved: real Electron 8 first load and reloads pass             | None for the original Linux reproduction                                                  |
-| [#915](https://github.com/standard-things/esm/issues/915) | Resolved: real VS Code 1.66.2 activation and port allocation pass | None for the original reproduction; UI Reload Window was not automated                    |
-| [#817](https://github.com/standard-things/esm/issues/817) | Existing Node rejection/cache regressions retained                | Actual incompatible and compatible native addons, Electron run logs                       |
-| [#691](https://github.com/standard-things/esm/issues/691) | Native parser-frame correction; recreated renderer test added | Run the updated Docker command to collect actual Electron error events and DevTools frames |
-| [#917](https://github.com/standard-things/esm/issues/917) | Shared-realm VM global corruption fixed in a native regression | Confirm the patched package in a real WebContainers session and the affected application |
-| [#886](https://github.com/standard-things/esm/issues/886) | Script-goal API boundary; supported alternative below             | No missing source for the supplied probe                                                  |
 
 ## Renderer resolution (#867)
 
@@ -227,6 +238,15 @@ line and column before the stack getter is installed. A source map includes the
 original source and maps the generated capture back to its exact position.
 Runtime errors retain their existing capture and identity.
 This change installs no renderer error listener in the loader.
+
+The earlier probe awaited `Runtime.enable` before its first navigation. Electron
+can keep that debugger promise pending until navigation, leaving the probe
+unable to reach `loadFile`. The corrected probe loads and checks the page first,
+then attaches the debugger. Each asynchronous startup/error-collection stage
+has its own deadline. Failure JSON records the stage, recent renderer console
+messages, navigation failures, debugger detach reasons and exception events.
+A native mock-host regression reproduces the startup deadlock and tests stalled
+commands, navigation failures and detached targets. It does not launch Electron.
 
 Run `pnpm verify:hosts:docker` to exercise all nine host cases. The three #691
 cases require both `window` error events and DevTools `Runtime.exceptionThrown`

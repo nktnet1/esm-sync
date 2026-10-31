@@ -214,6 +214,7 @@ describe("self-contained desktop host verification", () => {
           "verify-hosts-container.ts",
           "host-probes.ts",
           "host-runtimes.ts",
+          "host-output.ts",
           "package.json"
         ])
           await cp(path.resolve("script/src/esm", file), path.join(scripts, file))
@@ -246,6 +247,9 @@ await verifyHostsContainer(process.argv[1])`
         const files = await readdir(reports)
         expect(files.sort()).toEqual(["inputs.json", "report.json"])
         expect(result.stdout).toContain(path.join(reports, "report.json"))
+        expect(result.stdout).toContain("0 passed, 3 failed, 6 skipped / 9 planned")
+        expect(result.stdout).toContain("[Issue 1/3]")
+        expect(result.stdout).toContain("[9/9]")
       })
     }
   )
@@ -314,6 +318,8 @@ await verifyHostsContainer(process.argv[1])`
           expect(run).toBeDefined()
           expect(run!.at(-1)).toBe(image)
           expect(run).toContain("--init")
+          expect(run).toContain("--env")
+          expect(run!.some((value) => /^FORCE_COLOR=[01]$/.test(value))).toBe(true)
           expect(run!.slice(run!.indexOf("--network"), run!.indexOf("--network") + 2)).toEqual([
             "--network",
             "none"

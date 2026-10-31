@@ -77,12 +77,25 @@ const path = require('path');
 const { fileURLToPath } = require('url');
 const electron = require('electron');
 const config = JSON.parse(process.env.ESM_HOST_CHECK);
-const report = { ...config, issue: 691, cases: [], errors: [], passed: false };
+const report = { ...config, issue: 691, cases: [], errors: [], passed: false,
+  stage: 'waiting for Electron ready', console: [], navigationErrors: [], exceptions: [] };
 let window, finished = false;
+async function stage(name, action, timeout = 10000) {
+  report.stage = name;
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve().then(action),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Timed out after ' + timeout + 'ms during ' + name)), timeout);
+      })
+    ]);
+  } finally { clearTimeout(timer); }
+}
 function finish(error) {
   if (finished) return;
   finished = true;
-  if (error) report.errors.push(String(error.stack || error));
+  if (error) report.errors.push('Stage: ' + report.stage + '\\n' + String(error.stack || error));
   report.passed = !report.errors.length && report.cases.length === 2;
   fs.writeFileSync(config.result, JSON.stringify(report, null, 2));
   const code = report.passed ? 0 : 1;
@@ -101,33 +114,54 @@ electron.app.on('ready', async () => {
       show: true, width: 800, height: 600,
       webPreferences: { nodeIntegration: true, contextIsolation: false, sandbox: false }
     });
-    const exceptions = [];
+    const exceptions = report.exceptions;
     const debuggerClient = window.webContents.debugger;
-    debuggerClient.attach('1.3');
-    debuggerClient.on('message', (_event, method, params) => {
-      if (method === 'Runtime.exceptionThrown') exceptions.push(params.exceptionDetails);
+    window.webContents.on('console-message', (_event, level, message, line, source) => {
+      report.console.push({ level, message, line, source });
+      if (report.console.length > 50) report.console.shift();
     });
-    await debuggerClient.sendCommand('Runtime.enable');
-    await debuggerClient.sendCommand('Debugger.enable');
+    window.webContents.on('did-fail-load', (_event, code, description, url, mainFrame) => {
+      report.navigationErrors.push({ code, description, url, mainFrame });
+    });
     window.webContents.on('crashed', () => finish(new Error('Renderer crashed')));
-    await window.loadFile(path.join(config.project, 'index.html'));
-    const details = await window.webContents.executeJavaScript(
+    // A debugger command can remain pending until the first navigation in
+    // Electron 8. Navigate before awaiting CDP, rather than deadlocking startup.
+    await stage('load renderer page', () => window.loadFile(path.join(config.project, 'index.html')));
+    const details = await stage('inspect renderer bootstrap', () => window.webContents.executeJavaScript(
       "({loader:require.resolve('esm'),healthy:window.__esmHealthy,versions:process.versions,type:process.type})"
-    );
+    ), 5000);
     assert.equal(fs.realpathSync(details.loader), config.loader);
     assert.equal(details.type, 'renderer');
     assert.equal(details.healthy, true);
     report.versions = details.versions;
+    report.stage = 'attach renderer debugger';
+    debuggerClient.on('message', (_event, method, params) => {
+      if (method === 'Runtime.exceptionThrown') exceptions.push(params.exceptionDetails);
+    });
+    debuggerClient.on('detach', (_event, reason) => {
+      report.detachReason = reason;
+      if (!finished) finish(new Error('Renderer debugger detached: ' + reason));
+    });
+    debuggerClient.attach('1.3');
+    await stage('enable debugger Runtime.enable', () => debuggerClient.sendCommand('Runtime.enable'), 5000);
+    if (finished) return;
+    await stage('enable debugger Debugger.enable', () => debuggerClient.sendCommand('Debugger.enable'), 5000);
+    if (finished) return;
     for (const kind of ['syntax', 'runtime']) {
       const before = exceptions.length;
-      await window.webContents.executeJavaScript('window.__esmTriggerError(' + JSON.stringify(kind) + ')');
-      const deadline = Date.now() + 10000;
-      let events;
-      do {
-        events = await window.webContents.executeJavaScript('window.__esmErrorReports');
-        if (events.length === report.cases.length + 1 && exceptions.length === before + 1) break;
-        await new Promise(resolve => setTimeout(resolve, 25));
-      } while (Date.now() < deadline);
+      await stage('trigger ' + kind + ' error', () => window.webContents.executeJavaScript(
+        'window.__esmTriggerError(' + JSON.stringify(kind) + ')'
+      ), 5000);
+      const events = await stage('collect ' + kind + ' window and debugger errors', async () => {
+        while (!finished) {
+          const observed = await window.webContents.executeJavaScript('window.__esmErrorReports');
+          if (observed.length === report.cases.length + 1 && exceptions.length === before + 1) return observed;
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        return [];
+      });
+      if (finished) return;
+      report.stage = 'validate ' + kind + ' error location';
       const item = { kind, windowEvent: events[report.cases.length], exception: exceptions[before] };
       report.cases.push(item);
       assert.equal(events.length, report.cases.length, 'Missing or extra window error events');
@@ -144,11 +178,11 @@ electron.app.on('ready', async () => {
       assert.equal(canonical(frame.url), expected, 'DevTools points at the loader');
       assert.equal(frame.lineNumber, 1);
     }
-    debuggerClient.detach();
+    report.stage = 'complete';
     finish();
   } catch (error) { finish(error); }
 });
-setTimeout(() => finish(new Error('Renderer error verification timed out')), 45000);
+setTimeout(() => finish(new Error('Renderer verification exceeded 45s during ' + report.stage)), 45000);
 `
 
 export const vscodeProbe = `

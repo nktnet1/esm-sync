@@ -11,7 +11,8 @@ import {
 } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { parseArgs, styleText } from "node:util"
+import { parseArgs } from "node:util"
+import { hostColorsEnabled, hostLabel, hostSection } from "./host-output.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 export type DockerRunner = (args: string[], cwd: string) => Promise<number>
@@ -24,7 +25,11 @@ function dockerClient(): { run: DockerRunner; cancel: () => void } {
     },
     run(args, cwd) {
       return new Promise((resolve, reject) => {
-        const child = spawn("docker", args, { cwd, stdio: "inherit" })
+        const quiet = ["version", "cp", "rm"].includes(args[0] ?? "")
+        const child = spawn("docker", args, {
+          cwd,
+          stdio: ["ignore", quiet ? "ignore" : "inherit", "inherit"]
+        })
         active = child
         const timeout = args[0] === "build" ? 1_800_000 : args[0] === "run" ? 600_000 : 30_000
         const timer = setTimeout(() => child.kill("SIGKILL"), timeout)
@@ -74,11 +79,8 @@ export async function verifyHostsDocker(
   const project = realpathSync(projectRoot)
   const client = dockerClient()
   const run = runner ?? client.run
-  assert.equal(
-    await run(["version", "--format", "{{.Server.Version}}"], project),
-    0,
-    "Docker daemon is unavailable"
-  )
+  if ((await run(["version", "--format", "{{.Server.Version}}"], project)) !== 0)
+    throw new Error("Docker daemon is unavailable")
   const base = path.join(project, ".cache/host-verification")
   mkdirSync(base, { recursive: true })
   const directory = realpathSync(mkdtempSync(path.join(realpathSync(base), "run-")))
@@ -104,9 +106,9 @@ export async function verifyHostsDocker(
   process.once("SIGINT", onInterrupt)
   process.once("SIGTERM", onInterrupt)
   process.once("exit", onExit)
-  console.log(`${styleText("cyan", "ARTIFACTS")} ${reports}`)
+  console.log(`\n${hostLabel("cyan", "REPORTS")} ${reports}`)
   try {
-    console.log(`${styleText("cyan", "BUILD")} self-contained Linux host image`)
+    hostSection(1, 3, "Build the self-contained Linux host image")
     const buildCode = await run(
       [
         "build",
@@ -122,13 +124,15 @@ export async function verifyHostsDocker(
       ],
       project
     )
-    assert.ok(!interrupted, "Host verification interrupted")
-    assert.equal(buildCode, 0, `Docker build failed; artifacts: ${directory}`)
+    if (interrupted) throw new Error("Host verification interrupted")
+    if (buildCode !== 0)
+      throw new Error(`Docker build failed (exit ${buildCode}); reports: ${reports}`)
     image = readFileSync(imageFile, "utf8").trim()
     assert.match(image, /^sha256:[a-f0-9]{64}$/, "Docker did not write an image ID")
     attempted = true
+    let copyCode: number | null = null
     try {
-      console.log(`${styleText("cyan", "RUN")} offline Electron 8 / VS Code 1.66.2 checks`)
+      hostSection(2, 3, "Run nine offline Electron / VS Code checks")
       runCode = await run(
         [
           "run",
@@ -141,6 +145,8 @@ export async function verifyHostsDocker(
           "none",
           "--shm-size",
           "1g",
+          "--env",
+          `FORCE_COLOR=${hostColorsEnabled() ? "1" : "0"}`,
           image
         ],
         project
@@ -148,11 +154,13 @@ export async function verifyHostsDocker(
     } finally {
       // Keep the stopped container until diagnostics have been exported, including
       // failed runs. No source tree or external assets are mounted into it.
-      const copyCode = await run(["cp", `${container}:/reports/.`, reports], project)
-      assert.equal(copyCode, 0, `Could not export container diagnostics to ${reports}`)
+      hostSection(3, 3, "Export diagnostics and remove the test container")
+      copyCode = await run(["cp", `${container}:/reports/.`, reports], project)
     }
-    assert.ok(!interrupted, `Host verification interrupted; reports: ${reports}`)
-    assert.equal(runCode, 0, `Host container exited with ${runCode}; reports: ${reports}`)
+    if (copyCode !== 0) throw new Error(`Could not export container diagnostics to ${reports}`)
+    if (interrupted) throw new Error(`Host verification interrupted; reports: ${reports}`)
+    if (runCode !== 0)
+      throw new Error(`Host verification failed (container exit ${runCode}). Reports: ${reports}`)
     const output = path.join(reports, "report.json")
     assert.ok(existsSync(output), `Container wrote no verification report: ${output}`)
     validateDockerReport(JSON.parse(readFileSync(output, "utf8")) as unknown)
@@ -173,9 +181,9 @@ export async function verifyHostsDocker(
       )
     }
   }
-  assert.equal(cleanupCode, 0, `Could not remove verification container ${container}`)
+  if (cleanupCode !== 0) throw new Error(`Could not remove verification container ${container}`)
   console.log(
-    `${styleText("green", "PASS")} Docker host verification; report: ${path.join(reports, "report.json")}`
+    `${hostLabel("green", "PASS")} Docker host verification\n\n${hostLabel("cyan", "REPORT")} ${path.join(reports, "report.json")}\n`
   )
   return reports
 }
@@ -192,7 +200,9 @@ if (
     )
   } else {
     verifyHostsDocker().catch((error: unknown) => {
-      console.error(`${styleText("red", "FAIL")} ${String(error)}`)
+      console.error(
+        `\n${hostLabel("red", "FAIL")} ${error instanceof Error ? error.message : String(error)}\n`
+      )
       process.exitCode = 1
     })
   }
