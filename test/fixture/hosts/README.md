@@ -42,3 +42,15 @@ DevTools exception frames and unsuppressed window error events. It does not
 claim to reproduce the original deleted application or Electron version. The
 passing Docker reconstruction satisfies the agreed resolution criterion for
 #691; recovering that application is not required to mark the issue resolved.
+
+`issue-917` is a newly authored MIT regression for a VM that shares host
+intrinsics. Docker runs it with an explicit VM emulation; the real-host command
+runs it without emulation inside a WebContainer. A copy of the current production
+loader with only the shared-realm guard disabled supplies the negative control.
+
+The full #817 checks additionally use actual USB 1.6.0 source, nan 2.13.2,
+bindings 1.5.0, file-uri-to-path 1.0.0 and USB's published Node ABI-64 binary.
+These are checksum-pinned downloads, retained with their licences under ignored
+`.cache/` paths. The original USB JavaScript is not replaced with the minimal
+shim in these separate checks. A full ABI-70 USB rebuild supplies the positive
+control; ordinary-require crashes are reported as verification blockers.

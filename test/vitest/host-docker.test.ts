@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest"
 import {
   downloadHostRuntime,
   hostAddonHeaders,
+  hostPackages,
   hostRuntimes,
   type HostRuntime
 } from "../../script/src/esm/host-runtimes.ts"
@@ -190,6 +191,9 @@ describe("self-contained desktop host verification", () => {
     const paths = [
       ...hostRuntimes.map((spec) => `.cache/host-runtimes/${spec.file}`),
       `.cache/host-runtimes/${hostAddonHeaders.file}`,
+      ...Object.values(hostPackages).map((spec) => `.cache/host-runtimes/${spec.file}`),
+      ".cache/host-packages/usb-compatible/node_modules/usb/build/Release/usb_bindings.node",
+      ".cache/host-packages/usb-mismatch/node_modules/usb/build/Release/usb_bindings.node",
       ".cache/host-addons/mismatch.node",
       ".cache/host-addons/compatible.node",
       ".cache/host-addons/builds.json",
@@ -227,6 +231,9 @@ describe("self-contained desktop host verification", () => {
           "host-probes.ts",
           "host-runtimes.ts",
           "host-output.ts",
+          "verify-host-usb.ts",
+          "webcontainer-probe.ts",
+          "webcontainer-kit.ts",
           "package.json"
         ])
           await cp(path.resolve("script/src/esm", file), path.join(scripts, file))
@@ -247,21 +254,23 @@ await verifyHostsContainer(process.argv[1])`
         expect(result.code).not.toBe(0)
         const report = JSON.parse(await readFile(path.join(reports, "report.json"), "utf8")) as {
           passed: boolean
-          samples: { passed: boolean; error: string }[]
+          samples: { issue: number; passed: boolean; error: string }[]
         }
         expect(report.passed).toBe(false)
-        expect(report.samples).toHaveLength(4)
+        expect(report.samples).toHaveLength(5)
         expect(report.samples.every((sample) => sample.passed === false)).toBe(true)
-        expect(report.samples.every((sample) => /missing runtime archive/.test(sample.error))).toBe(
-          true
-        )
+        expect(
+          report.samples
+            .filter((sample) => sample.issue !== 917)
+            .every((sample) => /missing runtime archive/.test(sample.error))
+        ).toBe(true)
         expect(await readFile(path.join(reports, "inputs.json"), "utf8")).toBe(inputs)
         const files = await readdir(reports)
         expect(files.sort()).toEqual(["inputs.json", "report.json"])
         expect(result.stdout).toContain(path.join(reports, "report.json"))
-        expect(result.stdout).toContain("0 passed, 4 failed, 8 skipped / 12 planned")
-        expect(result.stdout).toContain("[Issue 1/4]")
-        expect(result.stdout).toContain("[12/12]")
+        expect(result.stdout).toContain("0 passed, 5 failed, 10 skipped / 15 regression cases")
+        expect(result.stdout).toContain("[Issue 1/5]")
+        expect(result.stdout).toContain("[15/15]")
       })
     }
   )
@@ -269,8 +278,16 @@ await verifyHostsContainer(process.argv[1])`
   const image = "sha256:" + "a".repeat(64)
   const validReport = {
     passed: true,
+    controlsPassed: true,
+    usb: ["disabled", "cold", "warm"].map((phase) => ({
+      phase,
+      status: "resolved",
+      runs: ["require", "import"].flatMap((mode) =>
+        ["mismatch", "compatible"].map((binary) => ({ mode, binary, passed: true }))
+      )
+    })),
     loaderSHA256: "b".repeat(64),
-    samples: [867, 915, 691, 817].flatMap((issue) =>
+    samples: [867, 915, 691, 817, 917].flatMap((issue) =>
       ["disabled", "cold", "warm"].map((phase) => ({
         issue,
         phase,
@@ -280,7 +297,9 @@ await verifyHostsContainer(process.argv[1])`
             ? "minimal-native-addon"
             : issue === 691
               ? "reconstructed-renderer"
-              : "original-reproduction"
+              : issue === 917
+                ? "shared-realm-vm-regression"
+                : "original-reproduction"
       }))
     )
   }
@@ -292,6 +311,8 @@ await verifyHostsContainer(process.argv[1])`
     "missing-report",
     "failed-report",
     "duplicate-phase",
+    "missing-usb",
+    "blocked-usb",
     "malformed-report",
     "copy-failure"
   ] as const) {
@@ -307,7 +328,7 @@ await verifyHostsContainer(process.argv[1])`
             const index = args.indexOf("--iidfile")
             await writeFile(args[index + 1]!, image + "\n")
           } else if (args[0] === "run") {
-            return outcome === "run-failure" ? 1 : 0
+            return outcome === "run-failure" ? 1 : outcome === "blocked-usb" ? 2 : 0
           } else if (args[0] === "cp") {
             reports = args[2]!
             if (outcome === "copy-failure") return 1
@@ -316,12 +337,42 @@ await verifyHostsContainer(process.argv[1])`
               const report =
                 outcome === "failed-report"
                   ? { ...validReport, passed: false }
-                  : outcome === "duplicate-phase"
-                    ? {
-                        ...validReport,
-                        samples: validReport.samples.map((sample) => ({ ...sample, phase: "cold" }))
-                      }
-                    : validReport
+                  : outcome === "missing-usb"
+                    ? { ...validReport, usb: [] }
+                    : outcome === "blocked-usb"
+                      ? {
+                          ...validReport,
+                          passed: false,
+                          blocked: true,
+                          usb: validReport.usb.map((item) => ({
+                            ...item,
+                            status: "blocked",
+                            runs: item.runs.map((run) =>
+                              run.mode === "require" && run.binary === "mismatch"
+                                ? {
+                                    ...run,
+                                    passed: false,
+                                    signal: "SIGSEGV",
+                                    code: null,
+                                    report: {
+                                      rejections: [
+                                        "NODE_MODULE_VERSION 64; requires NODE_MODULE_VERSION 70"
+                                      ]
+                                    }
+                                  }
+                                : run
+                            )
+                          }))
+                        }
+                      : outcome === "duplicate-phase"
+                        ? {
+                            ...validReport,
+                            samples: validReport.samples.map((sample) => ({
+                              ...sample,
+                              phase: "cold"
+                            }))
+                          }
+                        : validReport
               await writeFile(
                 path.join(reports, "report.json"),
                 outcome === "malformed-report" ? "invalid JSON" : JSON.stringify(report)

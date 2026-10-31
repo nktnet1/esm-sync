@@ -19,6 +19,7 @@ RUN npm install --global --ignore-scripts --no-audit --no-fund pnpm@12.15.0 \
 
 COPY . .
 RUN node script/src/esm/build-host-addons.ts
+RUN node script/src/esm/build-host-usb.ts
 # The existing build prepares Acorn source here. Keep it between source edits
 # without shipping downloaded vendor inputs or host caches in the build context.
 RUN --mount=type=cache,target=/work/src/vendor,sharing=locked \

@@ -9,7 +9,7 @@ import { styleText } from "node:util"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 export const hostRuntimeCache = path.join(root, ".cache/host-runtimes")
 
-type HostInput = {
+export type HostInput = {
   file: string
   url: string
   sha256: string
@@ -23,6 +23,40 @@ export const hostAddonHeaders: HostInput = {
   sha256: "946517cfc809fa46f1e6938ee7f162b5780103575fa77e41957570cd3d13c8ac",
   maxBytes: 10 * 1024 * 1024
 }
+
+// Exact upstream packages and published native binary, not replacement USB code.
+export const hostPackages = {
+  usb: {
+    file: "usb-1.6.0.tgz",
+    url: "https://registry.npmjs.org/usb/-/usb-1.6.0.tgz",
+    sha256: "d7d6978bf8a274d7bb4317d879284d41492763698d69be6f0108456637cc7f07",
+    maxBytes: 1024 * 1024
+  },
+  nan: {
+    file: "nan-2.13.2.tgz",
+    url: "https://registry.npmjs.org/nan/-/nan-2.13.2.tgz",
+    sha256: "0520c55a378526746425feb92335e1b3a911a0f0197a20f8a78eb8b9ad60150f",
+    maxBytes: 1024 * 1024
+  },
+  bindings: {
+    file: "bindings-1.5.0.tgz",
+    url: "https://registry.npmjs.org/bindings/-/bindings-1.5.0.tgz",
+    sha256: "d77781178c5bd89a91b1f6c5556acd511b1b5927eb13e2ad8189cac29eeb0907",
+    maxBytes: 64 * 1024
+  },
+  fileUri: {
+    file: "file-uri-to-path-1.0.0.tgz",
+    url: "https://registry.npmjs.org/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz",
+    sha256: "5440cdf67e75ab96f36a6be63c1d4c3d54255b1d0970273710fecfebfab06fb3",
+    maxBytes: 64 * 1024
+  },
+  usbBinary: {
+    file: "usb-v1.6.0-node-v64-linux-x64.tar.gz",
+    url: "https://github.com/node-usb/node-usb/releases/download/v1.6.0/usb-v1.6.0-node-v64-linux-x64.tar.gz",
+    sha256: "c7e619c313c1d491e6fed0cd6438130257cdef1fe89c8c906deca4247d2ce064",
+    maxBytes: 1024 * 1024
+  }
+} satisfies Record<string, HostInput>
 
 // Electron digests come from official release SHASUMS256 files; the VS Code
 // digest is from the supplied, previously verified historical archive.
@@ -120,7 +154,7 @@ export async function downloadHostRuntime(
 export async function downloadHostRuntimes(destination = hostRuntimeCache): Promise<void> {
   // Await every independent download before emitting the complete provenance file.
   const results = await Promise.allSettled(
-    [...hostRuntimes, hostAddonHeaders].map(async (input) => {
+    [...hostRuntimes, hostAddonHeaders, ...Object.values(hostPackages)].map(async (input) => {
       console.log(`${styleText("cyan", "RUNTIME")} ${input.file}`)
       const result = await downloadHostRuntime(input, destination)
       console.log(`${styleText("green", result.toUpperCase())} ${input.file}`)
@@ -145,7 +179,8 @@ export async function downloadHostRuntimes(destination = hostRuntimeCache): Prom
           addonHeaders: {
             ...hostAddonHeaders,
             bytes: (await stat(path.join(directory, hostAddonHeaders.file))).size
-          }
+          },
+          packages: hostPackages
         },
         null,
         2

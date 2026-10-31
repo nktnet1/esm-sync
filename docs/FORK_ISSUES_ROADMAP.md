@@ -41,9 +41,22 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 
 - **Electron dynamic imports and native-addon failures (#817)** - **Partially resolved; full USB case open.** The incomplete-CommonJS-cache correction has regression coverage. Actual Electron 5.0.6 also passes disabled/cold/warm checks using real minimal addons for ABIs 137 and 70, including repeated/concurrent imports, a rebuilt control and a responsive debugger. These controls also pass upstream esm and do not reproduce the USB-specific hang. A real USB 1.6.0 ABI-72 build also crashes ordinary require without esm, so that native build cannot establish a loader-specific failure. Do not close the full issue on the minimal controls. See [scope and evidence](host-integrations.md#electron-dynamic-imports-and-native-addons-817).
 
+The expanded `pnpm verify:hosts:docker` check now uses the published USB ABI-64
+binary and a full USB ABI-70 rebuild as well as the minimal controls. It runs
+ordinary require and dynamic import in separate processes. A demonstrated
+ordinary-require native crash is BLOCKED (exit 2), not a passing loader result.
+The published binary reproduces the ABI error followed by SIGSEGV without esm.
+
 ### Embedded VM hosts
 
 - **StackBlitz/WebContainers (#917)** - **Partially resolved.** The shared-intrinsic guard fixes live-global corruption in native regressions across cache modes. A real WebContainer on Node 22.22.3 loads a smoke module with the published fork and retains Object; upstream esm fails that smoke load. The guard was applied to an isolated test package, but the full historically failing application path was not established. Preserve this distinction before closing the issue. See [scope and evidence](host-integrations.md#shared-realm-vm-emulation-917).
+
+Docker now includes the #917 shared VM regression and a guard-disabled negative
+control in each cache mode. `pnpm verify:webcontainer` runs the same graph in the
+actual WebContainer without replacing VM APIs. An optional application directory
+also runs its build and requires evidence that it invoked the fork. The latest
+linked Ember build returned zero but invoked no esm factory, so it does not
+establish the historical failing path. See the [new verification commands](host-integrations.md#full-usb-and-real-webcontainer-verification).
 
 ### VM API boundary
 

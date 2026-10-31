@@ -19,14 +19,23 @@ import { fileURLToPath } from "node:url"
 import { hostCaseLine, hostLabel, hostSection } from "./host-output.ts"
 import { electronProbe, nativeAddonProbe, rendererErrorProbe, vscodeProbe } from "./host-probes.ts"
 import { hostRuntimeCache, hostRuntimes } from "./host-runtimes.ts"
+import { prepareVmCounterfactual, webcontainerProbe } from "./webcontainer-probe.ts"
+import { exportWebContainerKit } from "./webcontainer-kit.ts"
+import { verifyHostUsb, type UsbVerdict } from "./verify-host-usb.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 const require = createRequire(import.meta.url)
 type ZipEntry = { entryName: string; isDirectory: boolean; attr: number; getData(): Buffer }
 type Zip = { getEntries(): ZipEntry[] }
 type Phase = "disabled" | "cold" | "warm"
-type Issue = 691 | 817 | 867 | 915
-type Identity = { issue: Issue; phase: Phase; nonce: string; loader: string }
+type Issue = 691 | 817 | 867 | 915 | 917
+type Identity = {
+  issue: Issue
+  phase: Phase
+  nonce: string
+  loader: string
+  scope?: "actual-webcontainer" | "shared-realm-vm-regression"
+}
 type CommandResult = {
   code: number | null
   signal: NodeJS.Signals | null
@@ -47,7 +56,7 @@ type CaseDetails = {
   hostResult: unknown
 }
 
-class HostProcessError extends Error {
+export class HostProcessError extends Error {
   readonly result: CommandResult
 
   constructor(message: string, result: CommandResult) {
@@ -115,14 +124,15 @@ export async function runCommand(
   args: string[],
   cwd: string,
   env: NodeJS.ProcessEnv,
-  timeout = 90_000
+  timeout = 90_000,
+  processGroups = true
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(executable, args, {
       cwd,
       env,
       stdio: "pipe",
-      detached: process.platform !== "win32"
+      detached: processGroups && process.platform !== "win32"
     })
     child.stdin.end()
     let stdout = ""
@@ -134,6 +144,8 @@ export async function runCommand(
         if (signal === "SIGKILL" && child.pid)
           spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"])
         else child.kill(signal)
+      } else if (!processGroups) {
+        child.kill(signal)
       } else if (child.pid) {
         try {
           process.kill(-child.pid, signal)
@@ -269,6 +281,24 @@ export function validateReport(value: unknown, expected: Identity, code: number 
       )
       assert.equal(frame.lineNumber, 1)
     }
+  } else if (expected.issue === 917) {
+    assert.equal(value.scope, expected.scope ?? "shared-realm-vm-regression")
+    assert.equal(value.sharedRealm, true)
+    if (value.scope === "shared-realm-vm-regression")
+      assert.ok(typeof value.sharedRuns === "number" && value.sharedRuns > 0)
+    else assert.notEqual(value.emulate, true, "Real-host verification must not replace VM APIs")
+    assert.equal(value.imports, 2)
+    assert.equal(value.rejections, 3)
+    assert.deepEqual(value.globals, [
+      "Object",
+      "Function",
+      "Array",
+      "Error",
+      "Promise",
+      "Reflect",
+      "Symbol",
+      "JSON"
+    ])
   } else {
     assert.equal(value.version, "1.66.2")
     assert.equal(value.commandExecuted, true)
@@ -308,12 +338,12 @@ export async function runHostCase(
   env: NodeJS.ProcessEnv,
   identity: Identity,
   files: { log: string; result: string },
-  options: { timeout?: number } = {}
+  options: { timeout?: number; processGroups?: boolean } = {}
 ): Promise<CaseDetails> {
   let result: CommandResult
   let processError = ""
   try {
-    result = await runCommand(executable, args, cwd, env, options.timeout)
+    result = await runCommand(executable, args, cwd, env, options.timeout, options.processGroups)
   } catch (error) {
     if (!(error instanceof HostProcessError)) throw error
     result = error.result
@@ -391,7 +421,12 @@ export async function prepareProject(issue: Issue, directory: string): Promise<s
     cpSync(path.join(root, file), path.join(loader, file))
   }
   cpSync(
-    realpathSync(path.join(root, "node_modules/punycode")),
+    realpathSync(
+      path.join(
+        root,
+        existsSync(path.join(root, "vendor/punycode")) ? "vendor/punycode" : "node_modules/punycode"
+      )
+    ),
     path.join(loader, "node_modules/punycode"),
     { recursive: true }
   )
@@ -530,6 +565,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
   mkdirSync(reportDirectory, { recursive: true })
   const reports = realpathSync(reportDirectory)
   const samples: Record<string, unknown>[] = []
+  const usb: UsbVerdict[] = []
   const output = path.join(reports, "report.json")
   writeFileSync(output, JSON.stringify({ passed: false, samples }, null, 2))
   cpSync(path.join(hostRuntimeCache, "inputs.json"), path.join(reports, "inputs.json"))
@@ -541,7 +577,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
   }
   delete env.ELECTRON_RUN_AS_NODE
   console.log(`${hostLabel("cyan", "REPORT")} ${output}`)
-  const issues = [867, 915, 691, 817] as const
+  const issues = [867, 915, 691, 817, 917] as const
   const phases = ["disabled", "cold", "warm"] as const
   const planned = issues.length * phases.length
   for (const [group, issue] of issues.entries()) {
@@ -550,20 +586,23 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
         ? "minimal-native-addon"
         : issue === 691
           ? "reconstructed-renderer"
-          : "original-reproduction"
+          : issue === 917
+            ? "shared-realm-vm-regression"
+            : "original-reproduction"
     hostSection(
       group + 1,
       issues.length,
-      `#${issue} — ${issue === 915 ? "VS Code 1.66.2" : issue === 817 ? "Electron 5.0.6 (minimal ABI controls)" : "Electron 8.0.0"}`,
+      `#${issue} — ${issue === 915 ? "VS Code 1.66.2" : issue === 817 ? "Electron 5.0.6 (minimal controls + full USB)" : issue === 917 ? "shared VM regression (emulated)" : "Electron 8.0.0"}`,
       "Issue"
     )
     let context: Record<string, unknown> = { phase: "disabled" }
     let currentPhase = 0
     try {
-      const executable = runtime(issue, directory)
-      preflight(executable)
+      const executable = issue === 917 ? realpathSync(process.execPath) : runtime(issue, directory)
+      if (issue !== 917) preflight(executable)
       const project = await prepareProject(issue, directory)
       const loader = realpathSync(path.join(project, "node_modules/esm/dist/esm.js"))
+      const counterfactual = issue === 917 ? prepareVmCounterfactual(loader, project) : null
       const probe = path.join(project, "host-probe.cjs")
       writeFileSync(
         probe,
@@ -573,7 +612,9 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
             ? rendererErrorProbe
             : issue === 817
               ? nativeAddonProbe
-              : vscodeProbe
+              : issue === 917
+                ? webcontainerProbe
+                : vscodeProbe
       )
       const addonEnv: NodeJS.ProcessEnv = {}
       if (issue === 817) {
@@ -606,16 +647,55 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
         hostCaseLine(group * 3 + phaseIndex + 1, planned, "RUN", issue, phase, "checking host")
         const identity: Identity = { issue, phase, nonce: randomUUID(), loader }
         const resultFile = path.join(reports, `${issue}-${phase}.json`)
-        const config = { ...identity, project, result: resultFile }
+        const config = {
+          ...identity,
+          project,
+          result: resultFile,
+          ...(issue === 917 ? { emulate: true } : {})
+        }
         const cacheExists =
           existsSync(path.join(compilerCache, ".data.json")) && existsSync(bootstrapCache)
         assert.equal(cacheExists, phase === "warm", "Unexpected cache state before host launch")
-        const command = hostLaunchCommand(
-          executable,
-          hostLaunchArgs(issue, probe, project, directory, phase)
-        )
+        const command =
+          issue === 917
+            ? { executable, args: [probe] }
+            : hostLaunchCommand(executable, hostLaunchArgs(issue, probe, project, directory, phase))
         const files = { log: path.join(reports, `${issue}-${phase}.log`), result: resultFile }
         context = { phase, ...files, command: { ...command, cwd: project } }
+        if (issue === 917) {
+          assert.ok(counterfactual)
+          const counterfactualResult = path.join(reports, `917-${phase}-counterfactual.json`)
+          const baseline = await runCommand(
+            executable,
+            [probe],
+            project,
+            {
+              ...env,
+              ESM_DISABLE_CACHE: "true",
+              ESM_OPTIONS: JSON.stringify({ cache: false }),
+              ESM_HOST_CHECK: JSON.stringify({
+                ...config,
+                loader: counterfactual,
+                result: counterfactualResult
+              })
+            },
+            20_000
+          )
+          writeFileSync(
+            path.join(reports, `917-${phase}-counterfactual.log`),
+            JSON.stringify(baseline, null, 2)
+          )
+          assert.notEqual(
+            baseline.code,
+            0,
+            "The loader passed with the shared-realm guard disabled; the negative control is no longer valid"
+          )
+          assert.match(
+            readFileSync(counterfactualResult, "utf8"),
+            /VM context preparation deleted the live Object/,
+            "The counterfactual failed for an unrelated reason"
+          )
+        }
         const details = await runHostCase(
           command.executable,
           command.args,
@@ -641,6 +721,16 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
           phase !== "disabled",
           "Unexpected compiler cache after launch"
         )
+        if (issue === 817)
+          usb.push(
+            await verifyHostUsb(executable, loader, project, phase, reports, {
+              ...hostLaunchEnv(env),
+              ESM_DISABLE_CACHE: String(phase === "disabled"),
+              ESM_OPTIONS: JSON.stringify({
+                cache: phase === "disabled" ? false : path.join(project, "full-usb-cache")
+              })
+            })
+          )
         samples.push({
           issue,
           scope,
@@ -662,7 +752,9 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
               ? "syntax + runtime error locations"
               : issue === 817
                 ? "minimal addon: ABI rejection + rebuilt control + debugger responds"
-                : "activation + command + allocated port"
+                : issue === 917
+                  ? "shared globals preserved + imports + rejected promises"
+                  : "activation + command + allocated port"
         )
       }
     } catch (error) {
@@ -695,7 +787,15 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
         )
     }
   }
-  const passed = samples.length === planned && samples.every((sample) => sample.passed)
+  const controlsPassed = samples.length === planned && samples.every((sample) => sample.passed)
+  const webcontainerKit = controlsPassed ? exportWebContainerKit(reports) : null
+  const passed =
+    controlsPassed && usb.length === 3 && usb.every((item) => item.status === "resolved")
+  const blocked =
+    controlsPassed &&
+    usb.length === 3 &&
+    usb.some((item) => item.status === "blocked") &&
+    usb.every((item) => item.status !== "failed")
   const successes = samples.filter((sample) => sample.passed).length
   const failures = samples.filter((sample) => !sample.passed).length
   const counts = {
@@ -707,16 +807,32 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
   writeFileSync(
     output,
     JSON.stringify(
-      { passed, loaderSHA256: hash(path.join(root, "dist/esm/loader.js")), counts, samples },
+      {
+        passed,
+        controlsPassed,
+        blocked,
+        usb,
+        webcontainerKit,
+        loaderSHA256: hash(path.join(root, "dist/esm/loader.js")),
+        counts,
+        samples
+      },
       null,
       2
     )
   )
   console.log(
-    `\n${hostLabel(passed ? "green" : "red", passed ? "PASS" : "FAIL")}  ${successes} passed, ${failures} failed, ${counts.skipped} skipped / ${planned} planned\n`
+    `\n${hostLabel(controlsPassed ? "green" : "red", controlsPassed ? "PASS" : "FAIL")}  ${successes} passed, ${failures} failed, ${counts.skipped} skipped / ${planned} regression cases\n`
+  )
+  if (blocked)
+    console.log(
+      `${hostLabel("yellow", "BLOCKED")} #817 full USB: ordinary require crashes or hangs without esm. Exit 2; see 817-usb-*.json.\n`
+    )
+  console.log(
+    `${hostLabel("cyan", "SCOPE")} #917 Docker checks emulate the shared VM. Run pnpm verify:webcontainer inside the affected WebContainer for real-host verification.\n`
   )
   console.log(`${hostLabel("cyan", "REPORT")} ${output}\n`)
-  if (!passed) process.exitCode = 1
+  if (!passed) process.exitCode = blocked ? 2 : 1
 }
 
 if (
