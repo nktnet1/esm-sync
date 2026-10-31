@@ -25,6 +25,35 @@ function parentFor(id, page) {
 for (const esmEnv of testEnvironments) {
   const cacheOptions = { ESM_DISABLE_CACHE: esmEnv.endsWith("-cached") ? "false" : "true" }
   describe(`Electron renderer module bases (${esmEnv})`, () => {
+    it("preserves an error with user-supplied invalid location data without looping", async ({
+      expect
+    }) => {
+      await withCompatibilityFiles(
+        {
+          "invalid-location.mjs":
+            "export const error = globalThis.rendererError = new Error('invalid-location')\nerror.stack = globalThis.rendererFilename + ':' + '9'.repeat(400) + '\\ninvalid-location'\nthrow error"
+        },
+        async (directory) => {
+          const result = await runNode(
+            [
+              "-e",
+              `${setup}
+const load=factory(parentFor('electron/js2c/renderer_init','.'))
+globalThis.rendererFilename=path.resolve('invalid-location.mjs')
+let caught
+try{load('./invalid-location.mjs')}catch(error){caught=error}
+assert.strictEqual(caught,globalThis.rendererError)
+console.log('invalid-location:pass')`
+            ],
+            esmEnv,
+            cacheOptions,
+            { cwd: directory }
+          )
+          expect(result.exitCode, result.stderr).toBe(0)
+          expect(result.stdout.trim()).toBe("invalid-location:pass")
+        }
+      )
+    })
     it("keeps parser locations in V8's inspector data as well as the formatted stack", async ({
       expect
     }) => {
@@ -52,7 +81,9 @@ const post = (method,params={}) => new Promise((resolve,reject) => session.post(
 ;(async () => {
   await post('Runtime.enable')
   await post('Debugger.enable')
-  for (const [file,line,column] of [['first # ü.js',0,23],['syntax.js',1,null],['runtime.js',0,null]]) {
+  const previous = new Map()
+  const samples = [['first # ü.js',0,23],['syntax.js',1,null],['runtime.js',0,null]]
+  for (const [file,line,column] of [...samples,...samples]) {
     let caught
     globalThis.throwRenderer = () => {
       try { load('./' + file) } catch(error) { caught = error; throw error }
@@ -64,6 +95,8 @@ const post = (method,params={}) => new Promise((resolve,reject) => session.post(
     const actual = frame.url.startsWith('file:') ? fileURLToPath(frame.url) : frame.url
     assert.equal(fs.realpathSync(actual),fs.realpathSync(path.resolve(file)),JSON.stringify(details))
     assert.equal(frame.lineNumber,line)
+    if (file === 'runtime.js' && previous.has(file)) assert.strictEqual(caught,previous.get(file),'Cached rethrow replaced the runtime error')
+    previous.set(file,caught)
     if (column !== null) assert.equal(frame.columnNumber,column)
     if (file !== 'runtime.js') {
       const script = scripts.get(frame.scriptId)

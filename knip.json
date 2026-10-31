@@ -7,7 +7,7 @@
     "src/acorn/replacement/regexp.ts",
     "src/types/registry.ts",
     "script/src/*.ts",
-    "script/src/esm/{host-runtimes,verify-hosts-container}.ts",
+    "script/src/esm/{host-runtimes,build-host-addons,verify-hosts-container}.ts",
     "test/harness/**/*.{ts,cts}",
     "test/packed/{check-consumer,check-compat,consumer,compat,cli}.{cjs,mjs,js}",
     "test/fixture/scenario/**/{index,cwd,main,webpack.config}.{js,cjs,mjs,ts}"
@@ -40,7 +40,7 @@
     "interface": true,
     "type": true
   },
-  "ignoreBinaries": ["ldd"],
+  "ignoreBinaries": ["ldd", "^g[+][+]$"],
   "ignoreDependencies": [
     "@babel/helper-plugin-utils",
     "@babel/plugin-proposal-class-properties",
@@ -51,6 +51,7 @@
     "@babel/polyfill",
     "@babel/runtime",
     "@std/esm",
+    "lefthook",
     "babel-plugin-transform-for-of-as-array",
     "babel-plugin-transform-remove-console",
     "babel-plugin-transform-remove-debugger",

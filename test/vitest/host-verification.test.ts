@@ -13,7 +13,12 @@ import { createRequire } from "node:module"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
-import { electronProbe, rendererErrorProbe, vscodeProbe } from "../../script/src/esm/host-probes.ts"
+import {
+  electronProbe,
+  nativeAddonProbe,
+  rendererErrorProbe,
+  vscodeProbe
+} from "../../script/src/esm/host-probes.ts"
 import {
   hostLaunchArgs,
   hostLaunchCommand,
@@ -130,12 +135,34 @@ describe("desktop host verification", () => {
           defaultPrevented: false
         },
         exception: {
+          url: path.join(directory, kind + ".js"),
+          lineNumber: 1,
+          columnNumber: 2,
           stackTrace: { callFrames: [{ url: path.join(directory, kind + ".js"), lineNumber: 1 }] }
         }
       }))
-      const report = { ...expected, passed: true, errors: [], version: "8.0.0", cases }
+      const report = {
+        ...expected,
+        passed: true,
+        errors: [],
+        version: "8.0.0",
+        reloaded: true,
+        cases
+      }
       expect(() => validateReport(report, expected, 0)).not.toThrow()
       for (const change of [
+        (value: typeof report) => {
+          value.reloaded = false
+        },
+        (value: typeof report) => {
+          value.cases[0]!.exception.url = expected.loader
+        },
+        (value: typeof report) => {
+          value.cases[0]!.exception.lineNumber = 0
+        },
+        (value: typeof report) => {
+          value.cases[0]!.exception.columnNumber = 0
+        },
         (value: typeof report) => {
           value.cases.pop()
         },
@@ -174,6 +201,37 @@ describe("desktop host verification", () => {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
+  })
+
+  it("rejects empty native-addon imports and a disconnected Electron debugger", () => {
+    const expected = { ...identity, issue: 817 } as const
+    const mismatch = { message: "NODE_MODULE_VERSION 137; runtime requires NODE_MODULE_VERSION 70" }
+    const report = {
+      ...expected,
+      passed: true,
+      errors: [],
+      scope: "minimal-native-addon",
+      versions: { electron: "5.0.6", modules: "70" },
+      original: ["error", "success"],
+      detached: false,
+      roundTrips: 3,
+      ordinaryMismatch: mismatch,
+      ordinaryCompatible: { answer: 42, abi: 70 },
+      rejections: Array(4).fill(mismatch),
+      imports: Array(4).fill({ answer: 42, abi: 70 })
+    }
+    expect(() => validateReport(report, expected, 0)).not.toThrow()
+    for (const override of [
+      { imports: [{}, {}, {}, {}] },
+      { rejections: [] },
+      { ordinaryMismatch: { message: "MODULE_NOT_FOUND" } },
+      { ordinaryCompatible: {} },
+      { detached: true },
+      { roundTrips: 0 },
+      { scope: "full-usb" },
+      { versions: { electron: "8.0.0", modules: "76" } }
+    ])
+      expect(() => validateReport({ ...report, ...override }, expected, 0)).toThrow()
   })
 
   it("rejects archive paths that could escape the private workspace", async () => {
@@ -286,6 +344,7 @@ describe("desktop host verification", () => {
   })
 
   it("emits host probes that parse without TypeScript or modern module syntax", () => {
+    expect(() => new Script(nativeAddonProbe)).not.toThrow()
     expect(() => new Script(electronProbe)).not.toThrow()
     expect(() => new Script(rendererErrorProbe)).not.toThrow()
     expect(() => new Script(vscodeProbe)).not.toThrow()
@@ -412,7 +471,7 @@ const config = JSON.parse(process.env.ESM_HOST_CHECK)
     })
   }
 
-  for (const issue of [867, 915, 691] as const) {
+  for (const issue of [867, 915, 691, 817] as const) {
     it(`passes Linux startup flags and private paths intact to host #${issue}`, async () => {
       const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-host-args ü -")))
       try {

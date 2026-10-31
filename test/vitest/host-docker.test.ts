@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url"
 import { describe, expect, it } from "vitest"
 import {
   downloadHostRuntime,
+  hostAddonHeaders,
   hostRuntimes,
   type HostRuntime
 } from "../../script/src/esm/host-runtimes.ts"
@@ -137,14 +138,16 @@ describe("self-contained desktop host verification", () => {
   it("stages the checked-in original sources and real get-port without archives or downloads", async () => {
     await withDirectory(async (directory) => {
       const fixture = path.resolve("test/fixture/hosts")
-      for (const issue of [867, 915, 691] as const) {
+      for (const issue of [867, 915, 691, 817] as const) {
         const project = await prepareProject(issue, directory)
         const names =
           issue === 867
             ? ["index.html", "renderer.js", "package.json"]
             : issue === 691
               ? ["index.html", "syntax.js", "runtime.js", "healthy.js", "package.json"]
-              : ["src/extension.ts", "src/main.ts", "package.json"]
+              : issue === 817
+                ? ["main.js", "index.html", "crash.js", "preload.js", "renderer.js", "package.json"]
+                : ["src/extension.ts", "src/main.ts", "package.json"]
         for (const file of names)
           expect(await readFile(path.join(project, file))).toEqual(
             await readFile(path.join(fixture, `issue-${issue}`, file))
@@ -167,7 +170,12 @@ describe("self-contained desktop host verification", () => {
           "d779a3e96980f5201037290c02ac41da84c1c94b705527dab06be785dfb997c8",
         "issue-915/src/main.ts": "ccb41dda674841d960ec0deba918c9454ddefa182d9b38b0754903c8876d48ca",
         "get-port-6.1.2/index.js":
-          "295d613c8f55e91eb1ceefdbe7c8b09d79d26d40b610709f2a3022311a049eed"
+          "295d613c8f55e91eb1ceefdbe7c8b09d79d26d40b610709f2a3022311a049eed",
+        "issue-817/main.js": "bbbf27b889c33d31dda191fc677c5344d4e678dda279086920f1b5d4693db626",
+        "issue-817/crash.js": "dbfe34b3b74e16eaad3af65106875b7afa9c442803a6e926f849cd00ce4feed7",
+        "issue-817/index.html": "88580888dbc066f198428afd394da065b111c0f69cb2456c0d201b95998d5734",
+        "issue-817/preload.js": "c2ba4452ce1496fcf2f397f05beae5d6295f149160ebe3d29b397d991a8a6b90",
+        "issue-817/renderer.js": "03dce0522c739bcefc55a514c63727d16ab5f5aeee223bc315136aeba8e8c1ec"
       }
       for (const [file, hash] of Object.entries(hashes))
         expect(
@@ -181,6 +189,10 @@ describe("self-contained desktop host verification", () => {
   it("ignores downloaded runtimes and Docker reports and uses the repository's pinned package manager", async () => {
     const paths = [
       ...hostRuntimes.map((spec) => `.cache/host-runtimes/${spec.file}`),
+      `.cache/host-runtimes/${hostAddonHeaders.file}`,
+      ".cache/host-addons/mismatch.node",
+      ".cache/host-addons/compatible.node",
+      ".cache/host-addons/builds.json",
       ".cache/host-runtimes/inputs.json",
       "src/vendor/acorn/acorn/src/state.js",
       ".cache/host-verification/run-example/reports/report.json"
@@ -238,7 +250,7 @@ await verifyHostsContainer(process.argv[1])`
           samples: { passed: boolean; error: string }[]
         }
         expect(report.passed).toBe(false)
-        expect(report.samples).toHaveLength(3)
+        expect(report.samples).toHaveLength(4)
         expect(report.samples.every((sample) => sample.passed === false)).toBe(true)
         expect(report.samples.every((sample) => /missing runtime archive/.test(sample.error))).toBe(
           true
@@ -247,9 +259,9 @@ await verifyHostsContainer(process.argv[1])`
         const files = await readdir(reports)
         expect(files.sort()).toEqual(["inputs.json", "report.json"])
         expect(result.stdout).toContain(path.join(reports, "report.json"))
-        expect(result.stdout).toContain("0 passed, 3 failed, 6 skipped / 9 planned")
-        expect(result.stdout).toContain("[Issue 1/3]")
-        expect(result.stdout).toContain("[9/9]")
+        expect(result.stdout).toContain("0 passed, 4 failed, 8 skipped / 12 planned")
+        expect(result.stdout).toContain("[Issue 1/4]")
+        expect(result.stdout).toContain("[12/12]")
       })
     }
   )
@@ -258,8 +270,18 @@ await verifyHostsContainer(process.argv[1])`
   const validReport = {
     passed: true,
     loaderSHA256: "b".repeat(64),
-    samples: [867, 915, 691].flatMap((issue) =>
-      ["disabled", "cold", "warm"].map((phase) => ({ issue, phase, passed: true }))
+    samples: [867, 915, 691, 817].flatMap((issue) =>
+      ["disabled", "cold", "warm"].map((phase) => ({
+        issue,
+        phase,
+        passed: true,
+        scope:
+          issue === 817
+            ? "minimal-native-addon"
+            : issue === 691
+              ? "reconstructed-renderer"
+              : "original-reproduction"
+      }))
     )
   }
 

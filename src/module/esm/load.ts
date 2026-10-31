@@ -1,6 +1,7 @@
 import type { ModuleRecord } from "../../types/runtime.js"
 import Reflect from "../../reflection.js"
 import ENTRY from "../../constant/entry.js"
+import ENV from "../../constant/env.js"
 
 import Entry from "../../entry.js"
 import Loader from "../../loader.js"
@@ -22,6 +23,7 @@ import resolveFilename from "./resolve-filename.js"
 import setProperty from "../../util/set-property.js"
 import shared from "../../shared.js"
 import toExternalFunction from "../../util/to-external-function.js"
+import throwRendererError from "../../error/throw-renderer-error.js"
 
 const { TYPE_CJS, TYPE_PSEUDO } = ENTRY
 
@@ -177,6 +179,7 @@ function tryLoader(
   } catch (e) {
     error = e
     discardIncompleteCommonJSLinks(entry)
+    if (ENV.ELECTRON_RENDERER) throwRendererError(error)
     throw error
   } finally {
     if (threw) {
@@ -185,6 +188,7 @@ function tryLoader(
         // subsequent loads.
         const getCachedError: (() => never) & { erroredEntry?: Entry } = toExternalFunction(
           function () {
+            if (ENV.ELECTRON_RENDERER) throwRendererError(error)
             throw error
           }
         )

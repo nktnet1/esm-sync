@@ -56,20 +56,24 @@ function validateDockerReport(value: unknown): void {
   assert.equal(report.passed, true, "Container reported failed host verification")
   assert.match(String(report.loaderSHA256), /^[a-f0-9]{64}$/, "Missing tested loader digest")
   assert.ok(
-    Array.isArray(report.samples) && report.samples.length === 9,
-    "Expected nine host cases"
+    Array.isArray(report.samples) && report.samples.length === 12,
+    "Expected twelve host cases"
   )
   const seen = new Set<string>()
   const samples: unknown[] = report.samples
   for (const sample of samples) {
     assert.ok(sample && typeof sample === "object")
     const entry = sample as Record<string, unknown>
-    assert.ok(entry.issue === 691 || entry.issue === 867 || entry.issue === 915)
+    assert.ok(
+      entry.issue === 691 || entry.issue === 817 || entry.issue === 867 || entry.issue === 915
+    )
     assert.ok(["disabled", "cold", "warm"].includes(String(entry.phase)))
     assert.equal(entry.passed, true)
+    if (entry.issue === 817) assert.equal(entry.scope, "minimal-native-addon")
+    if (entry.issue === 691) assert.equal(entry.scope, "reconstructed-renderer")
     seen.add(`${entry.issue}:${entry.phase}`)
   }
-  assert.equal(seen.size, 9, "Duplicate or missing host cache phases")
+  assert.equal(seen.size, 12, "Duplicate or missing host cache phases")
 }
 
 export async function verifyHostsDocker(
@@ -132,7 +136,7 @@ export async function verifyHostsDocker(
     attempted = true
     let copyCode: number | null = null
     try {
-      hostSection(2, 3, "Run nine offline Electron / VS Code checks")
+      hostSection(2, 3, "Run twelve offline Electron / VS Code checks")
       runCode = await run(
         [
           "run",

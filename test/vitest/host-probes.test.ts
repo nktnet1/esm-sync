@@ -60,9 +60,11 @@ app.exit = code => {
   fs.writeFileSync(path.join(config.project,'events.json'),JSON.stringify(events))
   process.exit(code)
 }
+app.quit = () => { events.push('quit'); app.exit(process.exitCode || 0) }
 const debuggerClient = new EventEmitter()
 debuggerClient.attach = () => events.push('attach')
 debuggerClient.detach = () => debuggerClient.emit('detach',{},'manual')
+debuggerClient.isAttached = () => true
 debuggerClient.sendCommand = method => {
   events.push(method)
   // Electron can leave commands pending until the first navigation. The old
@@ -76,6 +78,7 @@ class BrowserWindow extends EventEmitter {
     super()
     this.webContents = new EventEmitter()
     this.webContents.debugger = debuggerClient
+    this.webContents.reload = () => { events.push('reload'); setImmediate(() => this.webContents.emit('did-finish-load')) }
     this.webContents.executeJavaScript = async source => {
       if (source.includes('loader:require.resolve')) return {loader:config.loader,healthy:true,type:'renderer',versions:{electron:'8.0.0'}}
       if (source === 'window.__esmErrorReports') return errors
@@ -83,7 +86,8 @@ class BrowserWindow extends EventEmitter {
         const kind = JSON.parse(source.slice(source.indexOf('(')+1,-1))
         const filename = path.join(config.project,kind+'.js')
         errors.push({filename,line:2,column:3,stack:filename+':2:3',defaultPrevented:false})
-        debuggerClient.emit('message',{},'Runtime.exceptionThrown',{exceptionDetails:{stackTrace:{callFrames:[{url:filename,lineNumber:1}]}}})
+        this.webContents.emit('console-message',{},3,'Uncaught mock error',2,filename)
+        debuggerClient.emit('message',{},'Runtime.exceptionThrown',{exceptionDetails:{url:filename,lineNumber:1,columnNumber:2,stackTrace:{callFrames:[{url:filename,lineNumber:1}]}}})
         return
       }
       throw new Error('Unexpected renderer expression: '+source)
@@ -136,6 +140,8 @@ setImmediate(() => app.emit('ready'))`
             expect(report.passed).toBe(true)
             expect(report.cases).toHaveLength(2)
             expect(events.indexOf("load")).toBeLessThan(events.indexOf("Runtime.enable"))
+            expect(events).toContain("reload")
+            expect(events).toContain("quit")
           } else {
             expect(result.code).toBe(1)
             expect(report.passed).toBe(false)

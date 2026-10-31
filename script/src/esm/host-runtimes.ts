@@ -9,17 +9,32 @@ import { styleText } from "node:util"
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 export const hostRuntimeCache = path.join(root, ".cache/host-runtimes")
 
-export type HostRuntime = {
-  issue: 867 | 915
+type HostInput = {
   file: string
   url: string
   sha256: string
   maxBytes: number
 }
+export type HostRuntime = HostInput & { issue: 817 | 867 | 915 }
 
-// Digests are from the supplied, previously verified historical runtime archives.
+export const hostAddonHeaders: HostInput = {
+  file: "node-v5.0.6-headers.tar.gz",
+  url: "https://artifacts.electronjs.org/headers/dist/v5.0.6/node-v5.0.6-headers.tar.gz",
+  sha256: "946517cfc809fa46f1e6938ee7f162b5780103575fa77e41957570cd3d13c8ac",
+  maxBytes: 10 * 1024 * 1024
+}
+
+// Electron digests come from official release SHASUMS256 files; the VS Code
+// digest is from the supplied, previously verified historical archive.
 // Source reproductions and get-port are checked-in fixtures, not downloads.
 export const hostRuntimes: readonly HostRuntime[] = [
+  {
+    issue: 817,
+    file: "electron-v5.0.6-linux-x64.zip",
+    url: "https://github.com/electron/electron/releases/download/v5.0.6/electron-v5.0.6-linux-x64.zip",
+    sha256: "13562d7f2a07565c6f63e809010a9eec6fd4a5b2080d29d92f60fb7d60a636eb",
+    maxBytes: 100 * 1024 * 1024
+  },
   {
     issue: 867,
     file: "electron-v8.0.0-linux-x64.zip",
@@ -43,7 +58,7 @@ async function checksum(file: string): Promise<string> {
 }
 
 export async function downloadHostRuntime(
-  input: HostRuntime,
+  input: HostInput,
   destination: string,
   request: typeof fetch = fetch
 ): Promise<"cached" | "downloaded"> {
@@ -105,7 +120,7 @@ export async function downloadHostRuntime(
 export async function downloadHostRuntimes(destination = hostRuntimeCache): Promise<void> {
   // Await every independent download before emitting the complete provenance file.
   const results = await Promise.allSettled(
-    hostRuntimes.map(async (input) => {
+    [...hostRuntimes, hostAddonHeaders].map(async (input) => {
       console.log(`${styleText("cyan", "RUNTIME")} ${input.file}`)
       const result = await downloadHostRuntime(input, destination)
       console.log(`${styleText("green", result.toUpperCase())} ${input.file}`)
@@ -122,7 +137,20 @@ export async function downloadHostRuntimes(destination = hostRuntimeCache): Prom
   )
   const file = await open(path.join(directory, "inputs.json"), "w")
   try {
-    await file.writeFile(JSON.stringify({ platform: "linux/amd64", runtimes: inputs }, null, 2))
+    await file.writeFile(
+      JSON.stringify(
+        {
+          platform: "linux/amd64",
+          runtimes: inputs,
+          addonHeaders: {
+            ...hostAddonHeaders,
+            bytes: (await stat(path.join(directory, hostAddonHeaders.file))).size
+          }
+        },
+        null,
+        2
+      )
+    )
   } finally {
     await file.close()
   }

@@ -17,7 +17,7 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { hostCaseLine, hostLabel, hostSection } from "./host-output.ts"
-import { electronProbe, rendererErrorProbe, vscodeProbe } from "./host-probes.ts"
+import { electronProbe, nativeAddonProbe, rendererErrorProbe, vscodeProbe } from "./host-probes.ts"
 import { hostRuntimeCache, hostRuntimes } from "./host-runtimes.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
@@ -25,7 +25,7 @@ const require = createRequire(import.meta.url)
 type ZipEntry = { entryName: string; isDirectory: boolean; attr: number; getData(): Buffer }
 type Zip = { getEntries(): ZipEntry[] }
 type Phase = "disabled" | "cold" | "warm"
-type Issue = 691 | 867 | 915
+type Issue = 691 | 817 | 867 | 915
 type Identity = { issue: Issue; phase: Phase; nonce: string; loader: string }
 type CommandResult = {
   code: number | null
@@ -205,8 +205,32 @@ export function validateReport(value: unknown, expected: Identity, code: number 
       assert.equal(load.hello, 1)
       assert.equal(load.versions.electron, "8.0.0")
     }
+  } else if (expected.issue === 817) {
+    assert.equal(value.scope, "minimal-native-addon")
+    assert.ok(record(value.versions))
+    assert.equal(value.versions.electron, "5.0.6")
+    assert.equal(value.versions.modules, "70")
+    assert.deepEqual(value.original, ["error", "success"])
+    assert.equal(value.detached, false)
+    assert.equal(value.roundTrips, 3)
+    assert.ok(record(value.ordinaryMismatch))
+    assert.match(String(value.ordinaryMismatch.message), /NODE_MODULE_VERSION 137/)
+    assert.match(String(value.ordinaryMismatch.message), /NODE_MODULE_VERSION 70/)
+    assert.deepEqual(value.ordinaryCompatible, { answer: 42, abi: 70 })
+    assert.ok(
+      Array.isArray(value.rejections) && value.rejections.length === 4,
+      "Missing incompatible import rejections"
+    )
+    const rejections: unknown[] = value.rejections
+    for (const error of rejections) {
+      assert.ok(record(error))
+      assert.match(String(error.message), /NODE_MODULE_VERSION 137/)
+      assert.match(String(error.message), /NODE_MODULE_VERSION 70/)
+    }
+    assert.deepEqual(value.imports, Array(4).fill({ answer: 42, abi: 70 }))
   } else if (expected.issue === 691) {
     assert.equal(value.version, "8.0.0")
+    assert.equal(value.reloaded, true, "Missing healthy renderer recovery")
     assert.ok(
       Array.isArray(value.cases) && value.cases.length === 2,
       "Missing renderer error cases"
@@ -230,6 +254,11 @@ export function validateReport(value: unknown, expected: Identity, code: number 
       assert.ok(typeof event.column === "number" && event.column > 0)
       assert.equal(event.defaultPrevented, false)
       assert.ok(typeof event.stack === "string" && event.stack.includes(kind + ".js"))
+      assert.equal(typeof item.exception.url, "string")
+      const url = String(item.exception.url)
+      assert.equal(realpathSync(url.startsWith("file:") ? fileURLToPath(url) : url), expectedFile)
+      assert.equal(item.exception.lineNumber, 1)
+      assert.equal(item.exception.columnNumber, Number(event.column) - 1)
       const trace = item.exception.stackTrace
       assert.ok(record(trace) && Array.isArray(trace.callFrames))
       const frame: unknown = trace.callFrames[0]
@@ -395,6 +424,21 @@ export async function prepareProject(issue: Issue, directory: string): Promise<s
       writeFileSync(path.join(project, "out", name + ".js"), result.outputText)
     }
   }
+  if (issue === 817) {
+    cpSync(path.join(source, "usb"), path.join(project, "node_modules/usb"), { recursive: true })
+    const compatible = path.join(project, "compatible")
+    mkdirSync(path.join(compatible, "node_modules/usb"), { recursive: true })
+    for (const name of ["crash.js", "repeat.js"])
+      cpSync(path.join(source, name), path.join(compatible, name))
+    cpSync(
+      path.join(source, "usb/package.json"),
+      path.join(compatible, "node_modules/usb/package.json")
+    )
+    writeFileSync(
+      path.join(compatible, "node_modules/usb/index.js"),
+      "module.exports = require(process.env.ESM_HOST_COMPATIBLE_ADDON)\n"
+    )
+  }
   return realpathSync(project)
 }
 
@@ -497,13 +541,20 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
   }
   delete env.ELECTRON_RUN_AS_NODE
   console.log(`${hostLabel("cyan", "REPORT")} ${output}`)
-  const issues = [867, 915, 691] as const
+  const issues = [867, 915, 691, 817] as const
   const phases = ["disabled", "cold", "warm"] as const
+  const planned = issues.length * phases.length
   for (const [group, issue] of issues.entries()) {
+    const scope =
+      issue === 817
+        ? "minimal-native-addon"
+        : issue === 691
+          ? "reconstructed-renderer"
+          : "original-reproduction"
     hostSection(
       group + 1,
       issues.length,
-      `#${issue} — ${issue === 915 ? "VS Code 1.66.2" : "Electron 8.0.0"}`,
+      `#${issue} — ${issue === 915 ? "VS Code 1.66.2" : issue === 817 ? "Electron 5.0.6 (minimal ABI controls)" : "Electron 8.0.0"}`,
       "Issue"
     )
     let context: Record<string, unknown> = { phase: "disabled" }
@@ -516,8 +567,34 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
       const probe = path.join(project, "host-probe.cjs")
       writeFileSync(
         probe,
-        issue === 867 ? electronProbe : issue === 691 ? rendererErrorProbe : vscodeProbe
+        issue === 867
+          ? electronProbe
+          : issue === 691
+            ? rendererErrorProbe
+            : issue === 817
+              ? nativeAddonProbe
+              : vscodeProbe
       )
+      const addonEnv: NodeJS.ProcessEnv = {}
+      if (issue === 817) {
+        const cache = path.join(root, ".cache/host-addons")
+        const builds = JSON.parse(readFileSync(path.join(cache, "builds.json"), "utf8")) as {
+          outputs: { name: string; abi: number; sha256: string }[]
+        }
+        assert.equal(builds.outputs.length, 2)
+        for (const [name, abi] of [
+          ["mismatch", 137],
+          ["compatible", 70]
+        ] as const) {
+          const info = builds.outputs.find((build) => build.name === name)
+          assert.ok(info, "Missing native addon build")
+          assert.equal(info.abi, abi, "Incorrect native addon build ABI")
+          const file = realpathSync(path.join(cache, name + ".node"))
+          assert.equal(hash(file), info.sha256, "Native addon build checksum mismatch")
+          addonEnv[name === "mismatch" ? "ESM_HOST_ADDON" : "ESM_HOST_COMPATIBLE_ADDON"] = file
+        }
+        cpSync(path.join(cache, "builds.json"), path.join(reports, "addon-builds.json"))
+      }
       const compilerCache = path.join(project, "compiler-cache")
       const bootstrapCache = path.join(
         project,
@@ -526,7 +603,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
       for (const [phaseIndex, phase] of phases.entries()) {
         currentPhase = phaseIndex
         context = { phase }
-        hostCaseLine(group * 3 + phaseIndex + 1, 9, "RUN", issue, phase, "checking host")
+        hostCaseLine(group * 3 + phaseIndex + 1, planned, "RUN", issue, phase, "checking host")
         const identity: Identity = { issue, phase, nonce: randomUUID(), loader }
         const resultFile = path.join(reports, `${issue}-${phase}.json`)
         const config = { ...identity, project, result: resultFile }
@@ -545,6 +622,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
           project,
           {
             ...hostLaunchEnv(env),
+            ...addonEnv,
             ESM_DISABLE_CACHE: String(phase === "disabled"),
             ESM_OPTIONS: JSON.stringify({ cache: phase === "disabled" ? false : compilerCache }),
             ESM_HOST_CHECK: JSON.stringify(config)
@@ -563,10 +641,18 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
           phase !== "disabled",
           "Unexpected compiler cache after launch"
         )
-        samples.push({ issue, phase, passed: true, executable, result: resultFile, log: files.log })
+        samples.push({
+          issue,
+          scope,
+          phase,
+          passed: true,
+          executable,
+          result: resultFile,
+          log: files.log
+        })
         hostCaseLine(
           group * 3 + phaseIndex + 1,
-          9,
+          planned,
           "PASS",
           issue,
           phase,
@@ -574,13 +660,16 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
             ? "first load + 3 reloads"
             : issue === 691
               ? "syntax + runtime error locations"
-              : "activation + command + allocated port"
+              : issue === 817
+                ? "minimal addon: ABI rejection + rebuilt control + debugger responds"
+                : "activation + command + allocated port"
         )
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       samples.push({
         issue,
+        scope,
         ...context,
         ...(error instanceof HostCaseError ? error.details : {}),
         passed: false,
@@ -588,7 +677,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
       })
       hostCaseLine(
         group * 3 + currentPhase + 1,
-        9,
+        planned,
         "FAIL",
         issue,
         phases[currentPhase]!,
@@ -598,7 +687,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
       for (let skipped = currentPhase + 1; skipped < phases.length; skipped++)
         hostCaseLine(
           group * 3 + skipped + 1,
-          9,
+          planned,
           "SKIP",
           issue,
           phases[skipped]!,
@@ -606,14 +695,14 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
         )
     }
   }
-  const passed = samples.length === 9 && samples.every((sample) => sample.passed)
+  const passed = samples.length === planned && samples.every((sample) => sample.passed)
   const successes = samples.filter((sample) => sample.passed).length
   const failures = samples.filter((sample) => !sample.passed).length
   const counts = {
-    planned: 9,
+    planned,
     passed: successes,
     failed: failures,
-    skipped: 9 - successes - failures
+    skipped: planned - successes - failures
   }
   writeFileSync(
     output,
@@ -624,7 +713,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
     )
   )
   console.log(
-    `\n${hostLabel(passed ? "green" : "red", passed ? "PASS" : "FAIL")}  ${successes} passed, ${failures} failed, ${9 - successes - failures} skipped / 9 planned\n`
+    `\n${hostLabel(passed ? "green" : "red", passed ? "PASS" : "FAIL")}  ${successes} passed, ${failures} failed, ${counts.skipped} skipped / ${planned} planned\n`
   )
   console.log(`${hostLabel("cyan", "REPORT")} ${output}\n`)
   if (!passed) process.exitCode = 1

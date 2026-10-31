@@ -1,3 +1,112 @@
+// Original #817 JavaScript with a real minimal native addon in place of USB.
+export const nativeAddonProbe = `
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const Module = require('module');
+const electron = require('electron');
+const config = JSON.parse(process.env.ESM_HOST_CHECK);
+const report = { ...config, issue:817, scope:'minimal-native-addon', versions:process.versions, errors:[], passed:false,
+  stage:'bootstrap', original:[], rejections:[], imports:[], roundTrips:0, detached:false };
+let window, finished=false;
+const descriptor=Object.getOwnPropertyDescriptor(console,'log');
+const originalLog=console.log;
+Object.defineProperty(console,'log',{configurable:true,writable:true,value:function(...args){
+  if(args.length===1&&(args[0]==='success'||args[0]==='error'))report.original.push(args[0]);
+  return Reflect.apply(originalLog,console,args);
+}});
+function finish(error) {
+  if(finished)return;
+  finished=true;
+  if(error)report.errors.push('Stage: '+report.stage+'\\n'+String(error.stack||error));
+  report.passed=!report.errors.length&&report.roundTrips===3;
+  Object.defineProperty(console,'log',descriptor);
+  fs.writeFileSync(config.result,JSON.stringify(report,null,2));
+  const code=report.passed?0:1;
+  if(window&&!window.isDestroyed()){
+    window.once('closed',()=>setTimeout(()=>electron.app.exit(code),100));
+    if(window.webContents.debugger.isAttached())window.webContents.debugger.detach();
+    window.close();
+  }else electron.app.exit(code);
+}
+process.on('uncaughtException',finish);
+process.on('unhandledRejection',finish);
+const created=new Promise(resolve=>electron.app.once('browser-window-created',(_event,value)=>{
+  window=value;
+  window.webContents.on('crashed',()=>finish(new Error('Renderer crashed')));
+  window.webContents.once('did-finish-load',()=>resolve(window));
+}));
+async function waitOriginal(expected) {
+  const end=Date.now()+5000;
+  while(report.original.length<expected&&Date.now()<end)await new Promise(resolve=>setTimeout(resolve,20));
+  assert.equal(report.original.length,expected,'Original import did not settle');
+}
+electron.app.on('ready',async()=>{
+  try{
+    assert.equal(process.versions.electron,'5.0.6');
+    assert.equal(process.versions.modules,'70');
+    report.stage='load original window';
+    await created;
+    const client=window.webContents.debugger;
+    client.on('detach',(_event,reason)=>{report.detachReason=reason;if(!finished){report.detached=true;finish(new Error('Debugger disconnected: '+reason));}});
+    client.attach('1.3');
+    await client.sendCommand('Runtime.enable');
+    async function ping(){
+      const response=await client.sendCommand('Runtime.evaluate',{expression:'6*7',returnByValue:true});
+      assert.equal(response.result.value,42,'Renderer debugger stopped responding');
+      report.roundTrips++;
+    }
+    await ping();
+    await waitOriginal(1);
+    assert.deepEqual(report.original,['error']);
+    report.stage='repeat incompatible dynamic imports';
+    const load=require('esm')(module);
+    assert.equal(fs.realpathSync(require.resolve('esm')),config.loader);
+    const repeat=load('./repeat.js').load;
+    async function rejectImport(){
+      let error;
+      try{await repeat();}catch(value){error=value;}
+      assert.ok(error,'Incompatible import unexpectedly succeeded');
+      assert.ok(/NODE_MODULE_VERSION 137/.test(error.message));
+      assert.ok(/NODE_MODULE_VERSION 70/.test(error.message));
+      report.rejections.push({name:error.name,code:error.code||null,message:error.message});
+    }
+    await rejectImport();await rejectImport();await Promise.all([rejectImport(),rejectImport()]);
+    await ping();
+    report.stage='load compatible rebuilt control';
+    const parent=new Module(path.join(config.project,'compatible','probe.cjs'));
+    parent.filename=parent.id;parent.paths=Module._nodeModulePaths(path.dirname(parent.filename));
+    const compatible=require('esm')(parent);
+    compatible('./crash.js');
+    await waitOriginal(2);
+    assert.deepEqual(report.original,['error','success']);
+    const repeatCompatible=compatible('./repeat.js').load;
+    for(const exports of [await repeatCompatible(),await repeatCompatible(),...await Promise.all([repeatCompatible(),repeatCompatible()])]){
+      assert.equal(exports.answer,42);assert.equal(exports.abi,70);
+      report.imports.push({answer:exports.answer,abi:exports.abi});
+    }
+    await ping();
+    report.stage='complete';
+    finish();
+  }catch(error){finish(error);}
+});
+try{
+  report.stage='ordinary require controls';
+  let mismatch;
+  try{require(process.env.ESM_HOST_ADDON);}catch(error){mismatch=error;}
+  assert.ok(mismatch,'Ordinary require unexpectedly accepted an incompatible ABI');
+  assert.ok(/NODE_MODULE_VERSION 137/.test(mismatch.message));
+  assert.ok(/NODE_MODULE_VERSION 70/.test(mismatch.message));
+  report.ordinaryMismatch={code:mismatch.code||null,message:mismatch.message};
+  const compatible=require(process.env.ESM_HOST_COMPATIBLE_ADDON);
+  assert.equal(compatible.answer,42);assert.equal(compatible.abi,70);
+  report.ordinaryCompatible={answer:compatible.answer,abi:compatible.abi};
+  report.stage='start original main.js';
+  require('./main.js');
+}catch(error){finish(error);}
+setTimeout(()=>finish(new Error('Native-addon verification timed out during '+report.stage)),30000);
+`
+
 // These probes execute inside historical Electron/VS Code Node runtimes,
 // which cannot execute TypeScript. The orchestrator remains native TypeScript.
 export const electronProbe = `
@@ -99,9 +208,10 @@ function finish(error) {
   report.passed = !report.errors.length && report.cases.length === 2;
   fs.writeFileSync(config.result, JSON.stringify(report, null, 2));
   const code = report.passed ? 0 : 1;
+  process.exitCode = code;
   if (window && !window.isDestroyed()) {
-    window.once('closed', () => setTimeout(() => electron.app.exit(code), 100));
-    window.close();
+    if (window.webContents.debugger.isAttached()) window.webContents.debugger.detach();
+    electron.app.quit();
   } else electron.app.exit(code);
 }
 process.on('uncaughtException', finish);
@@ -174,10 +284,28 @@ electron.app.on('ready', async () => {
       assert.equal(item.windowEvent.defaultPrevented, false, 'Error reporting was suppressed');
       assert.ok(item.windowEvent.stack.includes(kind + '.js'));
       assert.ok(!item.windowEvent.stack.includes(config.loader + ':'));
+      assert.equal(canonical(item.exception.url), expected, 'DevTools exception location points at the loader');
+      assert.equal(item.exception.lineNumber, 1);
+      assert.equal(item.exception.columnNumber, item.windowEvent.column - 1);
+      const consoleError=report.console.filter(item=>item.level>=3).slice(-1)[0];
+      assert.ok(consoleError,'Missing renderer console error');
+      assert.equal(canonical(consoleError.source),expected,'Console points at the loader');
+      assert.equal(consoleError.line,2);
       const frame = item.exception.stackTrace.callFrames[0];
       assert.equal(canonical(frame.url), expected, 'DevTools points at the loader');
       assert.equal(frame.lineNumber, 1);
     }
+    // Recovery navigation delivers the previous renderer's cache exit hooks.
+    await stage('reload healthy renderer after errors', () => new Promise(resolve => {
+      window.webContents.once('did-finish-load', resolve);
+      window.webContents.reload();
+    }));
+    const recovered = await stage('inspect renderer recovery', () => window.webContents.executeJavaScript(
+      "({loader:require.resolve('esm'),healthy:window.__esmHealthy,versions:process.versions,type:process.type})"
+    ), 5000);
+    assert.equal(fs.realpathSync(recovered.loader), config.loader);
+    assert.equal(recovered.healthy, true);
+    report.reloaded = true;
     report.stage = 'complete';
     finish();
   } catch (error) { finish(error); }
