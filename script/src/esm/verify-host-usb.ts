@@ -142,7 +142,7 @@ export function usbVerdict(runs: UsbRun[], phase: string): UsbVerdict {
         phase,
         status: "blocked",
         reason:
-          "Ordinary require catches the USB ABI mismatch, then crashes or hangs without esm; loader resolution cannot be established",
+          "Automatic USB rebuild passes require and import. The original ABI-64 binary catches its mismatch, then crashes or hangs without esm; safe ABI rejection remains unverified",
         runs
       }
     return {
@@ -316,6 +316,10 @@ export async function verifyHostUsb(
   }
   const verdict = usbVerdict(runs, phase)
   writeFileSync(path.join(reports, `817-usb-${phase}.json`), JSON.stringify(verdict, null, 2))
+  const rebuiltPassed = runs.filter((run) => run.binary === "compatible").every((run) => run.passed)
+  console.log(
+    `\n    ${hostLabel(rebuiltPassed ? "green" : "red", rebuiltPassed ? "PASS" : "FAIL")} #817 automatic USB rebuild for Electron 5.0.6 (ABI 70): require + dynamic import${rebuiltPassed ? " + responsive debugger; no manual rebuild needed" : "; see compatible-case diagnostics"}`
+  )
   console.log(
     `\n    ${hostLabel(verdict.status === "resolved" ? "green" : verdict.status === "blocked" ? "yellow" : "red", verdict.status.toUpperCase())} #817 full USB: ${verdict.reason}\n`
   )

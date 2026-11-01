@@ -20,6 +20,9 @@ function buildHostUsb(): void {
     readFileSync(path.join(headers, "node_version.h"), "utf8"),
     /#define NODE_MODULE_VERSION\s+70\b/
   )
+  console.log(
+    "BUILD #817 USB: automatically compile usb@1.6.0 for Electron 5.0.6, Linux/x64, ABI 70"
+  )
   for (const [name, source] of [
     ["node_modules/bindings", extractHostPackage(hostPackages.bindings)],
     ["node_modules/file-uri-to-path", extractHostPackage(hostPackages.fileUri)],
@@ -136,7 +139,9 @@ function buildHostUsb(): void {
       2
     )
   )
-  console.log("USB 1.6.0: published ABI 64 binary + rebuilt ABI 70 control")
+  console.log(
+    "READY #817 USB: automatic ABI-70 rebuild complete; ABI-64 binary retained for the mismatch diagnostic"
+  )
 }
 
 if (

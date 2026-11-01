@@ -39,6 +39,14 @@ Engine/Desktop with BuildKit and the project's normal Node/pnpm tooling, with no
 external assets directory, Python collector or host display configuration.
 No CI workflow is added.
 
+This command already handles the USB rebuild automatically. No host-side
+`@electron/rebuild` installation or manual rebuild command is required. It fetches
+the verified USB source, dependencies and Electron headers, compiles the full
+package for Electron 5.0.6/Linux x64 (ABI 70) inside Docker, and checks the rebuilt
+binary through ordinary require and dynamic import in every cache mode. Docker
+can reuse a completed build layer on subsequent runs; verification still checks
+the binary digests and reruns the load/liveness checks.
+
 The small original source files and real `get-port@6.1.2` fixture are committed
 under `test/fixture/hosts`, together with their licences and provenance. These
 inputs need no downloads or historical dependency installation. TypeScript
@@ -344,6 +352,13 @@ compiler commands and both binary digests.
 
 Each #817 phase numbers four subprocesses as `[USB 1/4]` through `[USB 4/4]`:
 ordinary require and dynamic import, each with incompatible and rebuilt binaries.
+The output explicitly prints `PASS #817 automatic USB rebuild` after both rebuilt
+controls pass. These are the automated checks of the working rebuild. The
+original ABI-64 binary remains a separate mismatch diagnostic: rebuilding the
+compatible copy cannot make that original binary reject safely. Its native crash
+still produces BLOCKED/exit 2, even when the automatic rebuild passes. No further
+manual package installation or rebuild step is missing from the verifier.
+
 Open `817-usb-<phase>.json` and its referenced logs/results. A RESOLVED verdict
 requires a healthy ordinary ABI rejection, caught repeated/concurrent dynamic
 imports, successful rebuilt imports and three debugger round trips. A caught

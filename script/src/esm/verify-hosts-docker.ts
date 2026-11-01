@@ -152,7 +152,7 @@ if (
   const { values } = parseArgs({ options: { help: { type: "boolean", short: "h" } } })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts:docker\nRuns offline Linux/amd64 host and USB checks, then automatically boots a real WebContainer in Chromium and runs all three cache modes plus consumer builds. macOS and Linux Docker hosts are supported. Only the WebContainer phase needs network access. Exit 0: pass; 1: failure; 2: native USB or WebContainer environment blocker. Reports: .cache/host-verification. No manual upload, external assets or host display."
+      "pnpm verify:hosts:docker\nAutomatically downloads verified build inputs, rebuilds full USB for Electron 5.0.6 in Docker, and verifies require/import in every cache mode. No manual USB installation or rebuild command is needed. Runs offline Linux/amd64 host and USB checks, then automatically boots a real WebContainer in Chromium and runs all three cache modes plus consumer builds. macOS and Linux Docker hosts are supported. Only the WebContainer phase needs network access. Exit 0: pass; 1: failure; 2: native USB or WebContainer environment blocker. Reports: .cache/host-verification. No manual upload, external assets or host display."
     )
   } else {
     verifyHostsDocker().catch((error: unknown) => {

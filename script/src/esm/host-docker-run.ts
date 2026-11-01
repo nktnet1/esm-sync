@@ -173,7 +173,7 @@ export async function runDockerHostChecks(
       validateOffline(offline, offlineCode === 2)
       if (offlineCode === 2)
         blocked.push(
-          "#817: incompatible USB catches its ABI error, then crashes or hangs under ordinary require without esm"
+          "#817: automatic USB rebuild and compatible require/import checks pass; no manual rebuild is needed. The original ABI-64 binary still crashes or hangs under ordinary require without esm"
         )
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error))
