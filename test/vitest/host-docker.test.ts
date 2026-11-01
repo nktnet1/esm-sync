@@ -11,9 +11,9 @@ import {
   hostAddonHeaders,
   hostPackages,
   hostRuntimes,
+  hostWebContainerSdk,
   type HostRuntime
 } from "../../script/src/esm/host-runtimes.ts"
-import { verifyHostsDocker, type DockerRunner } from "../../script/src/esm/verify-hosts-docker.ts"
 import { prepareProject, runCommand } from "../../script/src/esm/verify-hosts-container.ts"
 
 async function withDirectory(action: (directory: string) => Promise<void>): Promise<void> {
@@ -191,7 +191,9 @@ describe("self-contained desktop host verification", () => {
     const paths = [
       ...hostRuntimes.map((spec) => `.cache/host-runtimes/${spec.file}`),
       `.cache/host-runtimes/${hostAddonHeaders.file}`,
+      `.cache/host-runtimes/${hostWebContainerSdk.file}`,
       ...Object.values(hostPackages).map((spec) => `.cache/host-runtimes/${spec.file}`),
+      ".cache/webcontainer-sdk/dist/index.js",
       ".cache/host-packages/usb-compatible/node_modules/usb/build/Release/usb_bindings.node",
       ".cache/host-packages/usb-mismatch/node_modules/usb/build/Release/usb_bindings.node",
       ".cache/host-addons/mismatch.node",
@@ -274,143 +276,4 @@ await verifyHostsContainer(process.argv[1])`
       })
     }
   )
-
-  const image = "sha256:" + "a".repeat(64)
-  const validReport = {
-    passed: true,
-    controlsPassed: true,
-    usb: ["disabled", "cold", "warm"].map((phase) => ({
-      phase,
-      status: "resolved",
-      runs: ["require", "import"].flatMap((mode) =>
-        ["mismatch", "compatible"].map((binary) => ({ mode, binary, passed: true }))
-      )
-    })),
-    loaderSHA256: "b".repeat(64),
-    samples: [867, 915, 691, 817, 917].flatMap((issue) =>
-      ["disabled", "cold", "warm"].map((phase) => ({
-        issue,
-        phase,
-        passed: true,
-        scope:
-          issue === 817
-            ? "minimal-native-addon"
-            : issue === 691
-              ? "reconstructed-renderer"
-              : issue === 917
-                ? "shared-realm-vm-regression"
-                : "original-reproduction"
-      }))
-    )
-  }
-
-  for (const outcome of [
-    "success",
-    "build-failure",
-    "run-failure",
-    "missing-report",
-    "failed-report",
-    "duplicate-phase",
-    "missing-usb",
-    "blocked-usb",
-    "malformed-report",
-    "copy-failure"
-  ] as const) {
-    it(`exports diagnostics and cleans only its own container for ${outcome}`, async () => {
-      await withDirectory(async (directory) => {
-        const events: string[][] = []
-        let reports = ""
-        const runner: DockerRunner = async (args, cwd) => {
-          expect(await realpath(cwd)).toBe(directory)
-          events.push(args)
-          if (args[0] === "build") {
-            if (outcome === "build-failure") return 1
-            const index = args.indexOf("--iidfile")
-            await writeFile(args[index + 1]!, image + "\n")
-          } else if (args[0] === "run") {
-            return outcome === "run-failure" ? 1 : outcome === "blocked-usb" ? 2 : 0
-          } else if (args[0] === "cp") {
-            reports = args[2]!
-            if (outcome === "copy-failure") return 1
-            await writeFile(path.join(reports, "867-disabled.log"), "native-host-diagnostic")
-            if (outcome !== "missing-report") {
-              const report =
-                outcome === "failed-report"
-                  ? { ...validReport, passed: false }
-                  : outcome === "missing-usb"
-                    ? { ...validReport, usb: [] }
-                    : outcome === "blocked-usb"
-                      ? {
-                          ...validReport,
-                          passed: false,
-                          blocked: true,
-                          usb: validReport.usb.map((item) => ({
-                            ...item,
-                            status: "blocked",
-                            runs: item.runs.map((run) =>
-                              run.mode === "require" && run.binary === "mismatch"
-                                ? {
-                                    ...run,
-                                    passed: false,
-                                    signal: "SIGSEGV",
-                                    code: null,
-                                    report: {
-                                      rejections: [
-                                        "NODE_MODULE_VERSION 64; requires NODE_MODULE_VERSION 70"
-                                      ]
-                                    }
-                                  }
-                                : run
-                            )
-                          }))
-                        }
-                      : outcome === "duplicate-phase"
-                        ? {
-                            ...validReport,
-                            samples: validReport.samples.map((sample) => ({
-                              ...sample,
-                              phase: "cold"
-                            }))
-                          }
-                        : validReport
-              await writeFile(
-                path.join(reports, "report.json"),
-                outcome === "malformed-report" ? "invalid JSON" : JSON.stringify(report)
-              )
-            }
-          }
-          return 0
-        }
-        if (outcome === "success") expect(await verifyHostsDocker(directory, runner)).toBe(reports)
-        else await expect(verifyHostsDocker(directory, runner)).rejects.toThrow()
-        const run = events.find((args) => args[0] === "run")
-        if (outcome === "build-failure") {
-          expect(run).toBeUndefined()
-          expect(events.some((args) => args[0] === "rm")).toBe(false)
-        } else {
-          expect(run).toBeDefined()
-          expect(run!.at(-1)).toBe(image)
-          expect(run).toContain("--init")
-          expect(run).toContain("--env")
-          expect(run!.some((value) => /^FORCE_COLOR=[01]$/.test(value))).toBe(true)
-          expect(run!.slice(run!.indexOf("--network"), run!.indexOf("--network") + 2)).toEqual([
-            "--network",
-            "none"
-          ])
-          expect(run).not.toContain("--volume")
-          expect(run).not.toContain("--mount")
-          const name = run![run!.indexOf("--name") + 1]!
-          expect(events.find((args) => args[0] === "cp")?.[1]).toBe(`${name}:/reports/.`)
-          expect(events.at(-1)).toEqual(["rm", "--force", name])
-          if (outcome !== "copy-failure")
-            expect(await readFile(path.join(reports, "867-disabled.log"), "utf8")).toBe(
-              "native-host-diagnostic"
-            )
-          expect(
-            JSON.parse(await readFile(path.join(reports, "docker.json"), "utf8"))
-          ).toMatchObject({ image, platform: "linux/amd64", cleanupCode: 0 })
-        }
-      })
-    })
-  }
 })

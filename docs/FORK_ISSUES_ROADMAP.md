@@ -46,17 +46,26 @@ binary and a full USB ABI-70 rebuild as well as the minimal controls. It runs
 ordinary require and dynamic import in separate processes. A demonstrated
 ordinary-require native crash is BLOCKED (exit 2), not a passing loader result.
 The published binary reproduces the ABI error followed by SIGSEGV without esm.
+The user's macOS Docker Desktop run passes all fifteen regression cases and both
+rebuilt USB controls in every phase, but reproduces this native blocker. The
+tests target Linux/amd64 inside Docker; a Linux PC is not required. This does not
+verify native macOS Electron binaries.
 
 ### Embedded VM hosts
 
 - **StackBlitz/WebContainers (#917)** - **Partially resolved.** The shared-intrinsic guard fixes live-global corruption in native regressions across cache modes. A real WebContainer on Node 22.22.3 loads a smoke module with the published fork and retains Object; upstream esm fails that smoke load. The guard was applied to an isolated test package, but the full historically failing application path was not established. Preserve this distinction before closing the issue. See [scope and evidence](host-integrations.md#shared-realm-vm-emulation-917).
 
-Docker now includes the #917 shared VM regression and a guard-disabled negative
-control in each cache mode. `pnpm verify:webcontainer` runs the same graph in the
-actual WebContainer without replacing VM APIs. An optional application directory
-also runs its build and requires evidence that it invoked the fork. The latest
-linked Ember build returned zero but invoked no esm factory, so it does not
-establish the historical failing path. See the [new verification commands](host-integrations.md#full-usb-and-real-webcontainer-verification).
+`pnpm verify:hosts:docker` now orchestrates both scopes automatically. Its offline
+phase includes the shared VM regression and a guard-disabled negative control in
+each cache mode. A separate online Chromium container boots the actual
+WebContainer SDK, mounts the Docker-built loader and a reconstructed consumer,
+and verifies the graph and a build that invokes the fork in all three modes.
+Reports are exported without manual browser actions or ZIP transfer. This new
+online phase has not yet been verified end to end. Its live validation was
+blocked by automatic approval review pending consent to expose the mounted
+payload to StackBlitz. The historical Ember dependency graph is also unverified:
+the previously linked build returned zero but invoked no esm factory. See the
+[single verification command and scope](host-integrations.md#full-usb-and-real-webcontainer-verification).
 
 ### VM API boundary
 

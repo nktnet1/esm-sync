@@ -11,12 +11,13 @@ on #691, #817 and #917; #886 is deferred.
 | [#867](https://github.com/standard-things/esm/issues/867) | **Fully resolved for the original Linux reproduction** | Electron 8.0.0: first load and three reloads, disabled/cold/warm caches; confirmed again in the latest Docker run | None for this reproduction |
 | [#915](https://github.com/standard-things/esm/issues/915) | **Fully resolved for the original reproduction** | VS Code 1.66.2: activation, command and valid allocated port in all three cache modes; confirmed again in Docker | UI Reload Window remains outside the automated checks |
 | [#691](https://github.com/standard-things/esm/issues/691) | **Resolved** | Docker passes the Electron 8 reconstruction: unsuppressed window events, console and native DevTools locations; syntax/runtime controls, recovery reload and all three cache modes | None; the passing reconstruction satisfies the agreed resolution criterion |
-| [#917](https://github.com/standard-things/esm/issues/917) | **Partially resolved; real-host verifier available** | Shared-VM guard regression is now included in Docker, with a guard-disabled negative control | Run `pnpm verify:webcontainer` inside the affected host; optionally supply the application directory to verify its build uses the fork |
+| [#917](https://github.com/standard-things/esm/issues/917) | **Partially resolved; automated real-host verifier added** | Shared-VM guard regression passes in Docker, with a guard-disabled negative control; earlier real-host graph checks passed with the published fork | The Docker command now runs the current loader and a reconstructed consumer in a real WebContainer automatically; this new online phase and the historical Ember application still need verified results |
 | [#817](https://github.com/standard-things/esm/issues/817) | **Partially resolved; native USB blocker reproduced** | Published USB 1.6.0 ABI-64 binary catches the mismatch then segfaults under ordinary require without esm; real rebuilt ABI-70 binary loads | Expanded Docker checks distinguish a full USB loader failure from an ordinary-require native crash |
 | [#886](https://github.com/standard-things/esm/issues/886) | **Deferred for this pass** | Existing VM boundary documentation retained | No implementation changes requested |
 
-The user confirmed that the previous twelve-case Docker image passes. The expanded
-image adds #917 and full USB verification. Reports label minimal #817 samples as
+The user confirmed all fifteen offline regression cases pass from macOS using
+Docker Desktop. The full USB mismatch control segfaults without esm, while both
+rebuilt USB controls pass in every cache mode. Reports label minimal #817 samples as
 `minimal-native-addon` and #691 samples as `reconstructed-renderer`. These
 scopes prevent a passing control from being mistaken for a full historical
 application result. The six #867/#915 passes retain their original scope. The ZIP
@@ -45,17 +46,33 @@ retains that input between source edits. The production loader is built from
 the current source inside the image. Host `node_modules`, `dist`, caches and
 external archives are excluded from its build context.
 
-The finished Linux/amd64 image contains everything needed for verification.
-The runner uses `--network none`, Xvfb and a private shared-memory allocation;
-it mounts neither the host display nor the source tree. ARM Docker hosts need
-Linux/amd64 emulation. The exact built image ID is used for the run and recorded
-in `docker.json`, so concurrent rebuilds cannot switch a running test to a
-different tagged image.
+**A Linux PC is not required.** Docker Desktop on macOS is supported. These are
+Linux/amd64 Electron, VS Code and USB checks, including when launched from macOS;
+they do not test native macOS Electron binaries. Apple Silicon and other ARM
+Docker hosts need Linux/amd64 emulation. The wrapper prints the container target
+and the runner's platform and architecture before building.
+
+The image includes Chromium and the checksum-pinned WebContainer SDK. The wrapper
+runs two disposable containers using the same exact image ID. The first uses
+`--network none` and Xvfb for all fifteen regression cases and the full USB
+controls. The second uses Chromium and network access to boot a real WebContainer,
+mount the Docker-built loader and the authored consumer, and run its worker.
+Neither container mounts the host display or the source tree. The online phase
+still runs when the offline phase returns the native USB blocker (exit 2).
+
+The online phase connects to StackBlitz's WebContainer runtime. The mounted
+payload consists of the built loader, worker code, fixtures, a reconstructed
+consumer, vendored punycode and package metadata. The SDK receives this payload
+and generates verification reports. It requires network access at run time;
+the fifteen offline regression cases retain their separate offline guarantee.
+No development dependency tree or credentials are mounted into the browser.
 
 Reports, probe JSON, raw host logs and runtime provenance are copied back to
 `.cache/host-verification/run-*/reports/` on successful and failed host runs.
-Both downloads and reports are gitignored. The runner removes only its own
-uniquely named container after copying diagnostics. The cached image remains
+Both downloads and reports are gitignored. Offline diagnostics are under
+`reports/offline/`, browser and real-VM evidence under `reports/webcontainer/`,
+and `reports/report.json` combines both outcomes. The runner removes only its own
+two uniquely named containers after copying diagnostics. The cached image remains
 available as `esm-sync-hosts:local`; report paths such as `/reports` and `/tmp`
 inside the logs refer to the container. The wrapper prints the host artifact
 directory and returns nonzero for failed or missing verification evidence.
@@ -68,11 +85,17 @@ unsanitized archive-entry warning without suppressing the scanner.
 
 ## Output
 
-The wrapper numbers build/run/export as `[Step 1/3]` through `[Step 3/3]`.
+The wrapper numbers build, offline checks, online WebContainer checks and export
+as `[Step 1/4]` through `[Step 4/4]`.
 Inside the image, issue groups use `[Issue 1/5]` and individual regression cases
 use `[1/15]` through `[15/15]`. Each case prints its RUN and PASS/FAIL result;
 subsequent cases skipped after a failure are labelled SKIP. The final summary
 and `report.json` counts distinguish passed, failed and skipped cases.
+
+USB subprocesses print their signal, timeout or nonzero exit status. A yellow
+BLOCKED result is distinct from a failed assertion. The online #917 worker prints
+three additional cache cases and the consumer-build evidence. A WebContainer
+boot or network failure is also BLOCKED; it cannot produce a passing host result.
 
 Status labels retain ANSI colours through Docker's piped output, without a
 pseudo-terminal. Set `NO_COLOR=1` or `FORCE_COLOR=0` to disable colours. The
@@ -88,7 +111,8 @@ the image. It has no native CLI, external-assets option or runtime overrides.
 The checker runs fifteen regression cases: disabled, cold and warm disk-cache
 launches for #867, #915, the #691 reconstruction, #817's minimal native-addon
 controls and #917's shared VM emulation. Four additional full USB subprocesses
-run per cache phase. Electron must
+run per cache phase. The online phase adds disabled/cold/warm real WebContainer
+graph checks and a consumer build in each phase. Electron must
 load the original HTML/renderer successfully and greet once on the first load
 and each of three reloads. Each VS Code launch must activate the original
 extension, execute its command through the real host API, and log a valid port
@@ -319,14 +343,19 @@ rejection followed by a crash does not pass. An ordinary-require crash after the
 matching ABI error is BLOCKED. A rebuilt control failure is FAILED; a healthy
 ordinary control followed by a failing dynamic import is a loader failure.
 
-Exit 0 means all regression and full USB checks pass. Exit 1 means verification
-failed. Exit 2 means the regression cases pass but full USB verification is
-blocked by an ordinary-require native crash or hang. In that case `report.json`
-has `controlsPassed: true`, `passed: false` and `blocked: true`. Fifteen green
-regression cases do not resolve a blocked full USB case.
+Exit 0 means the offline hosts, full USB controls and real WebContainer phase all
+pass. Exit 1 means a check failed or evidence is missing. Exit 2 means verification
+is blocked by the ordinary-require native USB crash/hang or by an unavailable
+WebContainer environment, with no failed check taking precedence. The combined
+`report.json` records both phases and the blockers. For the USB blocker,
+`offline/report.json` has `controlsPassed: true`, `passed: false` and
+`blocked: true`. Fifteen green regression cases do not resolve a blocked full
+USB case.
 
 The published USB binary, not just the earlier experimental build, reproduces
-this native blocker in Electron 5's embedded Node. The rebuilt ABI-70 binary
+this native blocker in Electron 5's embedded Node on Linux x64. The user's macOS
+Docker Desktop run reproduces it inside the Linux/amd64 container. Switching to
+a Linux PC is not a demonstrated fix or a requirement. The rebuilt ABI-70 binary
 loads and survives the event-loop check. USB may report a libusb initialisation
 error without physical USB access; the result retains that value. The probe
 independently observes the actual `.node` handler completing and verifies the
@@ -341,35 +370,36 @@ context preparation deletes the live Object. The tested loader is unchanged.
 Upstream esm is not a suitable negative control because it also fails on modern
 Node for unrelated reasons. Docker's scope is `shared-realm-vm-regression`.
 
-For the actual host, open this checkout with its development dependencies in
-the affected WebContainer and run `pnpm verify:webcontainer`. The command builds
-the current production loader and repeats the module graph in disabled/cold/warm
-processes. It verifies that VM contexts share the host's Object and never
-replaces the host VM APIs. Ordinary native Node fails with an explicit environment
-message instead of claiming WebContainer coverage.
+The same `pnpm verify:hosts:docker` command now handles actual-host verification
+without opening a browser, transferring a ZIP, extracting files or entering a
+second command. A local HTTP harness serves the pinned `@webcontainer/api@1.6.4`
+SDK and the worker, with the required cross-origin isolation headers. Headless
+Chromium boots the SDK, mounts the worker and starts it in the actual WebContainer.
+The build compiles the TypeScript worker to JavaScript, so the VM needs no native
+TypeScript support, development dependencies, package installation or build step.
 
-To verify an application too, run
-`pnpm verify:webcontainer /path/to/ember-app` from this checkout inside the
-WebContainer. The application needs installed dependencies and its normal
-`build` script. A child-process preload redirects `esm` requests to the tested
-fork, observes actual factory calls and compares builtin descriptors on exit.
-No application source, dependency files or lockfiles are changed. The build
-must exit successfully and invoke the fork; otherwise verification fails.
+The worker verifies that VM contexts share the host's Object without replacing
+VM APIs, then repeats the graph and the reconstructed consumer's build in three
+fresh cache-mode processes. A child-process preload redirects `esm` requests to
+the Docker-built fork, observes actual factory calls and compares builtin
+descriptors on exit. A build that exits zero without invoking the fork fails.
+Ordinary native Node also fails the real-host assertion instead of being counted
+as WebContainer coverage.
 
-Reports are saved under `.cache/host-verification/webcontainer-*/`. They record
-the loader digest, actual-host scope and per-phase build evidence. The latest
-inspection of the linked Ember project ran on WebContainer Node 22.22.3. Its
-build returned zero but recorded zero esm factory calls, so that build is not
-accepted as verification of the historical failing path.
+The browser exports worker reports and raw logs automatically. The validator
+requires the current run nonce, matching offline/online loader digests, a booted
+and isolated browser, three unique cache phases, real shared-VM probe evidence
+and successful consumer builds that used the fork. A stale report, emulated VM,
+unused loader or runtime error cannot produce a passing result. The generated
+worker ZIP is retained only as a diagnostic artifact; no manual transfer is
+required. The public `verify:webcontainer` script is removed.
 
-The Docker run also exports `reports/webcontainer-check.zip` once all fifteen
-regression cases pass, including when full USB returns BLOCKED. This kit contains
-the production loader, TypeScript verifier, module fixtures and vendored punycode;
-it needs no install or build inside the WebContainer. Extract it into `esm-check`
-in the affected application and run
-`node esm-check/script/src/esm/verify-webcontainer.ts .` from the application
-root. Omit `.` to check the module graph without an application build. Node
-22.18 or newer is required for native TypeScript execution.
+This is a newly authored consumer under `test/fixture/hosts/issue-917/application`,
+not the original Ember dependency graph. The earlier linked Ember build on
+WebContainer Node 22.22.3 exited zero but invoked no esm factory, so it remains
+insufficient evidence for that historical application. A pass from this command
+verifies the current loader's shared-VM regression and reconstructed build in a
+real WebContainer; it does not establish the historical Ember failure is fixed.
 
 A further direct real-host check of the published fork with the same shared VM
 guard passed the CommonJS/ESM graph, repeated loads, builtin preservation and
@@ -379,21 +409,34 @@ Docker-exported loader or a build that actually invokes the old application path
 
 ## Validation
 
-The expanded verification tooling passes 155 focused tests on each of Node 22,
-24 and 26, including archive security, native-failure classification, the guard
-counterfactual and dependency-free kit execution. TypeScript checks, owned-type
-auditing, Biome and Knip pass. Direct Electron 5 embedded-Node checks verify the
-published ABI-64 native crash and successful loading/repeated dynamic imports
-with the full rebuilt ABI-70 USB package. The final expanded Docker image has
-not been run in the authoring workspace, which has no Docker daemon.
+The expanded verification tooling passes 180 focused tests on each of Node 22,
+24 and 26. These include archive security, native-failure classification, the
+guard counterfactual, dependency-free compiled-worker and consumer execution,
+both Docker phases with simulated outcomes, browser-page execution with an
+in-memory SDK stub, localhost isolation headers and strict real-host evidence
+validation. TypeScript checks, owned-type auditing, Biome and Knip pass. The
+production build passes and its loader digest remains
+`8b771daf822c8672d82a3ac9eca405493bc1a384b9b13f8c77266f1e1c9b9ed3`.
+
+These unit tests do not count as a live WebContainer result. Automatic approval
+review blocked the new live check pending consent to expose the mounted loader,
+reconstructed consumer and reports to StackBlitz. The updated image has not run
+end to end in the authoring workspace, which also has no Docker daemon. No new
+real-host pass is claimed for this revision.
+
+Earlier direct Electron 5 embedded-Node checks verified the published ABI-64
+native crash and successful loading/repeated dynamic imports with the full
+rebuilt ABI-70 USB package.
 
 Actual pinned Electron checks passed for #691,
 #817's minimal addon controls and #867, each with disabled, cold and warm caches.
-The latest user-confirmed Docker run passes all twelve cases for #867, #915,
-#691 and #817's minimal addon controls. This completes #691 verification; the
-limited #817 controls do not close the full USB issue. #917 remains partially
-resolved; the expanded Docker image now covers its VM emulation regression,
-and the separate real-host command verifies the actual VM and optional build.
+The latest user-confirmed Docker Desktop run on macOS passes all fifteen cases
+for #867, #915, #691, #817's minimal addon controls and #917's emulated VM. Both
+rebuilt USB controls pass in every phase. This retains #691's resolved status;
+the ordinary-require native crash leaves full USB verification blocked. #917
+remains partially resolved until the new real-host phase passes, with the
+historical Ember dependency graph still outside the reconstructed consumer's
+scope. The single Docker command now automates the real-host phase as well.
 
 Focused host/renderer/shared-VM/upstream checks passed 132 tests each on Node 22
 and 26. The Node 24 production run covered 1,655 tests: 1,510 passed initially;

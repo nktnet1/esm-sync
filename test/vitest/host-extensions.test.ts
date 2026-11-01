@@ -113,7 +113,7 @@ describe("full USB verification verdicts", () => {
 })
 
 describe("shared VM host verification", () => {
-  it("exports a production kit whose probe runs without installed dependencies or build tooling", async () =>
+  it("exports a kit whose probe and reconstructed build run without installed dependencies or build tooling", async () =>
     temporary(async (directory) => {
       const kit = exportWebContainerKit(directory)
       expect((await readFile(kit.archive)).subarray(0, 2).toString()).toBe("PK")
@@ -125,10 +125,10 @@ describe("shared VM host verification", () => {
       expect(manifest.dependencies).toBeUndefined()
       expect(manifest.devDependencies).toBeUndefined()
       const entry = pathToFileURL(
-        path.join(kit.directory, "script/src/esm/verify-hosts-container.ts")
+        path.join(kit.directory, "script/src/esm/verify-hosts-container.js")
       ).href
       const probeModule = pathToFileURL(
-        path.join(kit.directory, "script/src/esm/webcontainer-probe.ts")
+        path.join(kit.directory, "script/src/esm/webcontainer-probe.js")
       ).href
       const work = path.join(directory, "work")
       await mkdir(work)
@@ -142,6 +142,39 @@ const project=await prepareProject(917,process.argv[1]);const loader=realpathSyn
       )
       expect(result.code, result.stderr).toBe(0)
       expect(result.stdout.trim()).toBe("portable-kit:pass")
+      const preload = path.join(directory, "application-preload.cjs")
+      await writeFile(preload, webcontainerApplicationPreload)
+      const loader = await realpath(path.join(kit.directory, "dist/esm.js"))
+      const application = await runCommand(
+        process.execPath,
+        ["build.cjs"],
+        path.join(kit.directory, "application"),
+        {
+          ...process.env,
+          NODE_ENV: "production",
+          ESM_ENV: "production",
+          ESM_DISABLE_CACHE: "true",
+          NODE_OPTIONS: "--require " + JSON.stringify(preload),
+          ESM_WEB_APPLICATION: JSON.stringify({
+            phase: "disabled",
+            nonce: "portable-consumer",
+            loader,
+            reports: directory
+          })
+        }
+      )
+      expect(application.code, application.stderr).toBe(0)
+      expect(application.stdout.trim()).toBe("webcontainer-consumer-build:pass")
+      const evidence = (await readdir(directory)).find((name) =>
+        /^application-disabled-\d+\.json$/.test(name)
+      )!
+      expect(JSON.parse(await readFile(path.join(directory, evidence), "utf8"))).toMatchObject({
+        nonce: "portable-consumer",
+        loader,
+        factories: 1,
+        globalsPreserved: true,
+        exitCode: 0
+      })
     }))
   it("bounds real-host subprocesses without assuming POSIX process groups", async () => {
     await expect(

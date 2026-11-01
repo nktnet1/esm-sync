@@ -24,6 +24,13 @@ export const hostAddonHeaders: HostInput = {
   maxBytes: 10 * 1024 * 1024
 }
 
+export const hostWebContainerSdk: HostInput = {
+  file: "webcontainer-api-1.6.4.tgz",
+  url: "https://registry.npmjs.org/@webcontainer/api/-/api-1.6.4.tgz",
+  sha256: "827e418b6d8185a133f8a14a2e0526d8a370e948d8fc0e0de2f41453049a0695",
+  maxBytes: 512 * 1024
+}
+
 // Exact upstream packages and published native binary, not replacement USB code.
 export const hostPackages = {
   usb: {
@@ -154,11 +161,13 @@ export async function downloadHostRuntime(
 export async function downloadHostRuntimes(destination = hostRuntimeCache): Promise<void> {
   // Await every independent download before emitting the complete provenance file.
   const results = await Promise.allSettled(
-    [...hostRuntimes, hostAddonHeaders, ...Object.values(hostPackages)].map(async (input) => {
-      console.log(`${styleText("cyan", "RUNTIME")} ${input.file}`)
-      const result = await downloadHostRuntime(input, destination)
-      console.log(`${styleText("green", result.toUpperCase())} ${input.file}`)
-    })
+    [...hostRuntimes, hostAddonHeaders, hostWebContainerSdk, ...Object.values(hostPackages)].map(
+      async (input) => {
+        console.log(`${styleText("cyan", "RUNTIME")} ${input.file}`)
+        const result = await downloadHostRuntime(input, destination)
+        console.log(`${styleText("green", result.toUpperCase())} ${input.file}`)
+      }
+    )
   )
   const failures = results.filter((result) => result.status === "rejected")
   assert.equal(failures.length, 0, failures.map((result) => String(result.reason)).join("\n"))
@@ -180,7 +189,8 @@ export async function downloadHostRuntimes(destination = hostRuntimeCache): Prom
             ...hostAddonHeaders,
             bytes: (await stat(path.join(directory, hostAddonHeaders.file))).size
           },
-          packages: hostPackages
+          packages: hostPackages,
+          webcontainerSdk: hostWebContainerSdk
         },
         null,
         2

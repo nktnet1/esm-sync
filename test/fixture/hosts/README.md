@@ -21,7 +21,9 @@ SHA-256 hashes. Updating the fixtures requires an explicit provenance review.
 The three desktop runtime archives and Electron 5 headers are fetched by the TypeScript
 downloader during the Docker build, verified against pinned SHA-256 hashes,
 and cached under the ignored `.cache/host-runtimes/` directory. The built image
-contains everything needed to run the reproductions offline.
+contains everything needed to run the desktop reproductions offline. Docker
+Desktop on macOS is supported; these checks target Linux/amd64 inside the
+container and do not require a Linux PC.
 
 The #817 application files are copied from the pinned upstream commit.
 Its `addon.cc`, `repeat.js` and `usb/` shim are newly authored MIT controls.
@@ -44,9 +46,17 @@ passing Docker reconstruction satisfies the agreed resolution criterion for
 #691; recovering that application is not required to mark the issue resolved.
 
 `issue-917` is a newly authored MIT regression for a VM that shares host
-intrinsics. Docker runs it with an explicit VM emulation; the real-host command
-runs it without emulation inside a WebContainer. A copy of the current production
-loader with only the shared-realm guard disabled supplies the negative control.
+intrinsics. Its `application/` directory is a reconstructed consumer that calls
+the loader factory and builds the small CommonJS/ESM graph. It is not the
+historical Ember application or its dependency graph. The Docker command runs
+the offline VM emulation and then launches Chromium to run the actual
+WebContainer SDK without VM emulation. A copy of the current production loader
+with only the shared-realm guard disabled supplies the offline negative control.
+The worker is compiled to JavaScript and mounted automatically, including the
+reconstructed consumer and vendored punycode. No manual archive transfer or
+WebContainer dependency installation is required. The pinned SDK download,
+extracted SDK and all reports remain gitignored. Only the real-host phase needs
+network access at run time.
 
 The full #817 checks additionally use actual USB 1.6.0 source, nan 2.13.2,
 bindings 1.5.0, file-uri-to-path 1.0.0 and USB's published Node ABI-64 binary.

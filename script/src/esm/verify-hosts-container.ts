@@ -829,7 +829,7 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
       `${hostLabel("yellow", "BLOCKED")} #817 full USB: ordinary require crashes or hangs without esm. Exit 2; see 817-usb-*.json.\n`
     )
   console.log(
-    `${hostLabel("cyan", "SCOPE")} #917 Docker checks emulate the shared VM. Run pnpm verify:webcontainer inside the affected WebContainer for real-host verification.\n`
+    `${hostLabel("cyan", "SCOPE")} #917 offline checks emulate the shared VM. The Docker wrapper runs real WebContainer verification automatically in its next phase.\n`
   )
   console.log(`${hostLabel("cyan", "REPORT")} ${output}\n`)
   if (!passed) process.exitCode = blocked ? 2 : 1

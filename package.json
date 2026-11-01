@@ -41,8 +41,7 @@
     "benchmark:startup": "node script/src/benchmark-startup.ts",
     "benchmark:log4brains": "node script/src/esm/cli.ts benchmark-log4brains",
     "verify:babel-repro": "node script/src/esm/cli.ts verify-babel-repro",
-    "verify:hosts:docker": "node script/src/esm/verify-hosts-docker.ts",
-    "verify:webcontainer": "node script/src/esm/verify-webcontainer.ts"
+    "verify:hosts:docker": "node script/src/esm/verify-hosts-docker.ts"
   },
   "main": "./dist/esm.js",
   "types": "./dist/esm.d.ts",

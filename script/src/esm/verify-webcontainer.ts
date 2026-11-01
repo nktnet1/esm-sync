@@ -53,7 +53,7 @@ export async function verifyWebContainer(application?: string): Promise<string> 
   assert.equal(
     new Script("({}).constructor").runInContext(createContext({})),
     Object,
-    "Run this command inside the affected StackBlitz/WebContainer. Docker exercises the shared VM regression separately."
+    "Run this command inside the affected StackBlitz/WebContainer. The Docker wrapper supplies this runtime automatically."
   )
   if (application) {
     application = realpathSync(application)
@@ -234,10 +234,6 @@ export async function verifyWebContainer(application?: string): Promise<string> 
   console.log(
     `${hostLabel("green", "PASS")} #917 ${application ? "application verification" : "real-host module regression"}. REPORT ${output}`
   )
-  if (!application)
-    console.log(
-      "To verify an application build too: pnpm verify:webcontainer /path/to/ember-app (inside the WebContainer)."
-    )
   return output
 }
 
@@ -246,7 +242,7 @@ if (
   existsSync(process.argv[1]) &&
   realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 ) {
-  assert.ok(process.argv.length <= 3, "Usage: pnpm verify:webcontainer [application-directory]")
+  assert.ok(process.argv.length <= 3, "Internal WebContainer worker: [application-directory]")
   verifyWebContainer(process.argv[2]).catch((error: unknown) => {
     console.error(error)
     process.exitCode = 1

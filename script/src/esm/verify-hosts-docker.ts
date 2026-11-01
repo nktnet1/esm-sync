@@ -1,18 +1,11 @@
 import assert from "node:assert/strict"
-import { spawn, spawnSync } from "node:child_process"
-import { randomUUID } from "node:crypto"
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  writeFileSync
-} from "node:fs"
+import { spawn } from "node:child_process"
+import { existsSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
-import { hostColorsEnabled, hostLabel, hostSection } from "./host-output.ts"
+import { hostLabel } from "./host-output.ts"
+import { HostVerificationBlocked, runDockerHostChecks } from "./host-docker-run.ts"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 export type DockerRunner = (args: string[], cwd: string) => Promise<number>
@@ -49,8 +42,6 @@ function dockerClient(): { run: DockerRunner; cancel: () => void } {
     }
   }
 }
-
-class HostVerificationBlocked extends Error {}
 
 function validateDockerReport(value: unknown, blocked = false): void {
   assert.ok(value && typeof value === "object", "Missing host verification report")
@@ -145,120 +136,12 @@ export async function verifyHostsDocker(
   projectRoot = root,
   runner?: DockerRunner
 ): Promise<string> {
-  const project = realpathSync(projectRoot)
   const client = dockerClient()
-  const run = runner ?? client.run
-  if ((await run(["version", "--format", "{{.Server.Version}}"], project)) !== 0)
-    throw new Error("Docker daemon is unavailable")
-  const base = path.join(project, ".cache/host-verification")
-  mkdirSync(base, { recursive: true })
-  const directory = realpathSync(mkdtempSync(path.join(realpathSync(base), "run-")))
-  const reports = path.join(directory, "reports")
-  mkdirSync(reports)
-  const imageFile = path.join(directory, "image-id")
-  const container = "esm-sync-hosts-" + randomUUID()
-  let attempted = false
-  let interrupted = false
-  let image = ""
-  let runCode: number | null = null
-  let cleanupCode: number | null = null
-  const onInterrupt = () => {
-    interrupted = true
-    client.cancel()
-    if (attempted && !runner)
-      spawnSync("docker", ["stop", "--time", "1", container], { stdio: "ignore", timeout: 10_000 })
-  }
-  const onExit = () => {
-    if (attempted && !runner)
-      spawnSync("docker", ["rm", "--force", container], { stdio: "ignore", timeout: 10_000 })
-  }
-  process.once("SIGINT", onInterrupt)
-  process.once("SIGTERM", onInterrupt)
-  process.once("exit", onExit)
-  console.log(`\n${hostLabel("cyan", "REPORTS")} ${reports}`)
-  try {
-    hostSection(1, 3, "Build the self-contained Linux host image")
-    const buildCode = await run(
-      [
-        "build",
-        "--platform",
-        "linux/amd64",
-        "--file",
-        "script/docker/hosts.Dockerfile",
-        "--tag",
-        "esm-sync-hosts:local",
-        "--iidfile",
-        imageFile,
-        "."
-      ],
-      project
-    )
-    if (interrupted) throw new Error("Host verification interrupted")
-    if (buildCode !== 0)
-      throw new Error(`Docker build failed (exit ${buildCode}); reports: ${reports}`)
-    image = readFileSync(imageFile, "utf8").trim()
-    assert.match(image, /^sha256:[a-f0-9]{64}$/, "Docker did not write an image ID")
-    attempted = true
-    let copyCode: number | null = null
-    try {
-      hostSection(2, 3, "Run fifteen offline host/VM regression checks and full USB verification")
-      runCode = await run(
-        [
-          "run",
-          "--name",
-          container,
-          "--platform",
-          "linux/amd64",
-          "--init",
-          "--network",
-          "none",
-          "--shm-size",
-          "1g",
-          "--env",
-          `FORCE_COLOR=${hostColorsEnabled() ? "1" : "0"}`,
-          image
-        ],
-        project
-      )
-    } finally {
-      // Keep the stopped container until diagnostics have been exported, including
-      // failed runs. No source tree or external assets are mounted into it.
-      hostSection(3, 3, "Export diagnostics and remove the test container")
-      copyCode = await run(["cp", `${container}:/reports/.`, reports], project)
-    }
-    if (copyCode !== 0) throw new Error(`Could not export container diagnostics to ${reports}`)
-    if (interrupted) throw new Error(`Host verification interrupted; reports: ${reports}`)
-    if (runCode !== 0 && runCode !== 2)
-      throw new Error(`Host verification failed (container exit ${runCode}). Reports: ${reports}`)
-    const output = path.join(reports, "report.json")
-    assert.ok(existsSync(output), `Container wrote no verification report: ${output}`)
-    validateDockerReport(JSON.parse(readFileSync(output, "utf8")) as unknown, runCode === 2)
-    if (runCode === 2)
-      throw new HostVerificationBlocked(
-        `Regression checks pass; #817 full USB is BLOCKED by an ordinary-require native crash. Reports: ${reports}\nWebContainer test kit: ${path.join(reports, "webcontainer-check.zip")}`
-      )
-  } finally {
-    try {
-      if (attempted) cleanupCode = await run(["rm", "--force", container], project)
-    } finally {
-      process.removeListener("SIGINT", onInterrupt)
-      process.removeListener("SIGTERM", onInterrupt)
-      process.removeListener("exit", onExit)
-      writeFileSync(
-        path.join(reports, "docker.json"),
-        JSON.stringify(
-          { image, container, platform: "linux/amd64", exitCode: runCode, cleanupCode },
-          null,
-          2
-        )
-      )
-    }
-  }
-  if (cleanupCode !== 0) throw new Error(`Could not remove verification container ${container}`)
-  console.log(
-    `${hostLabel("green", "PASS")} Docker host verification\n\n${hostLabel("cyan", "REPORT")} ${path.join(reports, "report.json")}\nWebContainer test kit: ${path.join(reports, "webcontainer-check.zip")}\n`
+  return runDockerHostChecks(
+    projectRoot,
+    { run: runner ?? client.run, cancel: client.cancel, native: !runner },
+    validateDockerReport
   )
-  return reports
 }
 
 if (
@@ -269,12 +152,12 @@ if (
   const { values } = parseArgs({ options: { help: { type: "boolean", short: "h" } } })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts:docker\nRuns fifteen offline regression checks for #867/#915/#691/#817/#917, plus real USB ABI and rebuilt controls. Exit 0: all checks pass; 1: failure; 2: full USB verification blocked by a native ordinary-require failure. #917's real WebContainer command is pnpm verify:webcontainer. Reports: .cache/host-verification. Requires Docker Engine/Desktop. No external assets or host display."
+      "pnpm verify:hosts:docker\nRuns offline Linux/amd64 host and USB checks, then automatically boots a real WebContainer in Chromium and runs all three cache modes plus consumer builds. macOS and Linux Docker hosts are supported. Only the WebContainer phase needs network access. Exit 0: pass; 1: failure; 2: native USB or WebContainer environment blocker. Reports: .cache/host-verification. No manual upload, external assets or host display."
     )
   } else {
     verifyHostsDocker().catch((error: unknown) => {
       console.error(
-        `\n${hostLabel("red", "FAIL")} ${error instanceof Error ? error.message : String(error)}\n`
+        `\n${hostLabel(error instanceof HostVerificationBlocked ? "yellow" : "red", error instanceof HostVerificationBlocked ? "BLOCKED" : "FAIL")} ${error instanceof Error ? error.message : String(error)}\n`
       )
       process.exitCode = error instanceof HostVerificationBlocked ? 2 : 1
     })

@@ -2,7 +2,7 @@ FROM node:24.21.0-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libnss3 libxss1 libxtst6 libasound2 libx11-xcb1 \
-    libdrm2 libgbm1 libxshmfence1 xvfb xauth dbus-x11 fonts-liberation g++ \
+    libdrm2 libgbm1 libxshmfence1 xvfb xauth dbus-x11 fonts-liberation g++ chromium \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work
@@ -20,6 +20,7 @@ RUN npm install --global --ignore-scripts --no-audit --no-fund pnpm@12.15.0 \
 COPY . .
 RUN node script/src/esm/build-host-addons.ts
 RUN node script/src/esm/build-host-usb.ts
+RUN node script/src/esm/build-webcontainer-sdk.ts
 # The existing build prepares Acorn source here. Keep it between source edits
 # without shipping downloaded vendor inputs or host caches in the build context.
 RUN --mount=type=cache,target=/work/src/vendor,sharing=locked \

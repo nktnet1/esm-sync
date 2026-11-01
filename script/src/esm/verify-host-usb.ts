@@ -301,8 +301,17 @@ export async function verifyHostUsb(
       log: file + ".log",
       report
     })
+    const detail = passed
+      ? ""
+      : result.timedOut
+        ? " — timed out after 20s"
+        : result.signal
+          ? " — " + result.signal
+          : result.code !== 0
+            ? " — exit " + result.code
+            : " — incomplete probe evidence; see JSON"
     console.log(
-      `    [USB ${index + 1}/4] ${hostLabel(passed ? "green" : "yellow", passed ? "PASS" : "CHECK")} #817 ${phase} ${mode} ${binary}${result.signal ? " — " + result.signal : ""}`
+      `    [USB ${index + 1}/4] ${hostLabel(passed ? "green" : "yellow", passed ? "PASS" : "CHECK")} #817 ${phase} ${mode} ${binary}${detail}`
     )
   }
   const verdict = usbVerdict(runs, phase)
