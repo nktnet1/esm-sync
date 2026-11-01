@@ -6,18 +6,52 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "**/README.md"
   pull_request:
     branches:
-      - "*"
-    paths-ignore:
-      - "**/README.md"
+      - "**"
   workflow_dispatch:
   workflow_call:
+    inputs:
+      full:
+        description: Run every check when invoked as a reusable workflow
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Select checks
+    runs-on: ubuntu-24.04
+    outputs:
+      library: ${{ steps.select.outputs.library }}
+      tooling: ${{ steps.select.outputs.tooling }}
+      production: ${{ steps.select.outputs.production }}
+      audit: ${{ steps.select.outputs.audit }}
+    steps:
+      - name: Checkout comparison history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js without installing dependencies
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          package-manager-cache: false
+
+      - name: Select checks from all changed files
+        id: select
+        env:
+          ESM_CI_FULL: ${{ inputs.full == true }}
+        run: node script/src/esm/ci-changes.ts
+
   library:
+    needs: changes
+    if: needs.changes.outputs.library == 'true'
     name: Library / ${{ matrix.os }} / Node ${{ matrix.node-version }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -52,7 +86,22 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Prepare vendor fixtures
-        run: pnpm fixtures:prepare
+        uses: ./.github/actions/prepare-fixtures
+        with:
+          save-cache: ${{ github.ref == 'refs/heads/main' && matrix.node-version == 24 }}
+
+      - name: Read Windows Node version
+        if: runner.os == 'Windows'
+        id: node
+        shell: pwsh
+        run: node -p "'version=' + process.versions.node" >> $env:GITHUB_OUTPUT
+
+      - name: Cache Windows Node-API build files
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/node-api-${{ steps.node.outputs.version }}
+          key: node-api-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.node.outputs.version }}
 
       # pnpm's Windows Node runtime contains node.exe but not the C headers or
       # import library required to compile the Node-API test fixture.
@@ -63,13 +112,17 @@ jobs:
           $version = node -p "process.versions.node"
           $base = "https://nodejs.org/dist/v$version"
           $directory = Join-Path $env:RUNNER_TEMP "node-api-$version"
-          New-Item -ItemType Directory -Force -Path $directory | Out-Null
-          $archive = Join-Path $directory 'headers.tar.gz'
-          Invoke-WebRequest "$base/node-v$version-headers.tar.gz" -OutFile $archive
-          tar -xzf $archive -C $directory
           $headers = Join-Path $directory "node-v$version/include/node"
+          if (!(Test-Path (Join-Path $headers 'node_api.h')) -or !(Test-Path (Join-Path $directory 'node.lib'))) {
+            New-Item -ItemType Directory -Force -Path $directory | Out-Null
+            $archive = Join-Path $directory 'headers.tar.gz'
+            Invoke-WebRequest "$base/node-v$version-headers.tar.gz" -OutFile $archive
+            tar -xzf $archive -C $directory
+            if ($LASTEXITCODE -ne 0) { throw 'Node-API header extraction failed' }
+            Remove-Item $archive
+            Invoke-WebRequest "$base/win-x64/node.lib" -OutFile (Join-Path $directory 'node.lib')
+          }
           if (!(Test-Path (Join-Path $headers 'node_api.h'))) { throw 'Node-API headers are missing' }
-          Invoke-WebRequest "$base/win-x64/node.lib" -OutFile (Join-Path $directory 'node.lib')
           "ESM_SYNC_NODE_HEADERS=$headers" >> $env:GITHUB_ENV
           "ESM_SYNC_NODE_LIB=$directory" >> $env:GITHUB_ENV
 
@@ -86,6 +139,8 @@ jobs:
         run: pnpm test:packed --format=both
 
   tooling:
+    needs: changes
+    if: needs.changes.outputs.tooling == 'true'
     name: Tooling, build and release / Ubuntu / Node 24
     runs-on: ubuntu-24.04
     steps:
@@ -104,6 +159,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Audit production dependencies
+        if: needs.changes.outputs.audit == 'true'
         run: pnpm audit:prod
 
       - name: Check formatting and lint
@@ -113,7 +169,9 @@ jobs:
         run: pnpm typecheck
 
       - name: Prepare vendor fixtures
-        run: pnpm fixtures:prepare
+        uses: ./.github/actions/prepare-fixtures
+        with:
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Build test bundles and native await bridge
         run: pnpm build --test
@@ -122,7 +180,33 @@ jobs:
         run: pnpm test:vitest --suite=tooling
 
       - name: Verify production build and tests
+        if: needs.changes.outputs.production == 'true'
         run: pnpm verify:prod
 
       - name: Test registry publish/install with CJS and ESM consumers
+        if: needs.changes.outputs.production == 'true'
         run: pnpm test:verdaccio
+
+  ci:
+    name: CI
+    if: always()
+    needs: [changes, library, tooling]
+    runs-on: ubuntu-24.04
+    steps:
+      # Keep one required check successful for intentional skips, while
+      # propagating selection, test, and cancellation failures.
+      - name: Check selected job results
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          LIBRARY_SELECTED: ${{ needs.changes.outputs.library }}
+          TOOLING_SELECTED: ${{ needs.changes.outputs.tooling }}
+          LIBRARY: ${{ needs.library.result }}
+          TOOLING: ${{ needs.tooling.result }}
+        run: |
+          test "$CHANGES" = success
+          for result in "$LIBRARY_SELECTED:$LIBRARY" "$TOOLING_SELECTED:$TOOLING"; do
+            case "$result" in
+              true:success|false:success|false:skipped) ;;
+              *) exit 1 ;;
+            esac
+          done

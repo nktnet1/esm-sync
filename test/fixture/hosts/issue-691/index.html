@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Renderer error locations</title>
+<script>
+  window.__esmErrorReports = []
+  window.addEventListener("error", (event) => {
+    window.__esmErrorReports.push({
+      message: event.message,
+      filename: event.filename,
+      line: event.lineno,
+      column: event.colno,
+      stack: event.error && event.error.stack,
+      defaultPrevented: event.defaultPrevented
+    })
+  })
+  require = require("esm")(module)
+  window.__esmHealthy = require("./healthy.js").ready
+  window.__esmTriggerError = (kind) => {
+    setTimeout(() => require("./" + kind + ".js"), 0)
+  }
+</script>

@@ -8,6 +8,7 @@ import errors from "../errors.js"
 import dualResolveFilename from "../module/internal/dual-resolve-filename.js"
 import esmParseLoad from "../module/esm/parse-load.js"
 import makeRequireFunction from "../module/internal/make-require-function.js"
+import loadHostModule from "../module/internal/load-host-module.js"
 import shared from "../shared.js"
 import "../util/validate-string.js"
 
@@ -23,7 +24,12 @@ function hook(parent: import("../types/runtime.js").ModuleRecord) {
       throw new ERR_INVALID_ARG_VALUE("request", request, "must be a non-empty string")
     }
 
-    const filename = dualResolveFilename(request, parent, false, void 0, false, "require")
+    let filename: string
+    try {
+      filename = dualResolveFilename(request, parent, false, void 0, false, "require")
+    } catch (error) {
+      return loadHostModule(request, parent, error)
+    }
     const defaultPkg = Loader.state.package.default
     const dirPath = dirname(filename)
 

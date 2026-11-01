@@ -1,0 +1,41 @@
+// Shared by Vitest and CI change selection. New unclassified test files run
+// once in the tooling job; platform-dependent tests must opt into this list.
+export const bootstrapTests = ["test/vitest/bootstrap-fixtures.test.ts"]
+
+export const runtimeTests = [
+  "async-contexts",
+  "async-syntax",
+  "builtin-modules",
+  "cache-isolation",
+  "cached-module-bindings",
+  "check-hook",
+  "coverage-cache",
+  "cli-hook",
+  "deferred-import",
+  "electron-renderer",
+  "eval-hook",
+  "export-binding-identity",
+  "hoisted-vars",
+  "host-modules",
+  "legacy-runtime",
+  "main-hook",
+  "module-mocking",
+  "native-suites",
+  "observable-compatibility",
+  "optional-native",
+  "package-config",
+  "package-exports",
+  "reflect-polyfills",
+  "repl-hook",
+  "require-bindings",
+  "resolution-safety",
+  "test262-async-evaluation",
+  "test262-async-followup",
+  "test262-deferred-errors",
+  "test262-fixture-loading",
+  "test262-instantiation",
+  "top-level-await",
+  "upstream-regressions",
+  "value-imports",
+  "webcontainer"
+].map((name) => `test/vitest/${name}.test.ts`)

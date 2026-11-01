@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs"
+import { spawnSync } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, it, expect } from "vitest"
@@ -63,5 +64,65 @@ describe("release workflow configuration", () => {
     expect(publish).toMatch(/^ {6}id-token: write$/m)
     expect(publish).toMatch(/^ {6}- name: Validate and publish the exact release tarball$/m)
     expect(readFileSync(path.join(root, "script/RELEASING.md"), "utf8")).toMatch(/`publish\.yaml`/)
+  })
+
+  it("keeps a completion check for intentional skips and fails unfulfilled selections", () => {
+    const pipeline = workflow("pipeline.yaml")
+    expect(pipeline).not.toContain("paths-ignore:")
+    const gate = pipeline.split("  ci:\n")[1]
+    expect.assert(gate)
+    expect(gate).toContain("if: always()")
+    expect(gate).toContain("needs: [changes, library, tooling]")
+    const script = gate.split("        run: |\n")[1]?.replace(/^ {10}/gm, "")
+    expect.assert(script)
+    for (const [selection, library, tooling, changes, success] of [
+      ["false", "skipped", "skipped", "success", true],
+      ["true", "success", "success", "success", true],
+      ["true", "skipped", "success", "success", false],
+      ["true", "failure", "success", "success", false],
+      ["true", "success", "cancelled", "success", false],
+      ["false", "skipped", "skipped", "failure", false],
+      ["", "skipped", "skipped", "success", false]
+    ] as const) {
+      const result = spawnSync("bash", ["-e", "-c", script], {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CHANGES: changes,
+          LIBRARY: library,
+          TOOLING: tooling,
+          LIBRARY_SELECTED: selection,
+          TOOLING_SELECTED: selection
+        }
+      })
+      expect(
+        result.status === 0,
+        `${selection}:${library}:${tooling}:${changes}\n${result.stderr}`
+      ).toBe(success)
+    }
+  })
+
+  it("restores validated fixtures before building and gates costly production work", () => {
+    const pipeline = workflow("pipeline.yaml")
+    expect(pipeline.match(/uses: \.\/\.github\/actions\/prepare-fixtures/g)).toHaveLength(2)
+    for (const name of [
+      "Verify production build and tests",
+      "Test registry publish/install with CJS and ESM consumers"
+    ]) {
+      expect(pipeline.split(`      - name: ${name}\n`)[1]?.split("\n\n")[0]).toContain(
+        "if: needs.changes.outputs.production == 'true'"
+      )
+    }
+    const fixtures = readFileSync(
+      path.join(root, ".github/actions/prepare-fixtures/action.yaml"),
+      "utf8"
+    )
+    expect(fixtures).toContain("actions/cache/restore@v4")
+    expect(fixtures).toContain("run: pnpm fixtures:prepare")
+    expect(fixtures).toContain("inputs.save-cache == 'true'")
+    expect(fixtures).not.toContain("restore-keys:")
+    expect(pipeline).toContain(
+      "node-api-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.node.outputs.version }}"
+    )
   })
 })

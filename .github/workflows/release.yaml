@@ -35,6 +35,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Prepare vendor fixtures
+        uses: ./.github/actions/prepare-fixtures
+
       - name: Build production package with a required native bridge
         run: pnpm build:prod --test
 

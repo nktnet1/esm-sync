@@ -77,6 +77,13 @@ function init() {
       return context
     }
 
+    // Some embedded VM implementations evaluate contexts in the host realm.
+    // Deleting shadowed builtins there can delete the live host's Object,
+    // Function, etc. Probe a literal's intrinsic without changing any globals.
+    if (new Script("({}).constructor").runInContext(context) === defaultGlobal.Object) {
+      return context
+    }
+
     // An already-contextified global (e.g. Jest's sandbox) has its own realm.
     // Node's lazy globals cannot safely be transplanted into it: even reading
     // their descriptors can abort Node, and copied getters reject the receiver.

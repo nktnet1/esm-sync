@@ -1,0 +1,5 @@
+{
+  "name": "esm-renderer-error-reproduction",
+  "private": true,
+  "main": "host-probe.cjs"
+}

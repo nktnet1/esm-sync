@@ -1,0 +1,56 @@
+--- a/src/uv_async_queue.h
++++ b/src/uv_async_queue.h
+@@ -11,10 +11,14 @@
+ 	public:
+ 		typedef void (*fptr)(T);
+ 
+-		UVQueue(fptr cb, int _ref_count=0): callback(cb), ref_count(_ref_count) {
++		UVQueue(fptr cb, int _ref_count=0): callback(cb), ref_count(_ref_count), initialized(false) {}
++
++		void init(){
++			if (initialized) return;
+ 			uv_mutex_init(&mutex);
+ 			uv_async_init(uv_default_loop(), &async, UVQueue::internal_callback);
+ 			async.data = this;
++			initialized = true;
+ 			if (ref_count < 1) {
+ 				uv_unref((uv_handle_t*)&async);
+ 			}
+@@ -28,6 +32,7 @@
+ 		}
+ 		
+ 		~UVQueue(){
++			if (!initialized) return;
+ 			uv_mutex_destroy(&mutex);
+ 			uv_close((uv_handle_t*)&async, NULL); //TODO: maybe we can't delete UVQueue until callback?
+ 		}
+@@ -52,6 +57,7 @@
+ 		uv_mutex_t mutex;
+ 		uv_async_t async;
+ 		int ref_count;
++		bool initialized;
+ 		
+ 		static UV_ASYNC_CB(internal_callback){
+ 			UVQueue* uvqueue = static_cast<UVQueue*>(handle->data);
+--- a/src/node_usb.cc
++++ b/src/node_usb.cc
+@@ -164,6 +164,7 @@
+ 
+ NAN_METHOD(EnableHotplugEvents) {
+ 	Nan::HandleScope scope;
++	hotplugQueue.init();
+ 
+ 	if (!hotplugEnabled) {
+ 		hotplugThis.Reset(info.This());
+--- a/src/transfer.cc
++++ b/src/transfer.cc
+@@ -146,6 +146,9 @@
+ }
+ 
+ void Transfer::Init(Local<Object> target){
++#ifndef USE_POLL
++	completionQueue.init();
++#endif
+ 	Local<FunctionTemplate> tpl = Nan::New<FunctionTemplate>(Transfer_constructor);
+ 	tpl->SetClassName(Nan::New("Transfer").ToLocalChecked());
+ 	tpl->InstanceTemplate()->SetInternalFieldCount(1);

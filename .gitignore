@@ -1,5 +1,8 @@
 *.log
 .cache
+# Downloaded desktop runtimes and exported Docker verification diagnostics.
+/.cache/host-runtimes/
+/.cache/host-verification/
 .config
 .DS_Store
 .node_repl_history
@@ -13,6 +16,8 @@
 
 *.bundle
 *.patch
+# Reviewed native source fix; fetched packages and generated patches stay ignored.
+!/script/patches/usb-1.6.0-defer-queue-init.patch
 *.tar.gz
 
 # All generated code, native binaries, diagnostics and test workspaces.
