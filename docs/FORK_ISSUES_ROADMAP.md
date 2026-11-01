@@ -1,6 +1,6 @@
 # Upstream issue roadmap
 
-Status as of 1 November 2026 for the 83 reports in
+Status as of 2 November 2026 for the 83 reports in
 [`standard-things/esm`](https://github.com/standard-things/esm/issues).
 The tests and source code, not a historical status label, are authoritative for
 current behaviour. Keep an issue open until its agreed resolution criterion has
@@ -13,11 +13,41 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      0 |
+| Investigate                                   |      1 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     61 |
-| Not planned                                   |     22 |
+| Already covered                               |     62 |
+| Not planned                                   |     20 |
 | **Total**                                     | **83** |
+
+## Compatibility review and reopened work
+
+The [complete second review](upstream-compatibility-review.md) revisits all 83
+issue bodies and 282 exported comments, including all previously not-planned
+reports. Existing coverage records an agreed mechanism or boundary, rather than
+complete compatibility with every application mentioned in the discussion.
+
+- **Reopened dynamic-import regression** - [https://github.com/standard-things/esm/issues/829](https://github.com/standard-things/esm/issues/829).
+  Git history retains the utility source and tests from the deleted Dyo `hooks`
+  ref. The unchanged two-file reproduction passes natively but fails with
+  `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` through the production loader on
+  Node 22/24/26 in disabled/cold/warm configurations. Current Mocha CLI and
+  explicit synchronous file loading both fail. The full historical DOM project
+  was not run. Add a permanent regression and repair this path before calling
+  the report resolved. Details, pinned source hashes and limits are in the
+  [review](upstream-compatibility-review.md#recovered-dynamic-import-investigation).
+- **Current REPL package-loading verification** - [https://github.com/standard-things/esm/issues/791](https://github.com/standard-things/esm/issues/791).
+  Actual resolve-dir 1.0.1 loads and resolves home/plain paths in the interactive
+  REPL on Node 22/24/26 with disabled/cold/warm caches. Move this report from
+  not planned to covered for that tested scope. A permanent focused regression
+  should retain the new verification.
+
+Two additional modern Node gaps are confirmed: package-private `imports`
+mappings fail for static/dynamic imports, and `import.meta` lacks `resolve`,
+`dirname`, `filename` and `main`. Implement these after the recovered regression.
+They are follow-ups beyond the original public `exports` examples and are not
+additional reports in the 83-report count. Newer Jest execution, explicit scoped
+`.mjs` mocking and host-specific integration checks are further candidates.
+The review contains acceptance criteria and a recommendation for every report.
 
 ## Verified application integration
 
@@ -65,7 +95,7 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **61** reports are classified _already covered_ by an existing
+The following **62** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
@@ -73,14 +103,19 @@ reproduction.
 931, 926, 924, 922, 921, 918, 917, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
 896, 888, 887, 886, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
 846, 844, 843, 841, 839, 838, 824, 821, 817, 816, 813, 812, 810, 809, 805, 798, 796, 794,
-786, 779, 775, 706, 691.
+791, 786, 779, 775, 706, 691.
 
-The following **22** reports are _not planned_: they concern external tooling,
+The following **20** reports are _not planned_: they concern external tooling,
 obsolete environments, different products, unsupported feature requests, or
 insufficient reproductions.
 
 930, 929, 928, 927, 920, 919, 907, 903, 893, 892, 890, 884, 869, 862,
-861, 859, 845, 833, 829, 828, 791, 780.
+861, 859, 845, 833, 828, 780.
+
+The remaining **one** report under active investigation is **829**, with the
+recovered failing mechanism described above. A not-planned classification does
+not preclude the usage documentation or conditional host tests recommended in
+the full review.
 
 For build, fixture, and compatibility-test commands, see the
 [maintainer guide](MAINTAINER_GUIDE.md). Do not mark an investigation fixed
