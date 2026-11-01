@@ -13,9 +13,9 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      3 |
+| Investigate                                   |      2 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     58 |
+| Already covered                               |     59 |
 | Not planned                                   |     22 |
 | **Total**                                     | **83** |
 
@@ -35,6 +35,17 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 
 - **Electron renderer error stacks (#691)** - **Resolved.** Captured frames alone were insufficient: Chromium still reported the outer loader rethrow. Renderer errors now leave that boundary through a source-mapped function at their original location, preserving the error object. The user confirmed that all twelve Docker cases pass, including #691 syntax and runtime errors in disabled/cold/warm modes, followed by a healthy reload. The reconstruction satisfies the agreed resolution criterion; the deleted original application is not a remaining requirement. See [reconstruction and verification](host-integrations.md#chromium-error-presentation-691).
 
+## Verified embedded VM host
+
+- **StackBlitz/WebContainers (#917)** - **Resolved for the verified shared-VM failure.** The latest supplied Docker run verifies the current production loader in a real WebContainer on Node 22.22.3, with disabled/cold/warm graph checks and a reconstructed consumer build in each mode. The eight builtin descriptors remain intact, imports and caught rejections pass, and every consumer build invokes the fork and exits 0. The strict report validator accepts the evidence, the offline/online/exported ZIP loader digests match, and Docker reports successful export and cleanup. See [scope and evidence](host-integrations.md#full-usb-and-real-webcontainer-verification).
+
+The historical Ember dependency graph remains unverified. The earlier linked
+build returned zero without invoking esm; it is not evidence for that application.
+The resolved classification covers the shared-VM corruption failure and the
+reconstructed consumer in the actual host. `pnpm verify:hosts:docker` automates
+both offline regressions and this real-host verification without manual browser
+actions. Its remaining exit-2 blocker is #817's native USB crash.
+
 ## Active investigations
 
 ### Electron and extension-host integrations
@@ -50,26 +61,6 @@ The user's macOS Docker Desktop run passes all fifteen regression cases and both
 rebuilt USB controls in every phase, but reproduces this native blocker. The
 tests target Linux/amd64 inside Docker; a Linux PC is not required. This does not
 verify native macOS Electron binaries.
-
-### Embedded VM hosts
-
-- **StackBlitz/WebContainers (#917)** - **Partially resolved.** The shared-intrinsic guard fixes live-global corruption in native regressions across cache modes. A real WebContainer on Node 22.22.3 loads a smoke module with the published fork and retains Object; upstream esm fails that smoke load. The guard was applied to an isolated test package, but the full historically failing application path was not established. Preserve this distinction before closing the issue. See [scope and evidence](host-integrations.md#shared-realm-vm-emulation-917).
-
-`pnpm verify:hosts:docker` now orchestrates both scopes automatically. Its offline
-phase includes the shared VM regression and a guard-disabled negative control in
-each cache mode. A separate online Chromium container boots the actual
-WebContainer SDK, mounts the Docker-built loader and a reconstructed consumer,
-and verifies the graph and a build that invokes the fork in all three modes.
-Reports are exported without manual browser actions or ZIP transfer. The supplied
-1 November run booted and mounted the actual WebContainer, then failed while
-starting the worker, before producing loader evidence. The runner now uses the
-SDK's default working directory instead of passing an absolute directory to its
-relative `cwd` option. It preserves structured exceptions, worker output and
-partial artifacts, and includes the underlying error in the Docker summary.
-The corrected full real-host phase still needs a passing result. The historical
-Ember dependency graph is also unverified:
-the previously linked build returned zero but invoked no esm factory. See the
-[single verification command and scope](host-integrations.md#full-usb-and-real-webcontainer-verification).
 
 ### VM API boundary
 
@@ -90,12 +81,12 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **58** reports are classified _already covered_ by an existing
+The following **59** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
-931, 926, 924, 922, 921, 918, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
+931, 926, 924, 922, 921, 918, 917, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
 896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
 846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706, 691.
