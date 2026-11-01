@@ -1,6 +1,6 @@
 # Upstream issue roadmap
 
-Status as of 31 October 2026 for the 83 reports in
+Status as of 1 November 2026 for the 83 reports in
 [`standard-things/esm`](https://github.com/standard-things/esm/issues).
 The tests and source code, not a historical status label, are authoritative for
 current behaviour. Keep an issue open until its agreed resolution criterion has
@@ -60,10 +60,14 @@ phase includes the shared VM regression and a guard-disabled negative control in
 each cache mode. A separate online Chromium container boots the actual
 WebContainer SDK, mounts the Docker-built loader and a reconstructed consumer,
 and verifies the graph and a build that invokes the fork in all three modes.
-Reports are exported without manual browser actions or ZIP transfer. This new
-online phase has not yet been verified end to end. Its live validation was
-blocked by automatic approval review pending consent to expose the mounted
-payload to StackBlitz. The historical Ember dependency graph is also unverified:
+Reports are exported without manual browser actions or ZIP transfer. The supplied
+1 November run booted and mounted the actual WebContainer, then failed while
+starting the worker, before producing loader evidence. The runner now uses the
+SDK's default working directory instead of passing an absolute directory to its
+relative `cwd` option. It preserves structured exceptions, worker output and
+partial artifacts, and includes the underlying error in the Docker summary.
+The corrected full real-host phase still needs a passing result. The historical
+Ember dependency graph is also unverified:
 the previously linked build returned zero but invoked no esm factory. See the
 [single verification command and scope](host-integrations.md#full-usb-and-real-webcontainer-verification).
 

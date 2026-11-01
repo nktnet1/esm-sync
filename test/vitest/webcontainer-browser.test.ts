@@ -122,7 +122,19 @@ describe("local WebContainer harness", () => {
 })
 
 describe("browser-side automation with an in-memory SDK stub", () => {
-  for (const outcome of ["success", "boot-failure", "runtime-error", "worker-failure"] as const) {
+  for (const outcome of [
+    "success",
+    "boot-failure",
+    "runtime-error",
+    "worker-failure",
+    "spawn-object",
+    "spawn-circular",
+    "spawn-null",
+    "exit-object",
+    "output-object",
+    "missing-report",
+    "read-error"
+  ] as const) {
     it(`handles ${outcome} without any external service`, async () => {
       const report = successfulWebContainerReport(nonce, hash)
       const posted: Record<string, unknown>[] = []
@@ -143,20 +155,52 @@ describe("browser-side automation with an in-memory SDK stub", () => {
             if (outcome === "boot-failure") throw new Error("unit boot failure")
             return {
               workdir: "/home/unit",
+              path: "/bin:/usr/bin",
               on: (_name: string, listener: (value: { message: string }) => void) => {
                 if (outcome === "runtime-error") listener({ message: "unit runtime error" })
               },
               mount: async () => {
                 mounts++
               },
-              spawn: async (command: string, args: string[]) => {
+              spawn: async (
+                command: string,
+                args: string[],
+                options: { cwd?: string; env: Record<string, string> }
+              ) => {
                 starts++
                 expect(command).toBe("node")
                 expect(args).toEqual(["script/src/esm/verify-webcontainer.js", "application"])
+                // The API documents cwd as relative to workdir. The previous
+                // page supplied its absolute workdir; the old stub ignored it.
+                expect(options.cwd).toBeUndefined()
+                expect(options.env.PATH).toBe("/bin:/usr/bin")
+                if (outcome === "spawn-object")
+                  throw {
+                    code: "ENOENT",
+                    message: "unit spawn failed",
+                    syscall: "spawn",
+                    path: "node"
+                  }
+                if (outcome === "spawn-circular") {
+                  const error: Record<string, unknown> = {
+                    code: "ELOOP",
+                    message: "unit cyclic error"
+                  }
+                  error.cause = error
+                  throw error
+                }
+                if (outcome === "spawn-null") throw null
                 return {
-                  exit: Promise.resolve(outcome === "worker-failure" ? 1 : 0),
+                  exit:
+                    outcome === "exit-object"
+                      ? Promise.reject({ code: "EIO", message: "unit exit failure" })
+                      : Promise.resolve(outcome === "worker-failure" ? 1 : 0),
                   output: new ReadableStream<string>({
                     start(controller) {
+                      if (outcome === "output-object") {
+                        controller.error({ code: "EPIPE", message: "unit stream failure" })
+                        return
+                      }
                       controller.enqueue("unit output")
                       controller.close()
                     }
@@ -167,8 +211,14 @@ describe("browser-side automation with an in-memory SDK stub", () => {
                 readdir: async (directory: string) =>
                   directory === ".cache/host-verification"
                     ? ["webcontainer-unit"]
-                    : Object.keys(report.artifacts),
-                readFile: async (file: string) => report.artifacts[path.basename(file)]
+                    : Object.keys(report.artifacts).filter(
+                        (name) => outcome !== "missing-report" || name !== "report.json"
+                      ),
+                readFile: async (file: string) => {
+                  if (outcome === "read-error" && path.basename(file) === "warm.json")
+                    throw { code: "ENOENT", message: "unit artifact read failed", path: file }
+                  return report.artifacts[path.basename(file)]
+                }
               },
               teardown: () => {
                 teardowns++
@@ -196,6 +246,43 @@ describe("browser-side automation with an in-memory SDK stub", () => {
       expect(starts).toBe(outcome === "boot-failure" ? 0 : 1)
       expect(mounts).toBe(starts)
       expect(teardowns).toBe(starts)
+      if (outcome === "spawn-object") {
+        expect(result!.stage).toBe("spawn")
+        expect(result!.errorDetails).toEqual({
+          code: "ENOENT",
+          message: "unit spawn failed",
+          syscall: "spawn",
+          path: "node"
+        })
+        expect(result!.error).toContain("ENOENT")
+        expect(result!.error).not.toContain("[object Object]")
+      }
+      if (outcome === "spawn-circular")
+        expect(result!.errorDetails).toMatchObject({ code: "ELOOP", cause: "[Circular]" })
+      if (outcome === "spawn-null") expect(result!.error).toBe("null")
+      if (outcome === "exit-object" || outcome === "output-object") {
+        expect(result!.stage).toBe("run")
+        expect(result!.error).toContain(
+          outcome === "exit-object" ? "unit exit failure" : "unit stream failure"
+        )
+      }
+      if (outcome === "missing-report" || outcome === "read-error") {
+        expect(result!.stage).toBe("collect")
+        expect(result!.output).toBe("unit output")
+        expect(result!.artifacts).toMatchObject({
+          "disabled.json": report.artifacts["disabled.json"]
+        })
+        expect(result!.error).toContain(
+          outcome === "missing-report" ? "report.json" : "unit artifact read failed"
+        )
+      }
+      if (outcome === "worker-failure") expect(result!.error).toBe("Worker exited with 1")
+      if (outcome !== "boot-failure")
+        expect(result).toMatchObject({
+          workdir: "/home/unit",
+          sdkPath: "/bin:/usr/bin",
+          command: ["node", "script/src/esm/verify-webcontainer.js", "application"]
+        })
     })
   }
 })

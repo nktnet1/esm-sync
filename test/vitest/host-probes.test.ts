@@ -4,10 +4,23 @@ import { pathToFileURL } from "node:url"
 import { stripVTControlCharacters } from "node:util"
 import { describe, expect, it } from "vitest"
 import { rendererErrorProbe } from "../../script/src/esm/host-probes.ts"
+import { hostFailureText } from "../../script/src/esm/host-output.ts"
 import { runCommand } from "../../script/src/esm/verify-hosts-container.ts"
 import { withCompatibilityFiles } from "./helpers/coverage.ts"
 
 describe("renderer probe startup", () => {
+  it("preserves structured failures, native error fields and circular causes in diagnostics", () => {
+    expect(hostFailureText("plain failure")).toBe("plain failure")
+    const native = Object.assign(new Error("worker spawn failed"), { code: "ENOENT" })
+    expect(hostFailureText(native)).toContain("worker spawn failed")
+    expect(hostFailureText(native)).toContain("ENOENT")
+    const remote: Record<string, unknown> = { code: "EIO", message: "remote spawn failed" }
+    remote.cause = remote
+    expect(hostFailureText(remote)).toContain("remote spawn failed")
+    expect(hostFailureText(remote)).toContain("Circular")
+    expect(hostFailureText(remote)).not.toBe("[object Object]")
+  })
+
   it("keeps status colours through piped output and honours the standard opt-out", async () => {
     const output = pathToFileURL(path.resolve("script/src/esm/host-output.ts")).href
     const source = `import {hostCaseLine,hostSection} from ${JSON.stringify(output)}

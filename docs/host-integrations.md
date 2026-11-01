@@ -15,6 +15,11 @@ on #691, #817 and #917; #886 is deferred.
 | [#817](https://github.com/standard-things/esm/issues/817) | **Partially resolved; native USB blocker reproduced** | Published USB 1.6.0 ABI-64 binary catches the mismatch then segfaults under ordinary require without esm; real rebuilt ABI-70 binary loads | Expanded Docker checks distinguish a full USB loader failure from an ordinary-require native crash |
 | [#886](https://github.com/standard-things/esm/issues/886) | **Deferred for this pass** | Existing VM boundary documentation retained | No implementation changes requested |
 
+The supplied 1 November Linux/x64 run also passes all fifteen offline cases and
+both rebuilt USB controls in every cache mode. Its actual WebContainer boots and
+mounts successfully, but starting the worker fails before any loader test runs.
+The worker-startup correction below still needs a successful real-host rerun.
+
 The user confirmed all fifteen offline regression cases pass from macOS using
 Docker Desktop. The full USB mismatch control segfaults without esm, while both
 rebuilt USB controls pass in every cache mode. Reports label minimal #817 samples as
@@ -407,22 +412,45 @@ three caught dynamic-import rejections in all three cache modes. This verifies
 the regression shape in the real VM; it is separate from testing this checkout's
 Docker-exported loader or a build that actually invokes the old application path.
 
+### WebContainer worker startup diagnostics
+
+The supplied `report.json`, `events.json` and browser log show successful SDK
+boot and mount, followed by a failure before worker output. The old handler
+converted a plain exception object to `[object Object]`, losing its fields.
+The runner also passed the absolute `workdir` as `spawn.cwd`, although the
+[API defines this option relative to the instance working directory](https://webcontainers.io/api#spawnoptions-properties).
+The corrected spawn omits `cwd` to use the documented default and preserves the
+SDK's `PATH` when setting the worker's environment. This fixes the API usage;
+the old exception's hidden details prevent proving that it was the sole cause
+of that run's failure.
+
+The browser now distinguishes `spawn`, `run` and `collect` failures. It retains
+structured exception fields, circular causes, the attempted command, runtime
+directory and partial VM artifacts. `webcontainer/worker.log` records process
+output even when the worker fails before creating `report.json`. The final Docker
+error includes the stage and underlying browser error instead of only displaying
+the nonzero exit assertion. A missing report, rejected output stream or failed
+worker remains a failure.
+
 ## Validation
 
-The expanded verification tooling passes 180 focused tests on each of Node 22,
+The expanded verification tooling passes 188 focused tests on each of Node 22,
 24 and 26. These include archive security, native-failure classification, the
 guard counterfactual, dependency-free compiled-worker and consumer execution,
 both Docker phases with simulated outcomes, browser-page execution with an
 in-memory SDK stub, localhost isolation headers and strict real-host evidence
-validation. TypeScript checks, owned-type auditing, Biome and Knip pass. The
+validation. Startup and partial-failure regressions cover the documented SDK
+working-directory contract, plain/circular exceptions and rejected exit/output
+promises. TypeScript checks, owned-type auditing, Biome and Knip pass. The
 production build passes and its loader digest remains
 `8b771daf822c8672d82a3ac9eca405493bc1a384b9b13f8c77266f1e1c9b9ed3`.
 
-These unit tests do not count as a live WebContainer result. Automatic approval
-review blocked the new live check pending consent to expose the mounted loader,
-reconstructed consumer and reports to StackBlitz. The updated image has not run
-end to end in the authoring workspace, which also has no Docker daemon. No new
-real-host pass is claimed for this revision.
+These unit tests do not count as a live WebContainer result. A separate authoring
+diagnostic tried only the SDK's process-launch API in an empty VM, with no loader
+or project files mounted, but timed out during SDK boot in this environment. It
+provides no process-launch or loader pass. The corrected image has not run end to
+end in the authoring workspace, which has no Docker daemon. The supplied real-host
+run failed before worker output, and no new real-host pass is claimed here.
 
 Earlier direct Electron 5 embedded-Node checks verified the published ABI-64
 native crash and successful loading/repeated dynamic imports with the full

@@ -1,4 +1,9 @@
-import { styleText } from "node:util"
+import { inspect, styleText } from "node:util"
+
+export function hostFailureText(value: unknown): string {
+  if (typeof value === "string") return value
+  return inspect(value, { depth: 6, customInspect: false, getters: false })
+}
 
 export function hostColorsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   if (env.FORCE_COLOR !== undefined) return env.FORCE_COLOR !== "0"

@@ -12,7 +12,7 @@ import {
 import os from "node:os"
 import path from "node:path"
 import type { DockerRunner } from "./verify-hosts-docker.ts"
-import { hostColorsEnabled, hostLabel, hostSection } from "./host-output.ts"
+import { hostColorsEnabled, hostFailureText, hostLabel, hostSection } from "./host-output.ts"
 import { object, validateWebContainerBrowserReport } from "./verify-webcontainer-browser.ts"
 
 export class HostVerificationBlocked extends Error {}
@@ -192,9 +192,16 @@ export async function runDockerHostChecks(
             webcontainer.passed === false,
           "Unsubstantiated WebContainer environment blocker"
         )
-        blocked.push("#917: " + String(webcontainer.error ?? "WebContainer runtime unavailable"))
+        blocked.push(
+          "#917: " + hostFailureText(webcontainer.error ?? "WebContainer runtime unavailable")
+        )
       } else {
-        assert.equal(webCode, 0, `Real WebContainer verification exited with ${webCode}`)
+        if (webCode !== 0) {
+          const detail = object(webcontainer)
+            ? ` during ${String(webcontainer.stage ?? "unknown stage")}:\n${hostFailureText(webcontainer.error ?? "No browser error was recorded")}`
+            : "; browser report is missing"
+          throw new Error(`Real WebContainer verification exited with ${webCode}${detail}`)
+        }
         validateWebContainerBrowserReport(webcontainer, {
           nonce,
           loaderSHA256: offline.loaderSHA256

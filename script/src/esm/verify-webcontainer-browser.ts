@@ -15,7 +15,7 @@ import { createServer } from "node:http"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { hostLabel } from "./host-output.ts"
+import { hostFailureText, hostLabel } from "./host-output.ts"
 import { hostWebContainerSdk } from "./host-runtimes.ts"
 import { webContainerBrowserPage } from "./webcontainer-browser-page.ts"
 import { exportWebContainerKit } from "./webcontainer-kit.ts"
@@ -372,8 +372,8 @@ export async function verifyWebContainerBrowser(
     if (report.passed === true) validateWebContainerBrowserReport(report, { nonce, loaderSHA256 })
   } catch (error) {
     report.passed = false
-    report.blocked = !["run", "collect", "complete"].includes(stage)
-    report.error = error instanceof Error ? error.message : String(error)
+    report.blocked = !["spawn", "run", "collect", "complete"].includes(stage)
+    report.error = hostFailureText(error)
     report.stage = stage
   } finally {
     finished = true
@@ -400,10 +400,14 @@ export async function verifyWebContainerBrowser(
             path.join(reports, name === "report.json" ? "worker-report.json" : name),
             value
           )
+    writeFileSync(
+      path.join(reports, "worker.log"),
+      typeof report.output === "string" ? report.output : ""
+    )
     writeFileSync(output, JSON.stringify(report, null, 2))
   }
   console.log(
-    `\n${hostLabel(report.passed ? "green" : report.blocked ? "yellow" : "red", report.passed ? "PASS" : report.blocked ? "BLOCKED" : "FAIL")} #917 real WebContainer${report.error ? ": " + report.error : " — module graph + consumer builds in all cache modes"}\nREPORT ${output}`
+    `\n${hostLabel(report.passed ? "green" : report.blocked ? "yellow" : "red", report.passed ? "PASS" : report.blocked ? "BLOCKED" : "FAIL")} #917 real WebContainer${report.passed ? " — module graph + consumer builds in all cache modes" : ` during ${String(report.stage ?? stage)}: ${hostFailureText(report.error ?? "Worker evidence did not pass; see reports")}`}\nREPORT ${output}`
   )
   return report
 }

@@ -143,7 +143,17 @@ describe("automatic offline hosts and online WebContainer Docker phases", () => 
                       error: "Runtime unavailable"
                     }
                   : outcome === "browser-failure"
-                    ? { ...report, passed: false, blocked: false }
+                    ? {
+                        ...report,
+                        passed: false,
+                        blocked: false,
+                        stage: "spawn",
+                        error: {
+                          code: "ENOENT",
+                          message: "unit worker could not start",
+                          path: "node"
+                        }
+                      }
                     : report
               await writeFile(path.join(target, "report.json"), JSON.stringify(value))
             }
@@ -151,7 +161,12 @@ describe("automatic offline hosts and online WebContainer Docker phases", () => 
           return 0
         }
         if (outcome === "success") expect(await verifyHostsDocker(directory, runner)).toBe(reports)
-        else await expect(verifyHostsDocker(directory, runner)).rejects.toThrow()
+        else
+          await expect(verifyHostsDocker(directory, runner)).rejects.toThrow(
+            outcome === "browser-failure"
+              ? /during spawn:[\s\S]*ENOENT[\s\S]*unit worker could not start/
+              : undefined
+          )
         const runs = events.filter((args) => args[0] === "run")
         if (outcome === "build-failure") {
           expect(runs).toHaveLength(0)
@@ -180,14 +195,19 @@ describe("automatic offline hosts and online WebContainer Docker phases", () => 
             await readFile(path.join(reports, "docker.json"), "utf8")
           ) as Record<string, unknown>
           expect(data).toMatchObject({ image, platform: "linux/amd64", cleanupCode: 0 })
-          if (outcome === "success" || outcome === "blocked-usb") {
+          if (outcome === "success" || outcome === "blocked-usb" || outcome === "browser-failure") {
             const summary = JSON.parse(
               await readFile(path.join(reports, "report.json"), "utf8")
             ) as Record<string, unknown>
             expect(summary.passed).toBe(outcome === "success")
             expect(summary.blocked).toBe(outcome === "blocked-usb")
             expect(summary.target).toBe("linux/amd64")
-            expect(summary.webcontainer).toMatchObject({ passed: true, booted: true })
+            expect(summary.webcontainer).toMatchObject({
+              passed: outcome !== "browser-failure",
+              booted: true
+            })
+            if (outcome === "browser-failure")
+              expect(summary.errors).toEqual([expect.stringMatching(/during spawn:[\s\S]*ENOENT/)])
           }
         }
       } finally {
