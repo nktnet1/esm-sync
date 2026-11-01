@@ -6,17 +6,37 @@ supplied `issues.json` was reviewed, including the **22 reports previously marke
 not planned**. The export's SHA-256 is
 `73a278df18bda582b3eedbd318d43e4b0fe2fe58193ebddcdfe3b938beece151`.
 
-There is useful work remaining. **Reopen the recovered dynamic-import report,
-then implement private package imports and modern import metadata.** The first
-is an actual outstanding report. The latter two are adjacent modern Node gaps
-found while checking claims of package/ESM compatibility. They are not failures
-of the already repaired public `exports` examples.
+The first three follow-ups are implemented in v1.0.21: the recovered #829
+dynamic-import failure, private package imports, and modern import metadata.
+The original audit evidence below describes the pre-fix v1.0.19 baseline.
+The latter two are adjacent modern Node gaps, not extra historical reports.
 
-This is an audit and a work queue. Runtime fixes are not included. The detailed
+The detailed
 ledger below distinguishes an existing mechanism test, a scoped host result,
 a missing feature, and an application that has not been reproduced. An
 already-covered label does not certify every historical application in its
 comments.
+
+## Implemented follow-ups
+
+- Transformed CommonJS scripts stay on the loader execution path instead of
+  losing their dynamic-import transformation to an external native fallback.
+  [Permanent #829 tests](../test/vitest/upstream-dynamic-import.test.ts) run the
+  two checksum-pinned Dyo utility files through both Mocha launch paths. This
+  resolves the reproduced mechanism, not the complete historical DOM project.
+- Private `#imports` use the owning package, ordered import/require conditions,
+  patterns and array targets. Selected mapping failures are terminal. Public
+  export URLs retain query/fragment identity when used directly or as private
+  dependency targets. Ordinary require lookup remains available without a map.
+- `import.meta` supplies writable `url`, `filename`, `dirname`, `main` and a
+  synchronous lexical `resolve` function. Resolution does not evaluate modules
+  and permits absent file targets and directories. File paths and symlink flags
+  follow the host's resolution behavior. Only file-backed metadata has path
+  fields. The standard one-argument resolve API is supported.
+
+[Native comparison tests](../test/vitest/modern-packages.test.ts) exercise these
+APIs across disabled, cold and warm caches. Existing strict relative `.mjs`
+restrictions and native VM script grammar are unchanged.
 
 ## Recommended work order
 

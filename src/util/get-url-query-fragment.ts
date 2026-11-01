@@ -5,10 +5,17 @@ import shared from "../shared.js"
 function init() {
   const questionMarkHashRegExp = /[?#]/
 
-  function getURLQueryFragment(request: string) {
+  function getURLQueryFragment(request: string, preserveEmpty = false) {
     const index = typeof request === "string" ? request.search(questionMarkHashRegExp) : -1
 
-    return index === -1 ? "" : decodeURI(encodeURI(request.slice(index)))
+    if (index === -1) return ""
+    const suffix = decodeURI(encodeURI(request.slice(index)))
+    if (preserveEmpty) return suffix
+    // Node's realpath URL reconstruction discards empty search/hash fields.
+    const hashIndex = suffix.indexOf("#")
+    const query = suffix[0] === "?" ? suffix.slice(1, hashIndex === -1 ? undefined : hashIndex) : ""
+    const fragment = hashIndex === -1 ? "" : suffix.slice(hashIndex + 1)
+    return (query === "" ? "" : "?" + query) + (fragment === "" ? "" : "#" + fragment)
   }
 
   return getURLQueryFragment

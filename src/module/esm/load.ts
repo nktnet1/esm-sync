@@ -19,7 +19,7 @@ import has from "../../util/has.js"
 import isExtMJS from "../../path/is-ext-mjs.js"
 import loader from "./loader.js"
 import realProcess from "../../real/process.js"
-import resolveFilename from "./resolve-filename.js"
+import resolveFilename, { resolveMappedSpecifier } from "./resolve-filename.js"
 import setProperty from "../../util/set-property.js"
 import shared from "../../shared.js"
 import toExternalFunction from "../../util/to-external-function.js"
@@ -41,6 +41,11 @@ function load(
   const parentIsMJS = parentEntry === null ? false : parentEntry.extname === ".mjs"
   const parentType = parentEntry === null ? -1 : parentEntry.type
 
+  // Private names are package-map keys, not URL fragments. Resolve them
+  // before deriving the module identity from the target URL's suffix.
+  const mapped = resolveMappedSpecifier(request, parent, mode)
+  if (mapped !== undefined) request = mapped
+
   let filename: string
 
   if (parentEntry !== null && parentCJS!.paths && !parentIsMJS) {
@@ -57,7 +62,12 @@ function load(
 
   const pkg = Package.from(filename)
   const { cjs } = pkg.options
-  const queryFragment = getURLQueryFragment(request)
+  const queryFragment = getURLQueryFragment(
+    request,
+    ENV.TINK ||
+      ENV.YARN_PNP ||
+      (isMain ? ENV.FLAGS.preserveSymlinksMain : ENV.FLAGS.preserveSymlinks)
+  )
   const { moduleCache, scratchCache } = Loader.state.module
 
   let cache = Module._cache

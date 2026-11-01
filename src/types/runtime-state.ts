@@ -29,7 +29,7 @@ export interface RuntimeMethods {
 export interface RuntimeState extends RuntimeMethods {
   entry: Entry
   global: typeof globalThis
-  meta: { url: string | null }
+  meta: ReturnType<typeof import("../module/internal/import-meta.js").default>
   runResult: unknown
   syncAwait: typeof import("../module/internal/sync-await.js").makeAwait
   _: RuntimeState

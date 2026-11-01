@@ -90,6 +90,7 @@ function init() {
     | "ERR_INVALID_PACKAGE_TARGET"
     | "ERR_INVALID_MODULE_SPECIFIER"
     | "ERR_PACKAGE_PATH_NOT_EXPORTED"
+    | "ERR_PACKAGE_IMPORT_NOT_DEFINED"
     | "ERR_MODULE_NOT_FOUND"
     | "ERR_UNSUPPORTED_DIR_IMPORT"
     | "ERR_MODULE_RESOLUTION_LEGACY"
@@ -142,6 +143,15 @@ function init() {
     (filename, key) =>
       "Package subpath " + toStringLiteral(key) + ' is not defined by "exports" in ' + filename,
     ExError
+  )
+  addNodeError(
+    "ERR_PACKAGE_IMPORT_NOT_DEFINED",
+    (request, filename) =>
+      "Package import specifier " +
+      toStringLiteral(request) +
+      " is not defined in package " +
+      filename,
+    ExTypeError
   )
   addNodeError(
     "ERR_MODULE_NOT_FOUND",

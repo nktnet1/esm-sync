@@ -1,6 +1,6 @@
-import { access, mkdir, rm, symlink } from "node:fs/promises"
+import { access, mkdir, realpath, rm, symlink } from "node:fs/promises"
 import path from "node:path"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { describe, it, expect } from "vitest"
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
 
@@ -119,9 +119,15 @@ for (const esmEnv of testEnvironments) {
       const filename = "fixture/main-hook/import-meta.mjs"
       const { exitCode, stdout, stderr } = await runMain(filename)
       expect(exitCode, stderr.slice(-4_000)).toBe(0)
-      expect(stdout).toContain(
-        `import-meta:${JSON.stringify({ url: new URL(filename, testURL).href })}`
-      )
+      const meta: unknown = JSON.parse(stdout.trim().slice("import-meta:".length))
+      const url = new URL(filename, testURL)
+      const canonicalFilename = await realpath(fileURLToPath(url))
+      expect(meta).toStrictEqual({
+        url: pathToFileURL(canonicalFilename).href,
+        filename: canonicalFilename,
+        dirname: path.dirname(canonicalFilename),
+        main: true
+      })
     })
 
     it("preserves query and fragment components in import.meta.url", async () => {

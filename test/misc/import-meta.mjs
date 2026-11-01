@@ -1,6 +1,8 @@
 import assert from "assert"
+import fs from "fs"
 import createMeta from "../create-meta.js"
 import path from "path"
+import { fileURLToPath } from "url"
 import safeCharacters1 from "../fixture/safe-characters%5B%23%25&;=%5D.mjs"
 import safeCharacters2 from "../fixture/safe-characters%5B%23%25&;=%5D.mjs?"
 import safeCharacters3 from "../fixture/safe-characters%5B%23%25&;=%5D.mjs?#"
@@ -10,7 +12,7 @@ const isWin = process.platform === "win32"
 
 const fileProtocol = "file://" + (isWin ? "/" : "")
 
-const testPath = path.resolve(".")
+const testPath = fs.realpathSync(path.resolve("."))
 const testURL = fileProtocol + testPath.replace(/\\/g, "/")
 
 const safeCharactersURL = testURL + "/fixture/safe-characters%5B%23%25&;=%5D.mjs"
@@ -33,22 +35,24 @@ export default () => {
     .then((unsafeMetas) => {
       const datas = [
         { actual: safeCharacters1, url: safeCharactersURL },
-        { actual: safeCharacters2, url: safeCharactersURL + "?" },
-        { actual: safeCharacters3, url: safeCharactersURL + "?#" },
+        { actual: safeCharacters2, url: safeCharactersURL },
+        { actual: safeCharacters3, url: safeCharactersURL },
         { actual: safeCharacters4, url: safeCharactersURL + "?a#a" }
       ]
 
       if (! isWin) {
         datas.push(
           { actual: unsafeMetas[0], url: unsafeCharactersURL },
-          { actual: unsafeMetas[1], url: unsafeCharactersURL + "?" },
-          { actual: unsafeMetas[2], url: unsafeCharactersURL + "?#" },
+          { actual: unsafeMetas[1], url: unsafeCharactersURL },
+          { actual: unsafeMetas[2], url: unsafeCharactersURL },
           { actual: unsafeMetas[3], url: unsafeCharactersURL + "?a#a" }
         )
       }
 
       for (const { actual, url } of datas) {
-        assert.deepStrictEqual(actual, createMeta({ url }))
+        const filename = fileURLToPath(url)
+        assert.strictEqual(typeof actual.resolve, "function")
+        assert.deepStrictEqual(actual, createMeta({ url, filename, dirname: path.dirname(filename), main: false, resolve: actual.resolve }))
         assert.strictEqual(Reflect.getPrototypeOf(actual), null)
       }
     })

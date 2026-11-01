@@ -16,13 +16,11 @@ import builtinGlobal from "./builtin/global.js"
 import errors from "./errors.js"
 import esmImport from "./module/esm/import.js"
 import esmLoad from "./module/esm/load.js"
-import getURLFromFilePath from "./util/get-url-from-file-path.js"
+import createImportMeta from "./module/internal/import-meta.js"
 import has from "./util/has.js"
 import { readFileSync } from "./safe/fs.js"
 import hasPragma from "./parse/has-pragma.js"
 import identity from "./util/identity.js"
-import isFileOrigin from "./util/is-file-origin.js"
-import isPath from "./util/is-path.js"
 import isStackTraceMaskable from "./util/is-stack-trace-maskable.js"
 import makeRequireFunction from "./module/internal/make-require-function.js"
 import { makeAwait } from "./module/internal/sync-await.js"
@@ -668,22 +666,7 @@ const Runtime: RuntimeMethods & {
 
     entry.exports = exported
 
-    setDeferred(runtime, "meta", () => {
-      const { id } = entry
-
-      let url: string | null = null
-
-      if (isFileOrigin(id)) {
-        url = id
-      } else if (isPath(id)) {
-        url = getURLFromFilePath(id)
-      }
-
-      return {
-        __proto__: null,
-        url
-      }
-    })
+    setDeferred(runtime, "meta", () => createImportMeta(entry))
 
     runtime.addDefaultValue = Runtime.addDefaultValue
     runtime.addExportFromSetter = Runtime.addExportFromSetter

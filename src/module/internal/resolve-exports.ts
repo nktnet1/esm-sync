@@ -12,9 +12,12 @@ export type PackageExportErrorCode =
   | "ERR_INVALID_PACKAGE_TARGET"
   | "ERR_INVALID_PACKAGE_CONFIG"
   | "ERR_INVALID_MODULE_SPECIFIER"
+  | "ERR_PACKAGE_IMPORT_NOT_DEFINED"
 interface ResolverOptions {
   conditions?: ReadonlySet<string>
   createError?: (code: PackageExportErrorCode, key: string, value?: unknown) => Error
+  internal?: boolean
+  resolveTarget?: (target: string) => string
 }
 
 function resolveExports(
@@ -25,8 +28,14 @@ function resolveExports(
   options: ResolverOptions = {}
 ): string {
   const jsonPath = packagePath + sep + "package.json"
-  const request =
-    subpath === "" || subpath === "." ? "." : subpath.startsWith("./") ? subpath : "./" + subpath
+  const internal = options.internal === true
+  const request = internal
+    ? subpath
+    : subpath === "" || subpath === "."
+      ? "."
+      : subpath.startsWith("./")
+        ? subpath
+        : "./" + subpath
   const conditions = options.conditions ?? new Set(["node", mode])
   const fail = (code: PackageExportErrorCode, key: string, value?: unknown) => {
     if (options.createError) return options.createError(code, key, value)
@@ -57,14 +66,33 @@ function resolveExports(
     folder = false
   ): string | null | undefined {
     if (typeof value === "string") {
-      if (!value.startsWith("./") || (folder && !value.endsWith("/")))
-        throw invalidTarget(value, key)
+      if (!value.startsWith("./")) {
+        // Imports may select a dependency, but never
+        // an absolute path, parent traversal, or an absolute URL.
+        if (
+          !internal ||
+          value.startsWith("../") ||
+          value.startsWith("/") ||
+          /^[a-zA-Z][\w+.-]*:/.test(value)
+        )
+          throw invalidTarget(value, key)
+        const expanded = pattern ? value.replace(/\*/g, () => captured) : value + captured
+        let separator = expanded.indexOf("/")
+        const scoped = expanded[0] === "@"
+        if (scoped && separator !== -1) separator = expanded.indexOf("/", separator + 1)
+        const packageName = separator === -1 ? expanded : expanded.slice(0, separator)
+        if ((scoped && expanded.indexOf("/") === -1) || /^\.|%|\\/.test(packageName))
+          throw fail("ERR_INVALID_MODULE_SPECIFIER", expanded, "is not a valid package name")
+        return options.resolveTarget!(expanded)
+      }
+      if (folder && !value.endsWith("/")) throw invalidTarget(value, key)
       checkSegments(value.slice(2), key, true)
       if (captured !== "") checkSegments(captured, key, false)
       const expanded = pattern ? value.replace(/\*/g, () => captured) : value + captured
       if (/%2f|%5c/i.test(expanded.split(/[?#]/, 1)[0]!)) {
         throw fail("ERR_INVALID_MODULE_SPECIFIER", request, "contains encoded path separators")
       }
+      if (options.resolveTarget) return options.resolveTarget(expanded)
       // Decode after removing URL suffixes, retaining encoded filename characters.
       return join(
         packagePath,
@@ -99,7 +127,10 @@ function resolveExports(
       for (const key of keys) {
         const number = Number(key)
         if (String(number) === key && number >= 0 && number < 0xffffffff) {
-          throw fail("ERR_INVALID_PACKAGE_CONFIG", '"exports" cannot contain numeric property keys')
+          throw fail(
+            "ERR_INVALID_PACKAGE_CONFIG",
+            '"' + (internal ? "imports" : "exports") + '" cannot contain numeric property keys'
+          )
         }
       }
       for (const condition of keys) {
@@ -114,7 +145,10 @@ function resolveExports(
   }
 
   let map: Record<string, unknown> = {}
-  if (typeof exports === "string" || Array.isArray(exports)) map = { ".": exports }
+  if (internal) {
+    if (exports !== null && typeof exports === "object" && !Array.isArray(exports))
+      map = exports as Record<string, unknown>
+  } else if (typeof exports === "string" || Array.isArray(exports)) map = { ".": exports }
   else if (typeof exports === "object" && exports !== null) {
     const keys = Object.keys(exports)
     const conditional = keys.length !== 0 && !keys[0]!.startsWith(".")
@@ -135,8 +169,8 @@ function resolveExports(
     for (const key of Object.keys(map)) {
       const star = key.indexOf("*")
       const isPattern = star !== -1 && key.lastIndexOf("*") === star
-      const isFolder = star === -1 && key.endsWith("/")
-      if (!key.startsWith("./") || (!isPattern && !isFolder)) continue
+      const isFolder = !internal && star === -1 && key.endsWith("/")
+      if (!key.startsWith(internal ? "#" : "./") || (!isPattern && !isFolder)) continue
       const prefix = isPattern ? key.slice(0, star) : key
       const suffix = isPattern ? key.slice(star + 1) : ""
       if (
@@ -154,7 +188,11 @@ function resolveExports(
     }
     if (best !== "") resolved = target(map[best], best, captured, pattern, !pattern)
   }
-  if (resolved == null) throw fail("ERR_PACKAGE_PATH_NOT_EXPORTED", request)
+  if (resolved == null)
+    throw fail(
+      internal ? "ERR_PACKAGE_IMPORT_NOT_DEFINED" : "ERR_PACKAGE_PATH_NOT_EXPORTED",
+      request
+    )
   return resolved
 }
 
