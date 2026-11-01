@@ -28,6 +28,8 @@ import errors from "../errors.js"
 import getCacheName from "../util/get-cache-name.js"
 import getSilent from "../util/get-silent.js"
 import has from "../util/has.js"
+import isError from "../util/is-error.js"
+import instanceOf from "../util/instance-of.js"
 import isObject from "../util/is-object.js"
 import isStackTraceMaskable from "../util/is-stack-trace-maskable.js"
 import makeRequireFunction from "../module/internal/make-require-function.js"
@@ -67,7 +69,7 @@ function hook(vm: typeof import("node:vm"), programmaticREPL = false) {
   let replEvaluationDepth = 0
   const replEntries = new WeakMap<import("node:repl").REPLServer, Entry>()
 
-  function transpile(content: string) {
+  function getCompilation(content: string) {
     const cacheName = getCacheName(content)
     const compileDatas = entry.package.cache.compile
     const { runtimeName } = entry
@@ -77,8 +79,6 @@ function hook(vm: typeof import("node:vm"), programmaticREPL = false) {
     if (compileData === void 0) {
       compileData = null
     }
-
-    entry.state = STATE_PARSING_STARTED
 
     if (compileData === null) {
       const compilerOptions = {
@@ -95,6 +95,13 @@ function hook(vm: typeof import("node:vm"), programmaticREPL = false) {
       compileDatas.set(cacheName, compileData)
     }
 
+    return { cacheName, compileData }
+  }
+
+  function transpile(content: string) {
+    entry.state = STATE_PARSING_STARTED
+    const { cacheName, compileData } = getCompilation(content)
+    const { runtimeName } = entry
     entry.state = STATE_PARSING_COMPLETED
 
     const code =
@@ -184,6 +191,69 @@ function hook(vm: typeof import("node:vm"), programmaticREPL = false) {
     return script
   }
 
+  function createReplVM(target: Entry): typeof builtinVM {
+    const facade = assign(GenericObject.create(), builtinVM)
+    const nativeRunInThisContext = builtinVM.runInThisContext
+    facade.runInThisContext = toExternalFunction(function (
+      this: unknown,
+      content: string,
+      options?: Parameters<typeof builtinVM.runInThisContext>[1]
+    ): unknown {
+      let nativeError: unknown
+      try {
+        // Preserve native script completion, globals, callbacks, options and errors.
+        return Reflect.apply(nativeRunInThisContext, this, [content, options])
+      } catch (error) {
+        if (
+          typeof content !== "string" ||
+          !isError(error) ||
+          !instanceOf(error, shared.external.SyntaxError)
+        )
+          throw error
+        nativeError = error
+      }
+
+      const previousEntry = entry
+      entry = target
+      let moduleSource = false
+      try {
+        moduleSource = getCompilation(content).compileData.sourceType === SOURCE_TYPE_MODULE
+      } catch {}
+      if (!moduleSource) {
+        entry = previousEntry
+        throw nativeError
+      }
+
+      // Nested VM evaluation shares the REPL's imports but must restore the
+      // caller's compile state, including when linking or execution throws.
+      const current = entry
+      const previous = {
+        state: current.state,
+        type: current.type,
+        cacheName: current.cacheName,
+        compileData: current.compileData,
+        validation: current._validation
+      }
+      current._validation = new Map()
+      replEvaluationDepth++
+      try {
+        return vm
+          .createScript(content, options)
+          .runInThisContext(typeof options === "string" ? void 0 : options)
+      } finally {
+        replEvaluationDepth--
+        entry = previousEntry
+        current.state = previous.state
+        current.type = previous.type
+        current.cacheName = previous.cacheName
+        current.compileData = previous.compileData
+        current._validation = previous.validation
+      }
+    })
+
+    return facade
+  }
+
   function setupCheck() {
     vm.Script = proxyWrap(vm.Script, (Script, [code, options]) => {
       vm.Script = Script
@@ -208,7 +278,10 @@ function hook(vm: typeof import("node:vm"), programmaticREPL = false) {
     setPrototypeOf(mod, Module.prototype)
 
     entry = Entry.get(mod)
-    entry.addBuiltinModules = createAddBuiltinModules(entry)
+    entry.addBuiltinModules = createAddBuiltinModules(
+      entry,
+      REPL || programmaticREPL ? createReplVM(entry) : void 0
+    )
     entry.package = Package.get("")
     entry.require = makeRequireFunction(mod)
     entry.runtime = null
@@ -385,7 +458,7 @@ function hook(vm: typeof import("node:vm"), programmaticREPL = false) {
   }
 }
 
-function createAddBuiltinModules(entry: Entry) {
+function createAddBuiltinModules(entry: Entry, replVM?: typeof builtinVM) {
   const lazyModules = [
     "assert",
     "async_hooks",
@@ -456,7 +529,10 @@ function createAddBuiltinModules(entry: Entry) {
           // `context[name]` from an accessor property to a data property.
           this[name] = void 0
 
-          const exported = req(name)
+          const exported =
+            name === "vm" && context === shared.unsafeGlobal && replVM !== void 0
+              ? replVM
+              : req(name)
 
           Reflect.defineProperty(this, name, {
             configurable: true,

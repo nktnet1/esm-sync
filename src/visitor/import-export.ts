@@ -142,7 +142,13 @@ function init() {
 
       this.importSpecifierMap.forEach((map) => {
         const methods: Record<string, string> = { evaluation: ".w(", defer: ".y(", source: ".z(" }
-        code += runtimeName + methods[map.phase] + toStringLiteral(map.request)
+        // A REPL import declaration has no display value. Do not expose the
+        // loader's internal Entry as the completion of its hoisted runtime call.
+        code +=
+          (this.generateVarDeclarations ? "void " : "") +
+          runtimeName +
+          methods[map.phase] +
+          toStringLiteral(map.request)
 
         let setterArgsList = ""
 

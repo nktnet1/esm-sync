@@ -13,9 +13,9 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      1 |
+| Investigate                                   |      0 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     60 |
+| Already covered                               |     61 |
 | Not planned                                   |     22 |
 | **Total**                                     | **83** |
 
@@ -28,6 +28,8 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 ## Verified custom REPL integration
 
 - **Programmatic REPL static imports** - [https://github.com/standard-things/esm/issues/854](https://github.com/standard-things/esm/issues/854). **Fixed for the tested Node 22, 24, and 26 preload path**. An application's `repl.start()` does not enter the same startup branch as `node -i`. A one-time, lazy context hook now activates REPL compilation when the application first creates a server. Non-REPL `vm.createScript()` calls retain their normal behaviour, including after creating multiple REPL servers. Tests cover cached and uncached configurations, custom prompts, sloppy mode, isolated contexts, relative-file imports, repeated imports, and a second active server. This does not change arbitrary `vm` script evaluation or promise rejection handling in the Node REPL.
+
+- **Static imports through the global REPL VM shortcut (#886)** - **Resolved for the original report.** The report uses the loader-enabled global REPL, rather than a standalone VM script. Its `vm.runInThisContext` shortcut now uses the active REPL compiler for module syntax rejected by the native script API, while ordinary scripts retain native behavior. The same `index.mjs` imports through `'.'` both at the prompt and inside the shortcut, across disabled/cold/warm caches on Node 22, 24 and 26. Programmatic global REPLs, live imports, failure recovery and timeouts are covered. Directly loaded native VM methods and isolated contexts retain their script grammar. See [scope and verification](host-integrations.md#static-imports-in-vm-scripts-886).
 
 ## Verified desktop hosts
 
@@ -48,12 +50,6 @@ reconstructed consumer in the actual host. `pnpm verify:hosts:docker` automates
 both offline regressions and this real-host verification without manual browser
 actions. The native #817 repair is now built and tested automatically by the same command.
 
-## Active investigations
-
-### VM API boundary
-
-- **Static imports in `vm.runInThisContext`** - [https://github.com/standard-things/esm/issues/886](https://github.com/standard-things/esm/issues/886). **Not implemented: API boundary.** Reproduced on Node 22, 24, and 26, including the supplied probe. This API compiles script-goal code and does not accept static `import` declarations. Use the existing loader factory for the supplied file, or Node's separate `vm.SourceTextModule` API with an explicit linker. See [supported alternatives](host-integrations.md#static-imports-in-vm-scripts-886). Automatic transpilation of arbitrary VM scripts remains a separate feature decision.
-
 ## Completed documentation follow-ups
 
 All four reports now have documentation coverage in this fork. The examples
@@ -69,13 +65,13 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **60** reports are classified _already covered_ by an existing
+The following **61** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
 931, 926, 924, 922, 921, 918, 917, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
-896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
+896, 888, 887, 886, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
 846, 844, 843, 841, 839, 838, 824, 821, 817, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706, 691.
 

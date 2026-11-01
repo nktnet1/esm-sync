@@ -18,14 +18,16 @@ const server = repl.start({
   terminal: false,
   prompt: scenario === "custom" ? "app > " : "",
   useColors: scenario === "custom",
-  useGlobal: scenario === "global",
+  useGlobal: scenario === "global" || scenario === "vm",
   replMode: repl.REPL_MODE_SLOPPY
 })
 
 const context = server.context
-const timeout = setTimeout(() => finish(new Error(`REPL scenario timed out: ${scenario}`)), 10_000)
+let stage = "create context"
+const timeout = setTimeout(() => finish(new Error(`REPL scenario timed out: ${scenario}; ${stage}`)), 10_000)
 
 function evaluate(code) {
+  stage = code
   return new Promise((resolve, reject) => {
     server.eval(code, context, "repl", (error, value) => {
       if (error) reject(error)
@@ -36,6 +38,47 @@ function evaluate(code) {
 
 async function run() {
   switch (scenario) {
+    case "vm": {
+      const nativeRun = vm.runInThisContext
+      await evaluate('import initialVmValue from "./fixture/vm-hook/index.mjs"')
+      assert.equal(context.initialVmValue, "test")
+      const result = await evaluate(`vm.runInThisContext('import vmImported from "./fixture/vm-hook/index.mjs"; vmImported')`)
+      assert.equal(result, "test")
+      assert.equal(globalThis.vmImported, "test")
+      assert.equal(context.vmImported, "test")
+      assert.equal(await evaluate('vm.runInThisContext("6 * 7")'), 42)
+      assert.equal(context.vm.runInThisContext('import {counter as vmCounter,increment as vmIncrement} from "./fixture/vm-hook/index.mjs"; vmIncrement();vmCounter'), 1)
+      assert.equal(context.vm.runInThisContext('vmCounter'), 1)
+      assert.equal(context.vm.runInThisContext('import * as vmNamespace from "./fixture/vm-hook/index.mjs";vmNamespace.default'), "test")
+      assert.equal(context.vm.runInThisContext('let vmLexical = 41; vmLexical'), 41)
+      assert.equal(context.vm.runInThisContext('vmLexical + 1'), 42)
+      assert.throws(() => context.vm.runInThisContext('let vmLexical = 0'), /already been declared/)
+
+      const marker = new SyntaxError("vm-original-error")
+      globalThis.vmMarker = marker
+      globalThis.vmCalls = 0
+      assert.throws(() => context.vm.runInThisContext('globalThis.vmCalls++;throw globalThis.vmMarker'), error => error === marker)
+      assert.equal(globalThis.vmCalls, 1)
+      assert.throws(() => context.vm.runInThisContext('import {missing as vmMissing} from "./fixture/vm-hook/index.mjs"'), /does not provide an export/)
+      assert.equal(context.vm.runInThisContext('import recoveredVm from "./fixture/vm-hook/index.mjs";recoveredVm'), "test")
+      assert.throws(() => context.vm.runInThisContext('import loopVm from "./fixture/vm-hook/index.mjs";for(;;){}', {timeout:50}), error => error.code === "ERR_SCRIPT_EXECUTION_TIMEOUT")
+      assert.equal(context.vm.runInThisContext('20 + 22'), 42)
+
+      assert.strictEqual(vm.runInThisContext, nativeRun)
+      assert.throws(() => vm.runInThisContext('import nativeMustReject from "./fixture/vm-hook/index.mjs"'), SyntaxError)
+      assert.throws(() => context.vm.runInContext('import sandboxMustReject from "path"', vm.createContext({})), /Cannot use import/)
+      assert.throws(() => context.vm.runInThisContext('1', {timeout:-1}), error => error.code === "ERR_OUT_OF_RANGE")
+      let filenameReads = 0
+      assert.throws(() => context.vm.runInThisContext('1', {
+        get filename() { filenameReads++; throw marker }
+      }), error => error === marker)
+      assert.equal(filenameReads, 1)
+      await evaluate('import { value as afterVm } from "./fixture/vm-hook/index.mjs"')
+      assert.equal(context.afterVm, "vm-hook")
+      delete globalThis.vmMarker
+      delete globalThis.vmCalls
+      break
+    }
     case "global": {
       assert.strictEqual(context, globalThis)
       assert.equal(typeof globalThis.globalAssert, "undefined")
@@ -46,6 +89,8 @@ async function run() {
     case "non-global": {
       assert.notStrictEqual(context, globalThis)
       assert.equal(typeof globalThis.localAssert, "undefined")
+      assert.equal(context.vm.runInThisContext('6 * 7'), 42)
+      assert.throws(() => context.vm.runInThisContext('import isolatedVm from "path"'), error => error.name === "SyntaxError")
       await evaluate('import { default as localAssert } from "assert"')
       assert.equal(typeof context.localAssert, "function")
       assert.equal(typeof globalThis.localAssert, "undefined")
