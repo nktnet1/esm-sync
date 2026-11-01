@@ -3,9 +3,9 @@
 These statuses distinguish resolved failures from partial controls. The passing
 Electron 8 reconstruction is the agreed resolution criterion for #691; recovering
 the deleted original application is not required. The #917 shared-VM failure is
-now verified with the current production loader in a real WebContainer. The
-full #817 fix now includes a native USB source patch and automatic rebuild. This pass focuses
-on #691, #817 and #917; #886 is deferred.
+has passed verification in a real WebContainer. The
+full #817 fix includes a native USB source patch and automatic rebuild. #886 now
+also covers the original loader-enabled global REPL case.
 
 | Issue | Status | Verified | Still needed |
 | --- | --- | --- | --- |
@@ -14,7 +14,7 @@ on #691, #817 and #917; #886 is deferred.
 | [#691](https://github.com/standard-things/esm/issues/691) | **Resolved** | Docker passes the Electron 8 reconstruction: unsuppressed window events, console and native DevTools locations; syntax/runtime controls, recovery reload and all three cache modes | None; the passing reconstruction satisfies the agreed resolution criterion |
 | [#917](https://github.com/standard-things/esm/issues/917) | **Resolved for the verified shared-VM failure** | Actual WebContainer on Node 22.22.3: module graph and reconstructed consumer build pass in disabled/cold/warm modes, using the Docker-built fork with globals preserved | None for this tested failure; the historical Ember dependency graph remains unverified |
 | [#817](https://github.com/standard-things/esm/issues/817) | **Resolved for the pinned Linux reproduction with the native USB patch** | Patched USB rejects ABI 64 cleanly, loads ABI 70, and survives require/import, queue callbacks and debugger checks in all cache modes | Consumers need the patched USB binary; installing esm-sync alone does not repair an already-installed native binary |
-| [#886](https://github.com/standard-things/esm/issues/886) | **Deferred for this pass** | Existing VM boundary documentation retained | No implementation changes requested |
+| [#886](https://github.com/standard-things/esm/issues/886) | **Resolved for the original global REPL case** | REPL imports and its `vm.runInThisContext` shortcut load the same `index.mjs`, including disabled/cold/warm compiler caches | Native VM methods and sandboxed contexts retain script grammar |
 
 An earlier supplied 1 November run passed all fifteen offline regressions and the
 three actual WebContainer graph/build cases. It predates the native USB source
@@ -326,23 +326,60 @@ was reproduced and fixed. A passing Docker Node shim cannot close that gap.
 
 ## Static imports in VM scripts (#886)
 
-The supplied `vm-run-in-this-context.cjs` probe is sufficient to demonstrate
-the boundary. `vm.runInThisContext()` evaluates a **script**, where static
-`import` declarations are invalid. The CLI/REPL hooks do not turn arbitrary VM
-script evaluation into a module loader. The probe's caught `SyntaxError` and
-zero exit status mean it reproduced the boundary, not that it imported a module.
+The original report starts `node -r esm`, imports the local `index.mjs` through
+`'.'` at the prompt, then calls the global `vm.runInThisContext` shortcut with a
+second static import. This is a global REPL integration gap; the earlier standalone
+script probe did not cover that original interactive use.
 
-Load the existing file explicitly through the supported factory instead:
+The fork now exposes a module-aware VM facade through that global REPL shortcut.
+It first executes ordinary scripts with the original native method. Only a native
+SyntaxError for valid module syntax takes the existing REPL compiler path. Imports
+resolve through the active REPL module, retain live bindings and share the normal
+module cache. Nested compilation restores the caller's entry and validation state,
+including after failed imports or timeouts. A module-aware global shortcut is also
+available in an application-created REPL using `useGlobal: true`.
+
+With `index.mjs` containing `export default "test"`, start `node -r esm-sync` in
+that directory, then evaluate:
+
+```javascript
+import first from "."
+vm.runInThisContext("import second from '.'; second") // "test"
+second // "test"
+```
+
+Import-only snippets complete with `undefined`. Their hoisted import calls no
+longer return internal loader entries to the REPL inspector. Compiler cache version
+6 prevents reuse of the earlier transformed output.
+
+The extension belongs to the fork's global REPL shortcut. It does not replace
+`require("node:vm").runInThisContext`, change `runInContext` / `runInNewContext`, or
+turn isolated REPL contexts into global contexts. Those native script APIs still
+reject static imports. The `filename` option remains diagnostic metadata; the REPL
+module supplies the import base. This is REPL-style evaluation, not a new isolated
+ECMAScript Module record, namespace-returning API or synchronous top-level-await
+API. Native scripts preserve their completion values, lexical globals, options,
+timeouts and thrown error identity.
+
+Outside that REPL, load a module file explicitly through the existing factory:
 
 ```javascript
 const load = require("esm-sync")(module)
-const test = load("./index.mjs").default
+const result = load("./index.mjs").default
 ```
 
-For an isolated module graph, use Node's `vm.SourceTextModule` with an explicit
-linker and asynchronous evaluation. That is a different API and may require
-the relevant Node runtime's VM-module flag. No global VM monkey-patch or silent
-change to the script API is included here.
+For an isolated module graph, use Node's separate `vm.SourceTextModule` API with
+an explicit linker and asynchronous evaluation, subject to the runtime's VM-module
+flag. Generic VM script transpilation is not enabled globally.
+
+The original REPL sequence is checked in real Node processes across disabled,
+cold and warm compiler caches, with asserted cache files before the warm run.
+Global programmatic REPL checks additionally cover named/namespace imports, live
+bindings, repeated calls, native lexical persistence, single execution on failure,
+error identity, recovery after linking errors, timeout recovery and option getters.
+Controls require the directly loaded VM method and isolated contexts to reject
+module syntax. These Node-only checks run in the existing runtime test suite;
+Docker and external reproduction assets are unnecessary for #886.
 
 ## Full USB and real WebContainer verification
 
@@ -477,6 +514,19 @@ the nonzero exit assertion. A missing report, rejected output stream or failed
 worker remains a failure.
 
 ## Validation
+
+The #886 change passes 323 focused production tests on each of Node 22.23.4,
+24.21.0 and 26.12.0, covering compiler output, REPL/eval hooks, cache behavior,
+renderer locations, host modules, shared VM behavior and verification tooling.
+TypeScript checks, the owned-type audit, Biome and Knip pass. The canonical
+production build also passes the original sequence without test-build hooks or
+custom language flags on all three Node versions and cache modes (nine checks).
+Its loader SHA-256 is `08848202b61eb621a08de03aea5f73201f34267c1621200f2c6c213994c8267a`.
+The original global REPL sequence verifies returned values and the absence of uncaught errors;
+a caught SyntaxError followed by exit 0 cannot pass it. The desktop Docker and
+real WebContainer evidence below applies to their earlier verified builds; those
+complete host checks were not rerun for this REPL-specific change.
+
 
 The v1.0.18 cleanup fix reproduces the old matcher selecting the reviewed USB
 patch for deletion despite its negated `.gitignore` exception. With the corrected
