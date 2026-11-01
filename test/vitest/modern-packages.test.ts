@@ -241,17 +241,22 @@ console.log(JSON.stringify([value, dependency, nested.default, unmapped.default]
         "#/bad",
         "#undefined",
         ...Object.keys(imports).filter((x) => !x.includes("*")),
-        "#capture/../value"
+        "#capture/../value",
+        "#</script>\u2028\u2029",
+        '#";globalThis.fixtureInjected=true;//'
       ]
-      const body = `const result = []
-for (const name of ${JSON.stringify(names)}) {
+      // Request names are JSON data, never part of a generated program.
+      const body = `const names = require('./requests.json'), result = []
+for (const name of names) {
   try { result.push(['import', name, (await import(name)).default]) } catch(error) { result.push(['import', name, error.code]) }
   try { result.push(['require', name, require(name)]) } catch(error) { result.push(['require', name, error.code]) }
 }
+result.push(['injected', globalThis.fixtureInjected === true])
 console.log(JSON.stringify(result))\n`
       await withFiles(
         {
           "package.json": JSON.stringify({ type: "module", imports }),
+          "requests.json": JSON.stringify(names),
           "value.mjs": "export default 'unexpected-fallback'\n",
           "value.cjs": "module.exports = 'unexpected-fallback'\n",
           "folder/index.js": "export default 'unexpected-index'\n",
@@ -261,8 +266,10 @@ console.log(JSON.stringify(result))\n`
             body
         },
         async (directory) => {
-          await compare(expect, directory, esmEnv, "entry.mjs")
-          await compare(expect, directory, esmEnv, "entry.cjs")
+          for (const entry of ["entry.mjs", "entry.cjs"]) {
+            const result = (await compare(expect, directory, esmEnv, entry)) as unknown[]
+            expect(result.at(-1)).toStrictEqual(["injected", false])
+          }
         }
       )
     })

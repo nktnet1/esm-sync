@@ -34,6 +34,7 @@
     "typecheck": "node script/src/esm/cli.ts typecheck",
     "typecheck:tsc": "node script/src/esm/cli.ts typecheck",
     "verify:prod": "pnpm build:prod --test && pnpm test:run:prod",
+    "verify:all": "node script/src/esm/verify-all.ts",
     "test:verdaccio": "node script/src/esm/cli.ts test-verdaccio",
     "release:beta": "node script/src/esm/release-beta.ts",
     "release:pack": "node script/src/esm/prepare-release-package.ts",

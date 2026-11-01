@@ -12,6 +12,9 @@ assertion API. It exercises the original dynamic-import mechanism, including
 temporary replacement of Symbol, Promise and timer globals, through the CLI
 and synchronous Mocha loading paths. It does not run Dyo's complete DOM suite.
 
+The `.gitattributes` LF rule preserves the original bytes on Windows. A real
+Git checkout regression also enables `core.autocrlf=true` and verifies both hashes.
+
 SHA-256:
 
 - src/Utility.js: e6d8ae74678d6c2de9800d4eda059ebca126f4bae17113eb9762c2f19dca32d1

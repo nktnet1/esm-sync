@@ -1,263 +1,102 @@
 # esm-sync
 
-**This is a fork of [esm](https://github.com/standard-things/esm)**: the brilliantly simple, babel-less, bundle-less ECMAScript module loader.
+A synchronous ECMAScript module loader for CommonJS, maintained as a fork of
+[esm](https://github.com/standard-things/esm) for
+[import-sync](https://github.com/nktnet1/import-sync).
 
-This fork includes:
+The fork supports modern package `exports` and private `imports` maps,
+`node:` specifiers, dynamic imports, live bindings, and `import.meta` helpers
+(`url`, `resolve`, `dirname`, `filename`, and `main`). Modules may declare their
+own `require`, including one created with `createRequire(import.meta.url)`.
 
-* Assorted updates from [@httptoolkit/esm](https://github.com/httptoolkit/esm) and [esm-wallaby fork](https://www.npmjs.com/package/esm-wallaby), adding support for ES modules containing new ES syntax, supporting modern Node versions (at least up to v22), and supporting `node:*` imports.
-* Support for modules that use the `const require = createRequire(...)` pattern (or declare any other global `require` variable) which are otherwise unusable with `esm`.
-* Support for modules that use only an `exports` map in their package.json, without a `main` field, which are otherwise unresolvable (reporting "Cannot find module", even though `import()` works correctly).
-* Built-in types for use in TypeScript projects
-
-This package is maintained for use in the [import-sync](https://github.com/nktnet1/import-sync) project.
-
-You may also be interested in [jiti](https://github.com/unjs/jiti), which provides legacy (deprecated, but still reliable) support for synchronous imports.
-
-## Install
+## Install and use
 
 ```sh
 npm install esm-sync
 ```
 
-## Getting started
+In a CommonJS entry point:
 
-There are two ways to enable `esm-sync`.
+```js
+const load = require("esm-sync")(module)
+module.exports = load("./main.js")
+```
 
-1. Enable `esm-sync` for packages:
+```js
+// main.js
+export const answer = 42
+```
 
-   Use `esm-sync` to load the main ES module and export it as CommonJS.
+To enable Node's preload hooks for a script or REPL:
 
-    __index.js__
-    ```js
-    // Set options as a parameter, environment variable, or rc file.
-    require = require("esm-sync")(module/*, options*/)
-    module.exports = require("./main.js")
-    ```
-    __main.js__
-    ```js
-    // ESM syntax is supported.
-    export {}
-    ```
+```sh
+node --require esm-sync main.js
+node --require esm-sync
+```
 
-2. Enable `esm-sync` for local runs:
+Calling `require("esm-sync")` alone returns the factory; use its returned
+require function to load modules. Built-in TypeScript declarations cover the
+factory and its options.
 
-    ```shell
-    node -r esm-sync main.js
-    ```
-    :bulb: Omit the filename to enable `esm-sync` in the REPL.
-
-## Features
-
-:clap: By default, :100: percent CJS interoperability is enabled so you can get stuff done.<br>
-:lock: `.mjs` files are limited to basic functionality without support for `esm-sync` options.
-
-Out of the box `esm-sync` just works, no configuration necessary, and supports:
-
-* Passing all applicable [test262](https://github.com/tc39/test262) compliance tests
-* [`import`](https://ponyfoo.com/articles/es6-modules-in-depth#import)/[`export`](https://ponyfoo.com/articles/es6-modules-in-depth#export)
-* [`import.meta`](https://github.com/tc39/proposal-import-meta)
-* [Dynamic `import`](https://github.com/tc39/proposal-dynamic-import)
-* [Live bindings](https://ponyfoo.com/articles/es6-modules-in-depth#bindings-not-values)
-* [File URI scheme](https://en.wikipedia.org/wiki/File_URI_scheme)
-* Node `stdin`, [`--eval`](https://nodejs.org/api/cli.html#cli_e_eval_script), [`--print`](https://nodejs.org/api/cli.html#cli_p_print_script) flags
-* Node [`--check`](https://nodejs.org/api/cli.html#cli_c_check) flag _(Node 10+)_
+Top-level `await`, asynchronous module dependencies, and module-body resource
+disposal are supported. Synchronous timer/I/O awaits require a compatible native
+bridge and the initial CommonJS startup stack. The bridge targets Node 22+;
+ordinary loading retains the declared Node `>=6` range, with syntax support
+limited by the host. Current CI tests Node 22, 24, and 26 on Linux, macOS, and
+Windows. See [async module loading](docs/async-module-loading.md) for installation,
+context restrictions, errors, and timeouts.
 
 ## Options
 
-Specify options with one of the following:
+Pass options to `require("esm-sync")(module, options)`, or configure them with
+an `"esm"` package field, `.esmrc[.json]` (JSON6), `.esmrc.js`/`.cjs`/`.mjs`, or
+`ESM_OPTIONS` (JSON6 or a configuration-file path).
 
-* `"esm"` field in `package.json`
-* CJS/ESM in an `.esmrc.js`, `.esmrc.cjs`, or `.esmrc.mjs` file
-* [JSON6](https://github.com/d3x0r/json6) in an `.esmrc` or `.esmrc.json` file
-* JSON6 or file path in the `ESM_OPTIONS` environment variable
-* `ESM_DISABLE_CACHE` environment variable
+| Option       | Default    | Purpose                                                                                                         |
+| ------------ | ---------- | --------------------------------------------------------------------------------------------------------------- |
+| `mode`       | `"auto"`   | Detect module syntax; `"all"` treats files as ESM except `.cjs`/`"use script"`; `"strict"` selects `.mjs` only. |
+| `cjs`        | `true`     | Enable CommonJS conveniences in eligible `.js` modules, or configure individual features below.                 |
+| `mainFields` | `["main"]` | Legacy package entry fields; a package `exports` map takes precedence.                                          |
+| `cache`      | `true`     | Enable persistent compilation caching; use a string for its directory or `false` to disable it.                 |
+| `sourceMap`  | automatic  | Include inline source maps when enabled.                                                                        |
+| `await`      | `false`    | Also permit top-level await in modules without ESM exports.                                                     |
+| `force`      | `false`    | Apply this configuration across package boundaries.                                                             |
+| `wasm`       | `false`    | Enable WebAssembly module loading on capable hosts.                                                             |
+| `debug`      | `false`    | Expose loader internals in diagnostic stacks.                                                                   |
 
-<table>
-<tr>
-  <td colspan="2"><code>{</code></td>
-</tr>
-<tr>
-  <td valign="top"><code>"cjs":true</code></td>
-  <td>
-    <p>A boolean or object for toggling CJS features in ESM.</p>
-    <details>
-      <summary>Features</summary>
-      <table>
-      <tr>
-        <td colspan="2"><code>{</code></td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"cache":true</code></td>
-        <td>
-          <p>A boolean for storing ES modules in <code>require.cache</code>.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"esModule":true</code></td>
-        <td>
-          <p>A boolean for <code>__esModule</code> interoperability.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"extensions":true</code></td>
-        <td>
-          <p>A boolean for respecting <code>require.extensions</code> in ESM.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"mutableNamespace":true</code></td>
-        <td>
-          <p>A boolean for mutable <a href="https://ponyfoo.com/articles/es6-modules-in-depth#import-all-the-things">namespace objects</a>.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"namedExports":true</code></td>
-        <td>
-          <p>A boolean for <a href="https://ponyfoo.com/articles/es6-modules-in-depth#importing-named-exports">importing named exports</a> of CJS modules.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"paths":true</code></td>
-        <td>
-          <p>A boolean for following CJS <a href="https://github.com/nodejs/node-eps/blob/master/002-es-modules.md#432-removal-of-non-local-dependencies">path rules</a> in ESM.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"vars":true</code></td>
-        <td>
-          <p>A boolean for <code>__dirname</code>, <code>__filename</code>, and <code>require</code> in ESM.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"dedefault":false</code></td>
-        <td>
-          <p>A boolean for requiring ES modules without the dangling <code>require().default</code>.</p>
-        </td>
-      </tr>
-      <tr>
-        <td valign="top"><code>"topLevelReturn":false</code></td>
-        <td>
-          <p>A boolean for top-level <code>return</code> support.</p>
-        </td>
-      </tr>
-      <tr>
-        <td colspan="2"><code>}</code></td>
-      </tr>
-      </table>
-    </details>
-  </td>
-</tr>
-<tr>
-  <td valign="top"><code>"mainFields":["main"]</code></td>
-  <td>
-    <p>An array of fields checked when importing a package.</p>
-  </td>
-</tr>
-<tr>
-  <td valign="top"><code>"mode":"auto"</code></td>
-  <td>
-    <p>A string mode:</p>
-    <ul>
-      <li><code>"auto"</code> detect files with <code>import</code>, <code>import.meta</code>, <code>export</code>,<br><a href="https://github.com/tc39/proposal-modules-pragma"><code>"use module"</code></a>, or <code>.mjs</code> as ESM.</li>
-      <li><code>"all"</code> files besides those with <code>"use script"</code> or <code>.cjs</code> are treated as ESM.</li>
-      <li><code>"strict"</code> to treat <strong>only</strong> <code>.mjs</code> files as ESM.</li>
-    </ul>
-  </td>
-</tr>
-<tr>
-  <td valign="top"><code>"await":false</code></td>
-  <td>
-    <p>A boolean for <a href="https://github.com/tc39/proposal-top-level-await">top-level <code>await</code></a> in modules without ESM exports. <em>(Node 10+)</em></p>
-  </td>
-</tr>
-<tr>
-  <td valign="top"><code>"force":false</code></td>
-  <td>
-    <p>A boolean to apply these options to all module loads.</p>
-  </td>
-</tr>
-<tr>
-  <td valign="top"><code>"wasm":false</code></td>
-  <td>
-    <p>A boolean for <a href="https://nodejs.org/api/globals.html#globals_webassembly">WebAssembly</a> module support. <em>(Node 8+)</em></p>
-  </td>
-</tr>
-<tr>
-  <td colspan="2"><code>}</code></td>
-</tr>
-</table>
+`cjs` accepts booleans for `cache`, `esModule`, `extensions`,
+`mutableNamespace`, `namedExports`, `paths`, and `vars`. These default to `true`
+in zero-configuration `.js` interop. `dedefault` and `topLevelReturn` default
+to `false`. Strict `.mjs` graphs retain their ESM boundaries. See
+[interop and migration](docs/interop-and-migration.md) for default-export
+unwrapping, Mocha setup, package resolution, mocking, and native Node migration.
 
-DevOpts
----
+Set `ESM_DISABLE_CACHE=true` or `1` before loading to bypass persistent compiler
+and bootstrap caches. This does not re-evaluate modules already in memory.
 
-<table>
-<tr>
-  <td colspan="2"><code>{</code></td>
-</tr>
-<tr>
-  <td valign="top"><code>"cache":true</code></td>
-  <td>
-    <p>A boolean for toggling cache creation or a cache directory path.</p>
-  </td>
-</tr>
-<tr>
-  <td valign="top"><code>"sourceMap":false</code></td>
-  <td>
-    <p>A boolean for including inline source maps.</p>
-  </td>
-</tr>
-<tr>
-  <td colspan="2"><code>}</code></td>
-</tr>
-</table>
+## Development
 
-Tips
----
+With Node 24.14+ and Docker Engine/Desktop on macOS or Linux, run the complete
+self-contained verification from the checkout:
 
-### Bundling
+```sh
+node script/src/esm/verify-all.ts
+```
 
-* For bundlers like [`browserify`](http://browserify.org/)+[`esmify`](https://github.com/mattdesl/esmify),
-  [`parcel-bundler`](https://parceljs.org/), and [`webpack`](https://webpack.js.org/)
-  add a `"module"` field to `package.json` pointing to the main ES module.
-  ```json
-  "main": "index.js",
-  "module": "main.js"
-  ```
+`pnpm verify:all` is the equivalent package script. Dependencies and native
+builds run in disposable Linux/amd64 containers. The command runs all Vitest
+projects and full Test262 selection in development and production on Node
+22/24/26, installed CJS/ESM packages, release benchmarks, formatting, types,
+unused-code checks, dependency audits, a disposable registry, and automated
+Electron/VS Code/USB/WebContainer checks. It requires network access for image,
+package, fixture, and real WebContainer downloads. A failed or blocked stage
+makes the command fail; logs and summaries are saved under `.cache/verification/`.
+This complements the operating-system CI matrix.
 
-  :bulb: This is automagically done with `npm init esm` or `yarn create esm`.
-
-### Extensions
-
-* Enable `esm-sync` for [`wallaby.js`](https://wallabyjs.com/) following their
-  [integration example](https://wallabyjs.com/docs/integration/node.html#es-modules).
-
-### Loading
-
-* Load `esm-sync` before loaders/monitors like
-  [`@babel/register`](https://babeljs.io/docs/en/next/babel-register.html),
-  [`newrelic`](https://github.com/newrelic/node-newrelic),
-  [`ts-node`](https://github.com/TypeStrong/ts-node#programmatic).
-
-* Load `esm-sync` for [`jasmine`](https://jasmine.github.io/) using the
-  [`"helpers"`](https://jasmine.github.io/setup/nodejs.html#configuration)
-  field in `jasmine.json`:
-  ```json
-  "helpers": [
-    "node_modules/esm-sync"
-  ]
-  ```
-
-* Load `esm-sync` with “node-args" options of:<br>
-  - [`pm2`](https://pm2.io/doc/en/runtime/reference/pm2-cli/#pm2-flags): `--node-args="-r esm-sync"`
-
-* Load `esm-sync` with “require” options of
-  [`ava`](https://github.com/avajs/ava/blob/master/docs/recipes/es-modules.md),
-  [`mocha`](https://mochajs.org/#-require-module-r-module),
-  [`nodemon`](https://nodemon.io/),
-  [`nyc`](https://github.com/istanbuljs/nyc#require-additional-modules),
-  [`qunit`](https://github.com/qunitjs/qunit/releases/tag/2.6.0),
-  [`tape`](https://github.com/substack/tape#preloading-modules), and
-  [`webpack`](https://webpack.js.org/api/cli/#config-options).
-
-  :bulb: Builtin `require` cannot sideload `.mjs` files. However, `.js` files
-  can be sideloaded or `.mjs` files may be loaded with dynamic `import`.
+- [Maintainer guide and focused commands](docs/MAINTAINER_GUIDE.md)
+- [CI selection and caches](docs/ci.md)
+- [Host integration scope](docs/host-integrations.md)
+- [Original application and performance checks](docs/tooling-and-performance.md)
+- [Compatibility scope and remaining work](docs/FORK_ISSUES_ROADMAP.md)
+- [v3.4.0 release notes](docs/releases/v3.4.0.md)
+- [Release procedure](script/RELEASING.md)
