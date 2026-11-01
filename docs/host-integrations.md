@@ -16,7 +16,7 @@ on #691, #817 and #917; #886 is deferred.
 | [#817](https://github.com/standard-things/esm/issues/817) | **Resolved for the pinned Linux reproduction with the native USB patch** | Patched USB rejects ABI 64 cleanly, loads ABI 70, and survives require/import, queue callbacks and debugger checks in all cache modes | Consumers need the patched USB binary; installing esm-sync alone does not repair an already-installed native binary |
 | [#886](https://github.com/standard-things/esm/issues/886) | **Deferred for this pass** | Existing VM boundary documentation retained | No implementation changes requested |
 
-The supplied 1 November run passed all fifteen offline regressions and the
+An earlier supplied 1 November run passed all fifteen offline regressions and the
 three actual WebContainer graph/build cases. It predates the native USB source
 fix and correctly reported the original ABI-64 crash as a blocker. v1.0.17 fixes
 the native queue initialization itself, builds patched binaries for both ABIs,
@@ -260,6 +260,15 @@ is idempotent. The TypeScript builder verifies the input and resulting source
 hashes before compiling both native ABIs. This changes USB's native source;
 it does not add a loader hook that rewrites consumers' installed binaries.
 The verifier exports the native patch as `offline/usb-native-fix.patch`.
+The reported tooling CI failure was deterministic: test-runner cleanup expanded
+`*.patch` but prefixed the negated exception with `**/!`, so the checked-in native
+patch was selected for removal before Vitest started. Both source-validation
+tests then failed with ENOENT instead of reaching their intended assertions.
+Cleanup now keeps `!` at the start of negative globs and ignores comment lines.
+A regression runs the actual compiled matcher and cleanup filter in an isolated
+repository, verifies that reviewed source patches survive, and checks that
+ordinary generated patches and cache directories are still removed. The native
+patch, pinned checksums and validation rules are unchanged.
 
 ## Chromium error presentation (#691)
 
@@ -469,6 +478,16 @@ worker remains a failure.
 
 ## Validation
 
+The v1.0.18 cleanup fix reproduces the old matcher selecting the reviewed USB
+patch for deletion despite its negated `.gitignore` exception. With the corrected
+matcher, the unchanged `test --suite=tooling` command passes all 417 tests in
+31 files after the normal pinned-fixture preparation. The real native patch
+survives test startup with its original SHA-256 digest. TypeScript checks,
+owned-type auditing, Biome and Knip pass. No CI workflow or USB patch changes
+are needed; the new cleanup regression also checks anchored and unanchored
+exceptions, comments, CRLF rules and removal of ordinary generated artifacts.
+
+
 The delivered v1.0.17 patch passes 208 focused production tests on each of Node
 22.23.4, 24.21.0 and 26.12.0, including native evidence rejection, archive
 containment, portable worker execution and both Docker orchestration phases
@@ -492,9 +511,12 @@ promises. TypeScript checks, owned-type auditing, Biome and Knip pass. The
 production build passes and its loader digest remains
 `8b771daf822c8672d82a3ac9eca405493bc1a384b9b13f8c77266f1e1c9b9ed3`.
 
-The supplied passing actual WebContainer run remains the evidence for #917.
-No new real WebContainer run or complete updated Docker image was executed in
-this authoring environment. The earlier native investigation passed twelve
+The latest user-supplied complete Docker run passes all fifteen offline
+regressions, all patched USB cases and queue controls, followed by actual
+WebContainer graph and consumer builds in every cache mode. Both original USB
+binaries reproduce SIGSEGV as negative controls. Report export and cleanup pass.
+This is the end-to-end evidence for the native USB fix and #917; the complete
+Docker image was not independently rerun in this authoring environment. The earlier native investigation passed twelve
 patched full-package checks, six original negative controls and three queue
 checks in actual Electron 5.0.6 across disabled/cold/warm modes, including Xvfb
 and debugger round trips. The native USB fix is separate from the unchanged
