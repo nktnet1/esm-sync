@@ -173,7 +173,7 @@ export async function runDockerHostChecks(
       validateOffline(offline, offlineCode === 2)
       if (offlineCode === 2)
         blocked.push(
-          "#817: automatic USB rebuild and compatible require/import checks pass; no manual rebuild is needed. The original ABI-64 binary still crashes or hangs under ordinary require without esm"
+          "#817: native-patched USB still fails safe ABI rejection under ordinary require; inspect patched-case logs and queue evidence"
         )
     } catch (error) {
       errors.push(error instanceof Error ? error.message : String(error))

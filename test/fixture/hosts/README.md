@@ -62,5 +62,12 @@ The full #817 checks additionally use actual USB 1.6.0 source, nan 2.13.2,
 bindings 1.5.0, file-uri-to-path 1.0.0 and USB's published Node ABI-64 binary.
 These are checksum-pinned downloads, retained with their licences under ignored
 `.cache/` paths. The original USB JavaScript is not replaced with the minimal
-shim in these separate checks. A full ABI-70 USB rebuild supplies the positive
-control; ordinary-require crashes are reported as verification blockers.
+shim in these separate checks. The builder applies the pinned native patch in `script/patches` and compiles
+patched binaries for ABIs 64 and 70. The published and freshly compiled unchanged
+ABI-64 binaries are retained as negative controls. Patched ABI rejection must
+keep the process alive; compatible imports must keep the debugger responsive.
+`queue-probe.cc` and `native-crash-trace.c` are authored MIT diagnostics. The
+queue probe exercises the exact patched USB header without requiring physical
+USB access, including repeated initialization and sixteen callbacks. Downloaded
+USB/libusb/Nan licences remain with their staged sources. The same Docker command
+runs all controls on Linux/amd64, including from Docker Desktop on macOS.

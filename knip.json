@@ -40,7 +40,7 @@
     "interface": true,
     "type": true
   },
-  "ignoreBinaries": ["ldd", "^g[+][+]$"],
+  "ignoreBinaries": ["patch", "ldd", "^g[+][+]$"],
   "ignoreDependencies": [
     "@babel/helper-plugin-utils",
     "@babel/plugin-proposal-class-properties",

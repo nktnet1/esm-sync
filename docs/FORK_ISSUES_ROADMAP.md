@@ -13,9 +13,9 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 | Classification                                |  Count |
 | --------------------------------------------- | -----: |
 | Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      2 |
+| Investigate                                   |      1 |
 | Documentation follow-ups                      |      0 |
-| Already covered                               |     59 |
+| Already covered                               |     60 |
 | Not planned                                   |     22 |
 | **Total**                                     | **83** |
 
@@ -35,6 +35,8 @@ For the scoped host reports, see the [full/partial/not-implemented status table]
 
 - **Electron renderer error stacks (#691)** - **Resolved.** Captured frames alone were insufficient: Chromium still reported the outer loader rethrow. Renderer errors now leave that boundary through a source-mapped function at their original location, preserving the error object. The user confirmed that all twelve Docker cases pass, including #691 syntax and runtime errors in disabled/cold/warm modes, followed by a healthy reload. The reconstruction satisfies the agreed resolution criterion; the deleted original application is not a remaining requirement. See [reconstruction and verification](host-integrations.md#chromium-error-presentation-691).
 
+- **Electron dynamic imports and native-addon failures (#817)** - **Resolved for the pinned Linux reproduction with the native USB patch.** USB 1.6.0's global queues touched libuv before ABI validation. The checked-in native source patch defers initialization until the addon has been accepted, allowing ABI-64 rejection to leave Electron ABI 70 alive. The Docker command automatically patches and rebuilds both ABIs, verifies require/import, debugger responses and sixteen native queue callbacks in every cache mode, and retains published and freshly compiled unchanged binaries as negative controls. Installing esm-sync alone does not replace an already-installed defective USB binary. See [native fix and verification](host-integrations.md#full-usb-and-real-webcontainer-verification). The complete updated Docker image still needs an end-to-end rerun; native Electron controls were tested separately.
+
 ## Verified embedded VM host
 
 - **StackBlitz/WebContainers (#917)** - **Resolved for the verified shared-VM failure.** The latest supplied Docker run verifies the current production loader in a real WebContainer on Node 22.22.3, with disabled/cold/warm graph checks and a reconstructed consumer build in each mode. The eight builtin descriptors remain intact, imports and caught rejections pass, and every consumer build invokes the fork and exits 0. The strict report validator accepts the evidence, the offline/online/exported ZIP loader digests match, and Docker reports successful export and cleanup. See [scope and evidence](host-integrations.md#full-usb-and-real-webcontainer-verification).
@@ -44,23 +46,9 @@ build returned zero without invoking esm; it is not evidence for that applicatio
 The resolved classification covers the shared-VM corruption failure and the
 reconstructed consumer in the actual host. `pnpm verify:hosts:docker` automates
 both offline regressions and this real-host verification without manual browser
-actions. Its remaining exit-2 blocker is #817's native USB crash.
+actions. The native #817 repair is now built and tested automatically by the same command.
 
 ## Active investigations
-
-### Electron and extension-host integrations
-
-- **Electron dynamic imports and native-addon failures (#817)** - **Partially resolved; full USB case open.** The incomplete-CommonJS-cache correction has regression coverage. Actual Electron 5.0.6 also passes disabled/cold/warm checks using real minimal addons for ABIs 137 and 70, including repeated/concurrent imports, a rebuilt control and a responsive debugger. These controls also pass upstream esm and do not reproduce the USB-specific hang. A real USB 1.6.0 ABI-72 build also crashes ordinary require without esm, so that native build cannot establish a loader-specific failure. Do not close the full issue on the minimal controls. See [scope and evidence](host-integrations.md#electron-dynamic-imports-and-native-addons-817).
-
-The expanded `pnpm verify:hosts:docker` check now uses the published USB ABI-64
-binary and a full USB ABI-70 rebuild as well as the minimal controls. It runs
-ordinary require and dynamic import in separate processes. A demonstrated
-ordinary-require native crash is BLOCKED (exit 2), not a passing loader result.
-The published binary reproduces the ABI error followed by SIGSEGV without esm.
-The user's macOS Docker Desktop run passes all fifteen regression cases and both
-rebuilt USB controls in every phase, but reproduces this native blocker. The
-tests target Linux/amd64 inside Docker; a Linux PC is not required. This does not
-verify native macOS Electron binaries.
 
 ### VM API boundary
 
@@ -81,14 +69,14 @@ This records local completion rather than changes to the upstream issue tracker.
 
 ## Triaged, not currently actionable
 
-The following **59** reports are classified _already covered_ by an existing
+The following **60** reports are classified _already covered_ by an existing
 fix, regression, supported behaviour, or documented boundary. That does not
 certify every historical third-party application: reopen on a concrete failing
 reproduction.
 
 931, 926, 924, 922, 921, 918, 917, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
 896, 888, 887, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
-846, 844, 843, 841, 839, 838, 824, 821, 816, 813, 812, 810, 809, 805, 798, 796, 794,
+846, 844, 843, 841, 839, 838, 824, 821, 817, 816, 813, 812, 810, 809, 805, 798, 796, 794,
 786, 779, 775, 706, 691.
 
 The following **22** reports are _not planned_: they concern external tooling,

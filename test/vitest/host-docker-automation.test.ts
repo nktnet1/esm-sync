@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import { verifyHostsDocker, type DockerRunner } from "../../script/src/esm/verify-hosts-docker.ts"
+import { successfulUsbNativeEvidence } from "./helpers/usb-native-evidence.ts"
 import { successfulWebContainerReport } from "./helpers/webcontainer-report.ts"
 
 const image = "sha256:" + "a".repeat(64),
@@ -14,6 +15,7 @@ const offline = {
   usb: ["disabled", "cold", "warm"].map((phase) => ({
     phase,
     status: "resolved",
+    nativeFix: successfulUsbNativeEvidence(phase),
     runs: ["require", "import"].flatMap((mode) =>
       ["mismatch", "compatible"].map((binary) => ({ mode, binary, passed: true }))
     )
@@ -46,6 +48,9 @@ describe("automatic offline hosts and online WebContainer Docker phases", () => 
     "malformed-offline",
     "duplicate-phase",
     "missing-usb",
+    "missing-native-fix",
+    "invalid-queue",
+    "missing-baseline",
     "blocked-usb",
     "blocked-browser",
     "wrong-browser-hash",
@@ -90,6 +95,14 @@ describe("automatic offline hosts and online WebContainer Docker phases", () => 
                   samples: offline.samples.map((sample) => ({ ...sample, phase: "cold" }))
                 }
               if (outcome === "missing-usb") report = { ...offline, usb: [] }
+              if (["missing-native-fix", "invalid-queue", "missing-baseline"].includes(outcome)) {
+                const altered = structuredClone(offline)
+                if (outcome === "missing-native-fix")
+                  delete (altered.usb[0]! as { nativeFix?: unknown }).nativeFix
+                if (outcome === "invalid-queue") altered.usb[0]!.nativeFix.queue.callbacks = 0
+                if (outcome === "missing-baseline") altered.usb[0]!.nativeFix.baselines.pop()
+                report = altered
+              }
               if (outcome === "blocked-usb")
                 report = {
                   ...offline,

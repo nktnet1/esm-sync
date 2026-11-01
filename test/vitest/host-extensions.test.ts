@@ -2,14 +2,31 @@ import { createHash, randomUUID } from "node:crypto"
 import { pathToFileURL } from "node:url"
 import { exportWebContainerKit } from "../../script/src/esm/webcontainer-kit.ts"
 import { existsSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises"
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile
+} from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { gzipSync } from "node:zlib"
 import { describe, expect, it } from "vitest"
 import { extractHostPackage } from "../../script/src/esm/host-archives.ts"
+import { patchHostUsb } from "../../script/src/esm/patch-host-usb.ts"
+import { successfulUsbNativeEvidence } from "./helpers/usb-native-evidence.ts"
 import { hostRuntimeCache } from "../../script/src/esm/host-runtimes.ts"
-import { fullUsbProbe, usbVerdict, type UsbRun } from "../../script/src/esm/verify-host-usb.ts"
+import {
+  fullUsbProbe,
+  usbQueueProbe,
+  usbVerdict,
+  validateUsbNativeEvidence,
+  type UsbRun
+} from "../../script/src/esm/verify-host-usb.ts"
 import {
   prepareProject,
   runCommand,
@@ -107,9 +124,74 @@ describe("full USB verification verdicts", () => {
   })
   it("parses both new probes in the host's script grammar", async () => {
     const acorn = await import("acorn")
-    for (const source of [fullUsbProbe, webcontainerProbe, webcontainerApplicationPreload])
+    for (const source of [
+      fullUsbProbe,
+      usbQueueProbe,
+      webcontainerProbe,
+      webcontainerApplicationPreload
+    ])
       expect(() => acorn.parse(source, { ecmaVersion: 2019, sourceType: "script" })).not.toThrow()
   })
+})
+
+describe("native USB fix evidence", () => {
+  const report = () => ({ phase: "cold", nativeFix: successfulUsbNativeEvidence("cold") })
+  it("requires pinned native fix, queue callbacks and both original baselines", () => {
+    expect(() => validateUsbNativeEvidence(report())).not.toThrow()
+  })
+  for (const fault of [
+    "missing",
+    "patch",
+    "callbacks",
+    "queue-dead",
+    "queue-exit",
+    "queue-abi",
+    "queue-error",
+    "baseline-missing",
+    "baseline-duplicate",
+    "baseline-crash",
+    "baseline-abi",
+    "unverified",
+    "stale",
+    "fake-healthy"
+  ] as const)
+    it(`rejects incomplete native evidence: ${fault}`, () => {
+      const value = report()
+      const fix = value.nativeFix
+      if (fault === "missing") delete (value as { nativeFix?: unknown }).nativeFix
+      if (fault === "patch") fix.patchSHA256 = "0".repeat(64)
+      if (fault === "callbacks") fix.queue.callbacks = 0
+      if (fault === "queue-dead") fix.queue.survived = false
+      if (fault === "queue-exit") fix.queue.code = 1
+      if (fault === "queue-abi") fix.queue.versions.modules = "64"
+      if (fault === "queue-error") Object.assign(fix.queue, { error: "uncaught callback error" })
+      if (fault === "baseline-missing") fix.baselines.pop()
+      if (fault === "baseline-duplicate") fix.baselines[1] = fix.baselines[0]!
+      if (fault === "baseline-crash") fix.baselines[0]!.signal = "SIGABRT"
+      if (fault === "baseline-abi") fix.baselines[0]!.report.rejections = ["unrelated error"]
+      if (fault === "unverified") fix.baselines[0]!.verified = false
+      if (fault === "stale") fix.baselines[0]!.report.phase = "warm"
+      if (fault === "fake-healthy") fix.baselines[0]!.passed = true
+      expect(() => validateUsbNativeEvidence(value)).toThrow()
+    })
+  it("refuses altered native source before applying any change", async () =>
+    temporary(async (directory) => {
+      await mkdir(path.join(directory, "src"))
+      const file = path.join(directory, "src/uv_async_queue.h")
+      await writeFile(file, "altered source")
+      expect(() => patchHostUsb(directory)).toThrow(/Unexpected USB source/)
+      expect(await readFile(file, "utf8")).toBe("altered source")
+    }))
+  it("refuses native source symlinks outside the staged package", async () =>
+    temporary(async (directory) => {
+      const project = path.join(directory, "usb")
+      const outside = path.join(directory, "outside.h")
+      await mkdir(path.join(project, "src"), { recursive: true })
+      await writeFile(outside, "do not change")
+      await symlink(outside, path.join(project, "src/uv_async_queue.h"))
+      expect(() => patchHostUsb(project)).toThrow(/escapes package/)
+      expect(await readFile(outside, "utf8")).toBe("do not change")
+    }))
 })
 
 describe("shared VM host verification", () => {

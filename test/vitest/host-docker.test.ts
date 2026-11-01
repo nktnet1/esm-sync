@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest"
 import {
   downloadHostRuntime,
   hostAddonHeaders,
+  hostUsbMismatchHeaders,
   hostPackages,
   hostRuntimes,
   hostWebContainerSdk,
@@ -191,6 +192,7 @@ describe("self-contained desktop host verification", () => {
     const paths = [
       ...hostRuntimes.map((spec) => `.cache/host-runtimes/${spec.file}`),
       `.cache/host-runtimes/${hostAddonHeaders.file}`,
+      `.cache/host-runtimes/${hostUsbMismatchHeaders.file}`,
       `.cache/host-runtimes/${hostWebContainerSdk.file}`,
       ...Object.values(hostPackages).map((spec) => `.cache/host-runtimes/${spec.file}`),
       ".cache/webcontainer-sdk/dist/index.js",

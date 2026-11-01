@@ -4,6 +4,7 @@ import { existsSync, realpathSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
+import { validateUsbNativeEvidence } from "./verify-host-usb.ts"
 import { hostLabel } from "./host-output.ts"
 import { HostVerificationBlocked, runDockerHostChecks } from "./host-docker-run.ts"
 
@@ -80,6 +81,7 @@ function validateDockerReport(value: unknown, blocked = false): void {
   const usb: unknown[] = report.usb
   for (const item of usb) {
     assert.ok(item && typeof item === "object")
+    validateUsbNativeEvidence(item)
     const verdict = item as Record<string, unknown>
     assert.ok(["disabled", "cold", "warm"].includes(String(verdict.phase)))
     phases.add(String(verdict.phase))
@@ -152,7 +154,7 @@ if (
   const { values } = parseArgs({ options: { help: { type: "boolean", short: "h" } } })
   if (values.help) {
     console.log(
-      "pnpm verify:hosts:docker\nAutomatically downloads verified build inputs, rebuilds full USB for Electron 5.0.6 in Docker, and verifies require/import in every cache mode. No manual USB installation or rebuild command is needed. Runs offline Linux/amd64 host and USB checks, then automatically boots a real WebContainer in Chromium and runs all three cache modes plus consumer builds. macOS and Linux Docker hosts are supported. Only the WebContainer phase needs network access. Exit 0: pass; 1: failure; 2: native USB or WebContainer environment blocker. Reports: .cache/host-verification. No manual upload, external assets or host display."
+      "pnpm verify:hosts:docker\nAutomatically downloads verified build inputs, applies the native USB queue fix, builds ABIs 64/70 in Docker, and verifies safe rejection, require/import and queue liveness in every cache mode. Original published/unpatched binaries are retained as negative controls. No manual USB installation or rebuild command is needed. Runs offline Linux/amd64 host and USB checks, then automatically boots a real WebContainer in Chromium and runs all three cache modes plus consumer builds. macOS and Linux Docker hosts are supported. Only the WebContainer phase needs network access. Exit 0: pass; 1: failure; 2: native USB or WebContainer environment blocker. Reports: .cache/host-verification. No manual upload, external assets or host display."
     )
   } else {
     verifyHostsDocker().catch((error: unknown) => {

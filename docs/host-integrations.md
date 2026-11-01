@@ -4,7 +4,7 @@ These statuses distinguish resolved failures from partial controls. The passing
 Electron 8 reconstruction is the agreed resolution criterion for #691; recovering
 the deleted original application is not required. The #917 shared-VM failure is
 now verified with the current production loader in a real WebContainer. The
-minimal #817 controls leave the full USB failure open. This pass focuses
+full #817 fix now includes a native USB source patch and automatic rebuild. This pass focuses
 on #691, #817 and #917; #886 is deferred.
 
 | Issue | Status | Verified | Still needed |
@@ -13,24 +13,18 @@ on #691, #817 and #917; #886 is deferred.
 | [#915](https://github.com/standard-things/esm/issues/915) | **Fully resolved for the original reproduction** | VS Code 1.66.2: activation, command and valid allocated port in all three cache modes; confirmed again in Docker | UI Reload Window remains outside the automated checks |
 | [#691](https://github.com/standard-things/esm/issues/691) | **Resolved** | Docker passes the Electron 8 reconstruction: unsuppressed window events, console and native DevTools locations; syntax/runtime controls, recovery reload and all three cache modes | None; the passing reconstruction satisfies the agreed resolution criterion |
 | [#917](https://github.com/standard-things/esm/issues/917) | **Resolved for the verified shared-VM failure** | Actual WebContainer on Node 22.22.3: module graph and reconstructed consumer build pass in disabled/cold/warm modes, using the Docker-built fork with globals preserved | None for this tested failure; the historical Ember dependency graph remains unverified |
-| [#817](https://github.com/standard-things/esm/issues/817) | **Partially resolved; native USB blocker reproduced** | Published USB 1.6.0 ABI-64 binary catches the mismatch then segfaults under ordinary require without esm; real rebuilt ABI-70 binary loads | Expanded Docker checks distinguish a full USB loader failure from an ordinary-require native crash |
+| [#817](https://github.com/standard-things/esm/issues/817) | **Resolved for the pinned Linux reproduction with the native USB patch** | Patched USB rejects ABI 64 cleanly, loads ABI 70, and survives require/import, queue callbacks and debugger checks in all cache modes | Consumers need the patched USB binary; installing esm-sync alone does not repair an already-installed native binary |
 | [#886](https://github.com/standard-things/esm/issues/886) | **Deferred for this pass** | Existing VM boundary documentation retained | No implementation changes requested |
 
-The latest supplied 1 November Linux/x64 run passes all fifteen offline cases and
-the three actual WebContainer graph/build cases. Both rebuilt USB controls pass
-in every cache mode. The combined report has no failed checks; its only blocker
-is #817's incompatible USB native crash. Exit 2 retains that blocker even though
-the WebContainer container exits 0. Reports are exported and both containers are
-removed successfully.
+The supplied 1 November run passed all fifteen offline regressions and the
+three actual WebContainer graph/build cases. It predates the native USB source
+fix and correctly reported the original ABI-64 crash as a blocker. v1.0.17 fixes
+the native queue initialization itself, builds patched binaries for both ABIs,
+and retains the original crashes as explicit negative controls. Required patched
+checks must pass; an original crash alone cannot establish the fix.
 
-The user confirmed all fifteen offline regression cases pass from macOS using
-Docker Desktop. The full USB mismatch control segfaults without esm, while both
-rebuilt USB controls pass in every cache mode. Reports label minimal #817 samples as
-`minimal-native-addon` and #691 samples as `reconstructed-renderer`. These
-scopes prevent a passing control from being mistaken for a full historical
-application result. The six #867/#915 passes retain their original scope. The ZIP
-extraction code fix and security regressions are complete; a CodeQL rerun has
-not been observed in this authoring environment.
+The six #867/#915 passes retain their original scope. The ZIP extraction fix and
+security regressions are complete; a CodeQL rerun has not been observed here.
 
 ## Docker verification
 
@@ -39,13 +33,13 @@ Engine/Desktop with BuildKit and the project's normal Node/pnpm tooling, with no
 external assets directory, Python collector or host display configuration.
 No CI workflow is added.
 
-This command already handles the USB rebuild automatically. No host-side
-`@electron/rebuild` installation or manual rebuild command is required. It fetches
-the verified USB source, dependencies and Electron headers, compiles the full
-package for Electron 5.0.6/Linux x64 (ABI 70) inside Docker, and checks the rebuilt
-binary through ordinary require and dynamic import in every cache mode. Docker
-can reuse a completed build layer on subsequent runs; verification still checks
-the binary digests and reruns the load/liveness checks.
+The command applies the checksum-pinned native USB patch and rebuilds full
+USB 1.6.0 for ABIs 64 and 70 automatically. No manual package installation or
+rebuild command is required. It also retains the published ABI-64 binary and
+compiles unchanged ABI-64 source as negative controls. Every cache mode checks
+safe rejection of the patched incompatible binary, compatible require/import,
+16 native queue callbacks and debugger responsiveness. Docker can reuse build
+layers; verification still validates binary digests and reruns the checks.
 
 The small original source files and real `get-port@6.1.2` fixture are committed
 under `test/fixture/hosts`, together with their licences and provenance. These
@@ -126,8 +120,8 @@ the image. It has no native CLI, external-assets option or runtime overrides.
 
 The checker runs fifteen regression cases: disabled, cold and warm disk-cache
 launches for #867, #915, the #691 reconstruction, #817's minimal native-addon
-controls and #917's shared VM emulation. Four additional full USB subprocesses
-run per cache phase. The online phase adds disabled/cold/warm real WebContainer
+controls and #917's shared VM emulation. Six additional full USB subprocesses
+and one native queue subprocess run per cache phase. The online phase adds disabled/cold/warm real WebContainer
 graph checks and a consumer build in each phase. Electron must
 load the original HTML/renderer successfully and greet once on the first load
 and each of three reloads. Each VS Code launch must activate the original
@@ -252,18 +246,20 @@ The same minimal controls also pass with upstream `esm@3.2.25`. They do not
 reproduce the USB-specific hang and cannot establish that it is fixed. The
 existing incomplete-CommonJS-cache correction has separate regressions.
 
-A further experiment compiled actual `usb@1.6.0`, using `nan@2.13.2`,
-`bindings@1.5.0` and `file-uri-to-path@1.0.0`, for Node 12 ABI 72 and Electron
-ABI 70. The incompatible binary also crashes ordinary require with SIGSEGV in
-libuv, without loading esm. USB's global `UVQueue` constructors initialise
-libuv handles before Node rejects the ABI. This build cannot distinguish the
-historical loader failure from native failure. Experimental downloads and
-binaries remain ignored and are not inputs to the passing minimal controls.
+The full-package checks locate a native USB 1.6.0 defect: global `UVQueue`
+constructors call libuv before Node validates the addon ABI. Rejecting the addon
+unloads the library while libuv retains references to its global storage. The
+published binary and a freshly compiled unchanged ABI-64 binary both catch the
+64/70 mismatch and then crash without esm. Native stack diagnostics capture the
+subsequent libuv failure.
 
-Full USB validation now records both rejection paths explicitly. A native crash
-in the ordinary-require control blocks a loader-specific conclusion; rebuilding
-the module for the runtime is the demonstrated working path. The JavaScript
-loader cannot repair the native process crash.
+`script/patches/usb-1.6.0-defer-queue-init.patch` makes construction inert,
+initializes completion queues in `Transfer::Init`, initializes the hotplug queue
+before enabling events, and avoids closing an uninitialized queue. Initialization
+is idempotent. The TypeScript builder verifies the input and resulting source
+hashes before compiling both native ABIs. This changes USB's native source;
+it does not add a loader hook that rewrites consumers' installed binaries.
+The verifier exports the native patch as `offline/usb-native-fix.patch`.
 
 ## Chromium error presentation (#691)
 
@@ -341,49 +337,52 @@ change to the script API is included here.
 
 ## Full USB and real WebContainer verification
 
-Run `pnpm verify:hosts:docker` for fifteen offline regression cases and twelve
-full USB subprocess checks. The build downloads checksum-pinned USB 1.6.0,
-nan 2.13.2, bindings 1.5.0, file-uri-to-path 1.0.0 and the published USB ABI-64
-Linux binary. It rebuilds the unchanged USB source for Electron ABI 70 using
-its bundled libusb and supported Linux netlink backend. No Python collector or
-dependency lifecycle scripts are used. Downloaded packages, extracted sources,
-binaries and reports remain gitignored. `usb-builds.json` records the inputs,
-compiler commands and both binary digests.
+Run `pnpm verify:hosts:docker` for fifteen offline regressions, eighteen full
+USB subprocesses and three native queue checks, followed by real WebContainer
+verification. Build inputs are checksum-pinned USB 1.6.0, nan 2.13.2, bindings
+1.5.0, file-uri-to-path 1.0.0, the published ABI-64 binary, Node 10.24.1 headers
+and Electron 5.0.6 headers. The build uses bundled libusb and its supported Linux
+netlink backend. Downloaded packages, sources, binaries and reports remain
+ignored. No Python collector or dependency lifecycle scripts are used.
 
-Each #817 phase numbers four subprocesses as `[USB 1/4]` through `[USB 4/4]`:
-ordinary require and dynamic import, each with incompatible and rebuilt binaries.
-The output explicitly prints `PASS #817 automatic USB rebuild` after both rebuilt
-controls pass. These are the automated checks of the working rebuild. The
-original ABI-64 binary remains a separate mismatch diagnostic: rebuilding the
-compatible copy cannot make that original binary reject safely. Its native crash
-still produces BLOCKED/exit 2, even when the automatic rebuild passes. No further
-manual package installation or rebuild step is missing from the verifier.
+Each #817 phase prints `[USB 1/6]` through `[USB 6/6]`:
 
-Open `817-usb-<phase>.json` and its referenced logs/results. A RESOLVED verdict
-requires a healthy ordinary ABI rejection, caught repeated/concurrent dynamic
-imports, successful rebuilt imports and three debugger round trips. A caught
-rejection followed by a crash does not pass. An ordinary-require crash after the
-matching ABI error is BLOCKED. A rebuilt control failure is FAILED; a healthy
-ordinary control followed by a failing dynamic import is a loader failure.
+1. Published ABI-64 binary under ordinary require - original negative control.
+2. Fresh unchanged ABI-64 build under ordinary require - source negative control.
+3. Patched ABI-64 build under ordinary require - must reject and stay alive.
+4. Patched ABI-64 build through dynamic import - repeated/concurrent rejections must settle.
+5. Patched ABI-70 build under ordinary require - must load and stay alive.
+6. Patched ABI-70 build through dynamic import - must load and keep the debugger responsive.
 
-Exit 0 means the offline hosts, full USB controls and real WebContainer phase all
-pass. Exit 1 means a check failed or evidence is missing. Exit 2 means verification
-is blocked by the ordinary-require native USB crash/hang or by an unavailable
-WebContainer environment, with no failed check taking precedence. The combined
-`report.json` records both phases and the blockers. For the USB blocker,
-`offline/report.json` has `controlsPassed: true`, `passed: false` and
-`blocked: true`. Fifteen green regression cases do not resolve a blocked full
-USB case.
+The original controls must record the matching ABI error followed by an observed
+SIGSEGV, exit 139 or timeout, or demonstrate healthy rejection themselves. An
+unrelated startup failure is not acceptable evidence. Their raw native crash
+stacks are retained when available. Four patched cases must actually pass.
+A separate ABI-70 addon exercises the exact patched queue header with repeated
+initialization, sixteen callbacks and an event-loop liveness check. Missing,
+stale or incorrect native evidence fails verification and the Docker aggregate
+validator independently checks it.
 
-The published USB binary, not just the earlier experimental build, reproduces
-this native blocker in Electron 5's embedded Node on Linux x64. The user's macOS
-Docker Desktop run reproduces it inside the Linux/amd64 container. Switching to
-a Linux PC is not a demonstrated fix or a requirement. The rebuilt ABI-70 binary
-loads and survives the event-loop check. USB may report a libusb initialisation
-error without physical USB access; the result retains that value. The probe
-independently observes the actual `.node` handler completing and verifies the
-binary digest, so a JavaScript fallback or empty module cannot replace loading
-the rebuilt binary. The test does not open physical USB devices.
+`usb-builds.json` records patch and source hashes, headers, compiler commands,
+four binary digests and the queue/stack diagnostic digests. Inspect
+`817-usb-<phase>.json` and referenced logs/results. A caught rejection followed
+by a crash in a patched case never passes. A patched ordinary-require crash
+remains BLOCKED; a failed compatible control or queue check is FAILED.
+
+Exit 0 requires all offline regressions, patched full USB checks, native queue
+checks and the real WebContainer phase to pass. Exit 1 means a failed check or
+missing evidence. Exit 2 means patched USB still cannot reject safely, or the
+WebContainer environment is unavailable, without a higher-priority failure.
+The original defective binaries are retained as negative controls after the
+actual native repair; they no longer force exit 2 when the fixed binaries pass.
+
+A Linux PC is not required: Docker Desktop on macOS runs the same Linux/amd64
+checks. Native macOS Electron is outside this scope. USB may report a libusb
+initialization error without device access; reports retain it and require the
+actual `.node` handler to have loaded. The separate native queue check remains
+required even when USB supplies fallback JavaScript APIs after such an error.
+When libusb initializes, the probe also toggles attach/detach listeners. No
+physical USB devices are opened by these tests.
 
 The #917 Docker cases preserve builtin descriptors, load a CommonJS/ESM graph,
 check repeated loads and caught dynamic-import failures, and require a real
@@ -470,6 +469,18 @@ worker remains a failure.
 
 ## Validation
 
+The delivered v1.0.17 patch passes 208 focused production tests on each of Node
+22.23.4, 24.21.0 and 26.12.0, including native evidence rejection, archive
+containment, portable worker execution and both Docker orchestration phases
+with simulated outcomes. The production build, TypeScript checks, owned-type
+audit, Biome and Knip pass. Both native USB ABIs, the unchanged ABI-64 control,
+the queue addon and native stack recorder compile successfully. Fresh direct
+Electron 5 embedded-Node checks pass six patched ordinary-require cases and
+three queue cases across all cache modes, while both original binaries reproduce
+SIGSEGV in each mode and retain native stack diagnostics. These direct checks
+are separate from the earlier full GUI/debugger run described below.
+
+
 The v1.0.14 verification tooling passed 188 focused tests on each of Node 22,
 24 and 26. These include archive security, native-failure classification, the
 guard counterfactual, dependency-free compiled-worker and consumer execution,
@@ -481,28 +492,13 @@ promises. TypeScript checks, owned-type auditing, Biome and Knip pass. The
 production build passes and its loader digest remains
 `8b771daf822c8672d82a3ac9eca405493bc1a384b9b13f8c77266f1e1c9b9ed3`.
 
-The latest user-supplied run supplies the live WebContainer evidence separately
-from those unit tests. This documentation update revalidated its complete browser
-report with the strict production validator, matched offline/online/ZIP loader
-digests, compared the embedded and exported worker reports, and checked Docker's
-export and cleanup statuses. Reclassifying the full USB runs still returns
-BLOCKED in every phase. Source code is unchanged; no new Docker run or unit-test
-matrix was performed for this documentation-only update.
-
-Earlier direct Electron 5 embedded-Node checks verified the published ABI-64
-native crash and successful loading/repeated dynamic imports with the full
-rebuilt ABI-70 USB package.
-
-Actual pinned Electron checks passed for #691,
-#817's minimal addon controls and #867, each with disabled, cold and warm caches.
-The supplied Docker Desktop run on macOS passes all fifteen cases for #867, #915,
-#691, #817's minimal addon controls and #917's emulated VM. The latest Linux/x64
-report additionally verifies #917's three actual WebContainer graph/build cases. Both
-rebuilt USB controls pass in every phase. This retains #691's resolved status;
-the ordinary-require native crash leaves full USB verification blocked. #917's
-verified shared-VM failure is resolved, with the historical Ember dependency graph
-still outside the reconstructed consumer's scope. #817 is the only remaining
-blocker in these host checks. The single Docker command automates both phases.
+The supplied passing actual WebContainer run remains the evidence for #917.
+No new real WebContainer run or complete updated Docker image was executed in
+this authoring environment. The earlier native investigation passed twelve
+patched full-package checks, six original negative controls and three queue
+checks in actual Electron 5.0.6 across disabled/cold/warm modes, including Xvfb
+and debugger round trips. The native USB fix is separate from the unchanged
+production loader. The delivered patch is rebuilt and checked before export.
 
 Focused host/renderer/shared-VM/upstream checks passed 132 tests each on Node 22
 and 26. The Node 24 production run covered 1,655 tests: 1,510 passed initially;

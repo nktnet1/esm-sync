@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto"
 import { cpSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { hostUsbNativePatch } from "./host-runtimes.ts"
 import { hostLabel } from "./host-output.ts"
 import { HostProcessError, hostLaunchCommand, runCommand } from "./verify-hosts-container.ts"
 
@@ -35,6 +36,12 @@ function api(value){
  report.exports=result;
  report.initError=value.INIT_ERROR||0;
  assert.equal(report.nativeLoaded,true,'The full native USB binary was not loaded');
+ if(!report.initError){
+   const listener=()=>{};
+   value.on('attach',listener);value.removeListener('attach',listener);
+   value.on('detach',listener);value.removeListener('detach',listener);
+   report.hotplugToggled=true;
+ }
 }
 function mismatch(error){
  assert.ok(error,'Incompatible full USB binary was accepted');
@@ -106,11 +113,96 @@ export type UsbVerdict = {
   status: "resolved" | "blocked" | "failed"
   reason: string
   runs: UsbRun[]
+  nativeFix?: {
+    scope: "patched-usb-1.6.0"
+    patchSHA256: string
+    queue: unknown
+    baselines: (UsbRun & {
+      source: "published" | "unpatched"
+      verified: boolean
+      traceCaptured: boolean
+    })[]
+  }
 }
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
+
+function abiRejected(value: unknown): boolean {
+  return (
+    object(value) &&
+    Array.isArray(value.rejections) &&
+    value.rejections.some(
+      (error: unknown) =>
+        typeof error === "string" &&
+        /NODE_MODULE_VERSION 64/.test(error) &&
+        /NODE_MODULE_VERSION 70/.test(error)
+    )
+  )
+}
+
+export function validateUsbNativeEvidence(value: unknown): void {
+  assert.ok(object(value) && object(value.nativeFix), "Missing native USB fix evidence")
+  const native = value.nativeFix
+  assert.equal(native.scope, "patched-usb-1.6.0")
+  assert.equal(native.patchSHA256, hostUsbNativePatch.sha256, "Wrong USB native patch")
+  const queue = native.queue
+  assert.ok(object(queue) && object(queue.versions), "Missing native queue control")
+  assert.equal(queue.phase, value.phase)
+  assert.equal(queue.passed, true)
+  assert.equal(queue.survived, true)
+  assert.equal(queue.callbacks, 16)
+  assert.equal(queue.code, 0)
+  assert.equal(queue.error, undefined)
+  assert.equal(queue.versions.modules, "70")
+  assert.ok(
+    Array.isArray(native.baselines) && native.baselines.length === 2,
+    "Missing original USB baselines"
+  )
+  const sources = new Set<string>()
+  for (const baseline of native.baselines as unknown[]) {
+    assert.ok(object(baseline) && object(baseline.report) && object(baseline.report.versions))
+    assert.ok(baseline.source === "published" || baseline.source === "unpatched")
+    sources.add(baseline.source)
+    assert.equal(baseline.mode, "require")
+    assert.equal(baseline.binary, "mismatch")
+    assert.equal(baseline.verified, true)
+    assert.equal(baseline.report.phase, value.phase)
+    assert.equal(baseline.report.versions.modules, "70")
+    assert.ok(abiRejected(baseline.report), "Original baseline lacks the matching ABI error")
+    if (baseline.passed === true) {
+      assert.equal(baseline.code, 0)
+      assert.ok(!baseline.signal && !baseline.timedOut)
+      assert.equal(baseline.report.passed, true)
+      assert.equal(baseline.report.survived, true)
+    } else
+      assert.ok(
+        baseline.signal === "SIGSEGV" || baseline.code === 139 || baseline.timedOut === true,
+        "Unrelated original USB failure"
+      )
+  }
+  assert.equal(sources.size, 2, "Duplicate original USB baseline")
+}
+
+export const usbQueueProbe = `
+const assert=require('assert'),fs=require('fs');
+const config=JSON.parse(process.env.ESM_USB_QUEUE);
+const report={...config,versions:process.versions,callbacks:0,survived:false,passed:false};
+function write(){fs.writeFileSync(config.result,JSON.stringify(report,null,2));}
+function fail(error){report.error=String(error.stack||error);write();process.exitCode=1;}
+process.on('uncaughtException',fail);process.on('unhandledRejection',fail);
+write();
+try {
+ const addon=require(config.addon);
+ const callback=value=>{
+  assert.equal(value,42);report.callbacks++;write();
+  if(report.callbacks===16)setTimeout(()=>{report.survived=true;report.passed=true;write();},500);
+ };
+ for(let i=0;i<16;i++)addon.exercise(callback);
+} catch(error){fail(error);}
+setTimeout(()=>fail(new Error('Native USB queue timed out')),5000).unref();
+`
 
 export function usbVerdict(runs: UsbRun[], phase: string): UsbVerdict {
   const find = (mode: UsbRun["mode"], binary: UsbRun["binary"]) =>
@@ -142,7 +234,7 @@ export function usbVerdict(runs: UsbRun[], phase: string): UsbVerdict {
         phase,
         status: "blocked",
         reason:
-          "Automatic USB rebuild passes require and import. The original ABI-64 binary catches its mismatch, then crashes or hangs without esm; safe ABI rejection remains unverified",
+          "The native-patched ABI-64 USB binary still crashes or hangs without esm after its mismatch; safe rejection failed",
         runs
       }
     return {
@@ -163,7 +255,7 @@ export function usbVerdict(runs: UsbRun[], phase: string): UsbVerdict {
     phase,
     status: "resolved",
     reason:
-      "Full USB: ordinary ABI rejection, caught dynamic imports, rebuilt exports and a responsive debugger all pass",
+      "Native USB queue fix: safe ABI rejection, caught dynamic imports, rebuilt exports and a responsive debugger pass",
     runs
   }
 }
@@ -179,15 +271,26 @@ export async function verifyHostUsb(
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
   const cache = realpathSync(path.join(root, ".cache/host-packages"))
   const builds = JSON.parse(readFileSync(path.join(cache, "builds.json"), "utf8")) as {
-    outputs: { name: string; abi: number; file: string; sha256: string }[]
+    schema: number
+    nativePatch: { sha256: string }
+    queueProbe: { file: string; sha256: string }
+    crashTrace: { file: string; sha256: string }
+    outputs: { name: string; abi: number; patched: boolean; file: string; sha256: string }[]
   }
-  assert.equal(builds.outputs.length, 2)
-  for (const [name, abi] of [
-    ["usb-mismatch", 64],
-    ["usb-compatible", 70]
+  assert.equal(builds.schema, 2)
+  assert.equal(builds.nativePatch.sha256, hostUsbNativePatch.sha256)
+  assert.equal(builds.outputs.length, 4)
+  for (const [name, abi, patched] of [
+    ["usb-published", 64, false],
+    ["usb-unpatched", 64, false],
+    ["usb-mismatch", 64, true],
+    ["usb-compatible", 70, true]
   ] as const) {
     const info = builds.outputs.find((item) => item.name === name)
-    assert.ok(info && info.abi === abi, "Missing full USB build provenance")
+    assert.ok(
+      info && info.abi === abi && info.patched === patched,
+      "Missing full USB build provenance"
+    )
     assert.equal(
       createHash("sha256").update(readFileSync(info.file)).digest("hex"),
       info.sha256,
@@ -195,24 +298,67 @@ export async function verifyHostUsb(
     )
   }
   cpSync(path.join(cache, "builds.json"), path.join(reports, "usb-builds.json"))
+  for (const item of [builds.queueProbe, builds.crashTrace])
+    assert.equal(
+      createHash("sha256").update(readFileSync(item.file)).digest("hex"),
+      item.sha256,
+      "USB diagnostic checksum mismatch"
+    )
+  cpSync(
+    path.join(root, "script/patches", hostUsbNativePatch.file),
+    path.join(reports, "usb-native-fix.patch")
+  )
+  const queueScript = path.join(project, "usb-queue-probe.cjs")
+  const queueFile = path.join(reports, `817-usb-queue-${phase}.json`)
+  const queueConfig = {
+    phase,
+    nonce: randomUUID(),
+    addon: builds.queueProbe.file,
+    result: queueFile
+  }
+  writeFileSync(queueScript, usbQueueProbe)
+  const queueResult = await runCommand(
+    executable,
+    [queueScript],
+    project,
+    {
+      ...env,
+      ELECTRON_RUN_AS_NODE: "1",
+      ESM_USB_QUEUE: JSON.stringify(queueConfig)
+    },
+    10_000
+  )
+  writeFileSync(
+    path.join(reports, `817-usb-queue-${phase}.log`),
+    JSON.stringify(queueResult, null, 2)
+  )
+  const queue = JSON.parse(readFileSync(queueFile, "utf8")) as Record<string, unknown>
+  assert.equal(queue.nonce, queueConfig.nonce)
+  queue.code = queueResult.code
+  writeFileSync(queueFile, JSON.stringify(queue, null, 2))
+  const baselines: NonNullable<UsbVerdict["nativeFix"]>["baselines"] = []
   const probe = path.join(project, "full-usb-probe.cjs")
   writeFileSync(probe, fullUsbProbe)
   const runs: UsbRun[] = []
-  for (const [index, [mode, binary]] of (
+  for (const [index, [mode, binary, source]] of (
     [
-      ["require", "mismatch"],
-      ["import", "mismatch"],
-      ["require", "compatible"],
-      ["import", "compatible"]
+      ["require", "mismatch", "published"],
+      ["require", "mismatch", "unpatched"],
+      ["require", "mismatch", "patched"],
+      ["import", "mismatch", "patched"],
+      ["require", "compatible", "patched"],
+      ["import", "compatible", "patched"]
     ] as const
   ).entries()) {
     console.log(
-      `    [USB ${index + 1}/4] ${hostLabel("cyan", "RUN")}  #817 ${phase} ${mode} ${binary}`
+      `    [USB ${index + 1}/6] ${hostLabel("cyan", "RUN")}  #817 ${phase} ${source} ${mode} ${binary}`
     )
-    const graph = realpathSync(path.join(cache, `usb-${binary}`))
+    const graph = realpathSync(
+      path.join(cache, source === "patched" ? `usb-${binary}` : `usb-${source}`)
+    )
     for (const name of ["repeat.js", "crash.js"])
       cpSync(path.join(project, name), path.join(graph, name))
-    const file = path.join(reports, `817-usb-${phase}-${mode}-${binary}`)
+    const file = path.join(reports, `817-usb-${phase}-${source}-${mode}-${binary}`)
     const config = {
       issue: 817,
       phase,
@@ -222,6 +368,7 @@ export async function verifyHostUsb(
       graph,
       mode,
       binary,
+      source,
       result: file + ".json"
     }
     const command =
@@ -236,6 +383,9 @@ export async function verifyHostUsb(
         project,
         {
           ...env,
+          ...(source !== "patched"
+            ? { LD_PRELOAD: [builds.crashTrace.file, env.LD_PRELOAD].filter(Boolean).join(":") }
+            : {}),
           ...(mode === "require" ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
           ESM_HOST_CHECK: JSON.stringify(config)
         },
@@ -259,6 +409,7 @@ export async function verifyHostUsb(
       report.phase === phase &&
       report.mode === mode &&
       report.binary === binary &&
+      report.source === source &&
       report.scope === "full-usb"
     const evidence =
       object(report) &&
@@ -290,7 +441,7 @@ export async function verifyHostUsb(
     const passed = Boolean(
       evidence && content && result.code === 0 && !result.signal && !result.timedOut
     )
-    runs.push({
+    const run: UsbRun = {
       mode,
       binary,
       passed,
@@ -300,7 +451,23 @@ export async function verifyHostUsb(
       result: config.result,
       log: file + ".log",
       report
-    })
+    }
+    const verified = Boolean(
+      matching &&
+        object(report) &&
+        object(report.versions) &&
+        report.versions.modules === "70" &&
+        abiRejected(report) &&
+        (passed || result.signal === "SIGSEGV" || result.code === 139 || result.timedOut)
+    )
+    if (source === "patched") runs.push(run)
+    else
+      baselines.push({
+        ...run,
+        source,
+        verified,
+        traceCaptured: result.stderr.includes("NATIVE USB CRASH")
+      })
     const detail = passed
       ? ""
       : result.timedOut
@@ -311,14 +478,25 @@ export async function verifyHostUsb(
             ? " — exit " + result.code
             : " — incomplete probe evidence; see JSON"
     console.log(
-      `    [USB ${index + 1}/4] ${hostLabel(passed ? "green" : "yellow", passed ? "PASS" : "CHECK")} #817 ${phase} ${mode} ${binary}${detail}`
+      `    [USB ${index + 1}/6] ${hostLabel(source !== "patched" && verified ? "yellow" : passed ? "green" : "red", source !== "patched" && verified ? "BASELINE" : passed ? "PASS" : "FAIL")} #817 ${phase} ${source} ${mode} ${binary}${detail}`
     )
   }
   const verdict = usbVerdict(runs, phase)
+  verdict.nativeFix = {
+    scope: "patched-usb-1.6.0",
+    patchSHA256: hostUsbNativePatch.sha256,
+    queue,
+    baselines
+  }
+  try {
+    validateUsbNativeEvidence(verdict)
+  } catch (error) {
+    verdict.status = "failed"
+    verdict.reason = "Invalid native USB fix evidence: " + String(error)
+  }
   writeFileSync(path.join(reports, `817-usb-${phase}.json`), JSON.stringify(verdict, null, 2))
-  const rebuiltPassed = runs.filter((run) => run.binary === "compatible").every((run) => run.passed)
   console.log(
-    `\n    ${hostLabel(rebuiltPassed ? "green" : "red", rebuiltPassed ? "PASS" : "FAIL")} #817 automatic USB rebuild for Electron 5.0.6 (ABI 70): require + dynamic import${rebuiltPassed ? " + responsive debugger; no manual rebuild needed" : "; see compatible-case diagnostics"}`
+    `\n    ${hostLabel(verdict.status === "resolved" ? "green" : "red", verdict.status === "resolved" ? "PASS" : "FAIL")} #817 native USB patch: ABI-64 rejection + ABI-70 require/import + 16 queue callbacks; original binaries retained as negative controls`
   )
   console.log(
     `\n    ${hostLabel(verdict.status === "resolved" ? "green" : verdict.status === "blocked" ? "yellow" : "red", verdict.status.toUpperCase())} #817 full USB: ${verdict.reason}\n`

@@ -24,6 +24,35 @@ export const hostAddonHeaders: HostInput = {
   maxBytes: 10 * 1024 * 1024
 }
 
+export const hostUsbMismatchHeaders: HostInput = {
+  file: "node-v10.24.1-headers.tar.gz",
+  url: "https://nodejs.org/dist/v10.24.1/node-v10.24.1-headers.tar.gz",
+  sha256: "d38ae7bed508836129fac4163f3db5a0df5ea1dd26bf4a66f88146cbe770b788",
+  maxBytes: 1024 * 1024
+}
+
+export const hostUsbNativePatch = {
+  file: "usb-1.6.0-defer-queue-init.patch",
+  sha256: "30e43b2ea099d12dc1bd128beeb628ed390216258cf9080f5f4674a850450c24",
+  files: [
+    {
+      path: "src/uv_async_queue.h",
+      before: "03f422291fc3ce7fdd87c061f7c06cea9fb9c20f1baa1ca45c0fd49a0e5f2c7a",
+      after: "1c945b94e80947f37ef16b880cecb120bd13a3e952b4d8f3bd1e8ffc24f25911"
+    },
+    {
+      path: "src/node_usb.cc",
+      before: "caca851bbfb77c2e74be8ce5875688e543be2aee85dfc0f641e2d65d02391c48",
+      after: "a6864fc990317ab1961a35e4fc98ccef0fa8f052082e22a50a1fd59bc78573e9"
+    },
+    {
+      path: "src/transfer.cc",
+      before: "5219f2c20dde2af826fc2392124272fd9126f28fbda59e31409fdb6bae609045",
+      after: "eaaeb5390ccec9998ee2213d1ec10a4cab07e29762f62e39074da80ffdbc526a"
+    }
+  ]
+} as const
+
 export const hostWebContainerSdk: HostInput = {
   file: "webcontainer-api-1.6.4.tgz",
   url: "https://registry.npmjs.org/@webcontainer/api/-/api-1.6.4.tgz",
@@ -161,13 +190,17 @@ export async function downloadHostRuntime(
 export async function downloadHostRuntimes(destination = hostRuntimeCache): Promise<void> {
   // Await every independent download before emitting the complete provenance file.
   const results = await Promise.allSettled(
-    [...hostRuntimes, hostAddonHeaders, hostWebContainerSdk, ...Object.values(hostPackages)].map(
-      async (input) => {
-        console.log(`${styleText("cyan", "RUNTIME")} ${input.file}`)
-        const result = await downloadHostRuntime(input, destination)
-        console.log(`${styleText("green", result.toUpperCase())} ${input.file}`)
-      }
-    )
+    [
+      ...hostRuntimes,
+      hostAddonHeaders,
+      hostUsbMismatchHeaders,
+      hostWebContainerSdk,
+      ...Object.values(hostPackages)
+    ].map(async (input) => {
+      console.log(`${styleText("cyan", "RUNTIME")} ${input.file}`)
+      const result = await downloadHostRuntime(input, destination)
+      console.log(`${styleText("green", result.toUpperCase())} ${input.file}`)
+    })
   )
   const failures = results.filter((result) => result.status === "rejected")
   assert.equal(failures.length, 0, failures.map((result) => String(result.reason)).join("\n"))
@@ -189,6 +222,7 @@ export async function downloadHostRuntimes(destination = hostRuntimeCache): Prom
             ...hostAddonHeaders,
             bytes: (await stat(path.join(directory, hostAddonHeaders.file))).size
           },
+          usbMismatchHeaders: hostUsbMismatchHeaders,
           packages: hostPackages,
           webcontainerSdk: hostWebContainerSdk
         },

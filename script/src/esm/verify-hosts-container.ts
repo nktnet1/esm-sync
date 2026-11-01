@@ -824,9 +824,13 @@ export async function verifyHostsContainer(reportDirectory: string): Promise<voi
   console.log(
     `\n${hostLabel(controlsPassed ? "green" : "red", controlsPassed ? "PASS" : "FAIL")}  ${successes} passed, ${failures} failed, ${counts.skipped} skipped / ${planned} regression cases\n`
   )
+  if (passed)
+    console.log(
+      `${hostLabel("green", "PASS")} #817 native USB fix verified in all cache modes: safe ABI rejection + compatible imports + queue callbacks. Original binaries retained as negative controls.\n`
+    )
   if (blocked)
     console.log(
-      `${hostLabel("green", "PASS")} #817 automatic USB rebuild verified in all cache modes; no manual rebuild needed.\n\n${hostLabel("yellow", "BLOCKED")} #817 incompatible-binary diagnostic: the original ABI-64 USB crashes or hangs without esm. Exit 2; see 817-usb-*.json.\n`
+      `${hostLabel("yellow", "BLOCKED")} #817 native-patched USB still fails safe ABI rejection. Exit 2; see 817-usb-*.json.\n`
     )
   console.log(
     `${hostLabel("cyan", "SCOPE")} #917 offline checks emulate the shared VM. The Docker wrapper runs real WebContainer verification automatically in its next phase.\n`
