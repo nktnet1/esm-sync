@@ -1,6 +1,8 @@
 import type { Namespace } from "../../types/runtime.js"
 import type { SetterArgs } from "../../types/runtime-state.js"
 import ENTRY from "../../constant/entry.js"
+import ENV from "../../constant/env.js"
+import { resolveMappedSpecifier } from "./resolve-filename.js"
 
 import Entry from "../../entry.js"
 import Loader from "../../loader.js"
@@ -55,12 +57,17 @@ function importValue(
   setterArgsList: SetterArgs,
   type: ValueType
 ) {
+  const mapped = resolveMappedSpecifier(request, parentEntry.module)
+  if (mapped !== undefined) request = mapped
   const fixture =
     process.env.ESM_SYNC_TEST_BUILD && type === "source"
       ? moduleSource.fixtures.get(request)
       : void 0
   const filename = fixture ?? dualResolveFilename(request, parentEntry.module, false, void 0, true)
-  const queryFragment = getURLQueryFragment(request)
+  const queryFragment = getURLQueryFragment(
+    request,
+    ENV.TINK || ENV.YARN_PNP || ENV.FLAGS.preserveSymlinks
+  )
   const cacheKey =
     (queryFragment ? getURLFromFilePath(filename) + queryFragment : filename) + "\0" + type
   const { moduleCache } = Loader.state.module

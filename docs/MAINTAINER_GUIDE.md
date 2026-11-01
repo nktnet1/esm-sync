@@ -1,185 +1,135 @@
 # Maintainer guide
 
-This is the condensed reference for building, testing, and maintaining
-`esm-sync`. Public usage and options belong in [`README.md`](../README.md).
-Synchronous top-level-await limitations belong in
-[async-module-loading.md](async-module-loading.md). Current upstream follow-ups
-and their real-application evidence are in the
-[roadmap](FORK_ISSUES_ROADMAP.md) and
-[tooling/performance notes](tooling-and-performance.md).
+## Source and build boundaries
 
-For default-export unwrapping, Mocha setup, and migrating a consumer to native
-Node ESM, see [interoperability and migration](interop-and-migration.md).
+Use Node 24.14+ for development tooling, the pnpm version pinned in
+`package.json`, matching Node headers, and a C++20 compiler for the native async
+bridge. Install development dependencies and prepare fixtures before a local
+build. The complete Docker driver handles those steps in containers.
 
-Ask for explicit approval before making further changes to `README.md`.
-Keep upstream issue references out of headings and include the full URL as
-link text in the description. Avoid semicolons in Markdown prose.
+Owned implementation and tooling live in `src/`, `script/src/`,
+`test/harness/`, and `test/vitest/`. Generated bundles, declarations, native
+binaries, and test workspaces belong under ignored `dist/`.
 
-## Source, build outputs, and module boundaries
+The package root remains CommonJS. Private ESM scopes cover `script/src/esm/`
+and TypeScript tests; `.cts` identifies CommonJS helpers. Root `esm.js`/`index.js`
+and their declarations forward to `dist/`. Public option types belong in
+`src/types/public.ts`. Keep the public export aliases and physical entry paths.
+`script/src/esm/outputs.ts` owns emitted helper paths and rewrites only helper
+imports, never third-party fixtures. The strict/sloppy and equality transforms
+in `config/babel.ts` remain necessary for the loader bundle.
 
-- Maintained sources: `src/`, `script/src/`, `config/`, `native/`, `test/`, and the root entry-point shims. Generated bundles, declarations, native add-ons, and test workspaces live under ignored `dist/`. Do not commit them.
-- The package root remains **CommonJS** for `require("esm-sync")`, CLI preload, and direct entry paths. `script/src/esm/` and the TypeScript test harnesses have private ESM scopes. `.cts` explicitly marks CommonJS helpers. JavaScript compatibility fixtures remain JavaScript on purpose.
-- Root `esm.js`/`index.js` and their `.d.ts` files forward legacy paths to `dist/`. `tsdown.config.mts` emits CommonJS entries and public types, bundles `src/index.ts` into `dist/esm/loader.js`, and supplies the package export aliases. The loader's Babel strict/sloppy and equality transforms are required even though production minification uses Oxc.
-- `src/types/public.ts` owns public option types. `pnpm typecheck` checks owned TypeScript and inferred `any` without emitting files. Do not change the root module type or remove public alias paths to simplify a build.
-- `script/src/esm/outputs.ts` owns emitted fixture-helper filenames. It rewrites only its own helper imports, never third-party fixtures. The native async bridge is built from `native/sync-await.cc` and published as a platform/architecture/Node-ABI-specific binary. See [async module loading](async-module-loading.md) for installation restrictions.
+## Verification
 
-| Command                                                                        | Purpose                                                                                |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `pnpm fixtures:acorn`                                                          | Prepare matching Acorn source files                                                    |
-| `pnpm fixtures:prepare`                                                        | Prepare Acorn and pinned Test262                                                       |
-| `pnpm build:prod`                                                              | Generate release artifacts                                                             |
-| `pnpm build --prod --test`                                                     | Generate production-test runtime and fixture bundles                                   |
-| `pnpm typecheck`                                                               | Check TypeScript without writing outputs                                               |
-| `pnpm test:run:prod`                                                           | Test an existing production-test build                                                 |
-| `pnpm test:prod`                                                               | Prepare fixtures, build and test production output                                     |
-| `pnpm test:conformance`                                                        | Run the separate Test262 conformance selection                                         |
-| `pnpm test:packed --format=both`                                               | Check an installed tarball without running install scripts                             |
-| `pnpm test:verdaccio`                                                          | Publish to a disposable local registry and test CJS/ESM consumers and native installer |
-| `pnpm verify:babel-repro --project=/path/to/repro`                             | Verify the installed original Babel application without changing its files             |
-| `pnpm benchmark:log4brains --project=/path/to/log4brains --node=/path/to/node` | Compare original `esm` and the current release artifact with private caches            |
+```sh
+node script/src/esm/verify-all.ts
+```
 
-Persistent CommonJS bytecode uses `vm.Script.createCachedData` after module
-execution so initialised helper functions can be reused on later starts. The
-wrapper occupies a separate line with `lineOffset: -1` to preserve user-source
-runtime columns and syntax-error snippets. Old function bytecode is rejected and
-repaired on upgrade. Keep cold/warm cache, wrapper-hook, error-location, and
-failed-load/retry regressions when changing this path. See the
-[current latency and memory measurements](tooling-and-performance.md#lower-startup-memory-v1012).
+The standalone driver requires macOS or Linux, Node 24.14+, and a running Docker
+daemon, including Docker Desktop on Apple Silicon. It uses Linux/amd64 images
+for Node 22/24/26 and leaves the checkout's dependencies and build outputs alone.
+It runs every Vitest project in both development and production, the complete
+prepared Test262 selection in both modes, installed CJS/ESM consumers, release
+builds, and startup/await workloads. Node 24 also runs lint, typechecking, Knip,
+registry publish/install checks, and production/full dependency audits. The
+existing host driver then runs its offline and online checks.
 
-Accepted bytecode needs no exit-time cache work: keep Script objects only for
-misses and rejected bytecode. Mixed warm/missing entries must retain the older
-valid bytecode when a cache is rewritten. After accepted warm CommonJS
-bytecode executes, release the duplicate raw text held by the entry/compiler
-cache. Keep cold compilation and bytecode capture unchanged. Transformed
-CommonJS and ESM sources remain available for source-cache writes and linking.
+Stages run sequentially. A failed build blocks its dependent checks; independent
+checks continue. Any failed, blocked, missing, stale, or inconsistent worker
+result makes the run fail. Logs, incremental `steps.json`, Test262 results, and
+`summary.json` go under `.cache/verification/run-*/`; `--reports <parent>` changes
+the destination. Containers are removed after success or failure. Docker may
+retain images/build caches for subsequent runs. Nothing publishes to npm.
+Host-specific diagnostics also remain under `.cache/host-verification/`.
 
-`pnpm test:verdaccio` needs registry access. It exercises separate CJS/ESM
-consumer projects, exported paths, native bridge rebuilding, and workers.
-The normal Vitest suite does not replace this installed-package verification.
+Original Babel and Log4brains applications require separately installed source
+projects; their complete dependency graphs are not checked into this repository.
+To include them, also prepare local development tooling and use:
 
-## Test fixtures and regression standards
+```sh
+pnpm verify:all --babel-project /path/to/babel-repro --log4brains-project /path/to/log4brains
+```
 
-- Acorn vendor **source**, not just the installed npm package, must match the installed Acorn version. The uploaded offline fixture includes `src/vendor/acorn/acorn/package.json` and `src/state.js` for Acorn **8.19.0**. The normal fixture preparation checks them. Do not substitute a generated stub when validating the canonical build.
-- Test262 is pinned in `script/src/setup-test262.ts` at `d53ebc8b1931d9f1541e43d59650776e4b766248`. Conformance tests run in separate processes and distinguish _unsupported_ host features from passing cases and failing error phases. Use `pnpm test:conformance:run --filter <path> --limit <count> --report <file>` for narrower checks. Do not weaken those assertions.
-- `test/vitest/native-suites.test.ts` covers the compiled Node harness, including cache variants. `test/vitest/tooling-original-reproductions.test.ts` and `test/vitest/fork-tooling-performance.test.ts` exercise actual integration hooks in subprocesses. Synthetic regressions alone cannot prove that the original Babel or Log4brains application works.
-- `verify:babel-repro` copies the original Babel source/configuration byte-for-byte into private workspaces and shares only installed dependencies. It observes the database's actual two-second timer and checks completion and single evaluation before `listen()`, then verifies the HTTP response. Every physical entry and preload order runs with disabled, cold, and warm bootstrap/compiler/Babel caches. `--node=/path/to/node` selects the application runtime. Timer awaits require its matching native bridge.
-- Build with `pnpm build:prod` before `benchmark:log4brains`. `--workload=version` measures terminating CLI startup. `--workload=preview` measures a complete HTTP 200 response from the child's own ephemeral port. The benchmark redirects the original CLI's `require("esm")` and supplies only a private cache path to its factory. It alternates loader order, checks cold/warm cache state and identical output, and records resource usage and artifact hashes. `--profile-dir=/path/to/profiles` enables CPU profiles. Keep those runs separate from ordinary timing trials. Neither command installs dependencies.
-- Keep isolation between concurrent tests and separate cache directories for each case. Within each case, cold/warm runs are ordered. The native harness limits concurrent subprocesses. Do not skip existing Windows/macOS cases to conceal platform defects.
-- When asserting canonical resolver paths, resolve existing paths with `fs.realpath` / `fs.realpathSync`. Canonicalise the temporary directory immediately after `mkdtemp`. For a missing target, canonicalise its existing parent. macOS `/tmp` versus `/private/tmp` is a real alias and `path.resolve` does not normalise it.
-- Source-phase imports and immutable byte imports are host-capability dependent. Report unsupported cases honestly. `.mjs` import graphs deliberately bypass `Module._load` mocking hooks.
+Those optional checks prepare Acorn and build a local release before running
+on the host. Local dependencies and a native build toolchain are required;
+missing applications/dependencies or build failures make the run fail.
+See [tooling verification](tooling-and-performance.md).
+The default run does not certify those original applications. Linux containers
+also do not replace macOS/Windows CI. Use `--help` for command syntax.
 
-## Compilation caches, coverage, and mocking
+| Focused command                                     | Purpose                                                                             |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `pnpm fixtures:prepare`                             | Prepare matching Acorn source and pinned Test262.                                   |
+| `pnpm build --test` / `pnpm build --prod --test`    | Build development/production test bundles and native bridge.                        |
+| `pnpm test:run` / `pnpm test:run:prod`              | Run every Vitest project against the corresponding existing build.                  |
+| `pnpm test:conformance:run --report results.json`   | Run the separate Test262 selection after preparing/building.                        |
+| `pnpm build:prod`                                   | Build the actual release artifact.                                                  |
+| `pnpm test:packed --format=both`                    | Check installed CJS/ESM tarball consumers without install scripts.                  |
+| `pnpm test:verdaccio`                               | Check disposable-registry publishing, installation, workers, and native rebuilding. |
+| `pnpm lint` / `pnpm typecheck` / `pnpm lint:unused` | Check formatting, types including inferred `any`, and unused code.                  |
+| `pnpm audit:prod` / `pnpm audit:all`                | Audit runtime-only and complete dependency trees.                                   |
+| `pnpm verify:hosts:docker`                          | Run the [desktop/native/browser host checks](host-integrations.md).                 |
 
-| Setting                         | Meaning                                                                       |
-| ------------------------------- | ----------------------------------------------------------------------------- |
-| `cache: false`                  | Disable persistent compilation for this configuration                         |
-| `cache: "directory"`            | Select compiler-cache location                                                |
-| `cjs.cache: true`               | Expose eligible `.js` module records in CommonJS cache                        |
-| `ESM_DISABLE_CACHE=true` or `1` | Bypass disk compiler/bootstrap reads and writes. Do not delete existing cache |
+Do not rebuild while tests use the same `dist/` workspace. Keep case-specific
+cache directories and order cold/warm trials. Canonicalise a temporary directory
+with `fs.realpath` immediately after `mkdtemp`; for missing targets canonicalise
+the existing parent. `path.resolve` does not resolve macOS `/tmp` aliases. Do not
+weaken path equality assertions or skip platform cases to hide failures.
 
-Set `ESM_DISABLE_CACHE` before loading the package. `false`, `0`, and invalid
-JSON do not disable caching. A disabled **compiler** cache does not flush an
-already evaluated module graph. For re-evaluation use a fresh process, worker,
-or an explicitly managed module registry. Deleting files from a compiler cache
-is not automatic hot reload.
+## Fixtures and evidence
 
-NYC and other register hooks run before compilation. NYC's instrumented cache
-uses its own `nyc-<hash>` namespace keyed by coverage configuration. `nyc
---cache=false` and `ESM_DISABLE_CACHE` control different layers. Changing
-coverage include/exclude rules must not reuse earlier instrumentation.
+Acorn vendor source must match the installed version; a generated parser stub
+cannot validate a canonical build. Test262's revision and preparation checks
+live in `script/src/setup-test262.ts`. Conformance distinguishes host-unsupported
+features from passing cases and checks the expected error phase. Use
+`--filter <path>` / `--limit <count>` only for focused diagnosis, not complete
+verification. Fixture source, licences, and pinned byte checks remain intact;
+`.gitattributes` prevents Windows checkout conversion of hashed originals.
 
-CommonJS mock libraries such as proxyquire intercept `.js` interop graphs by
-importer, before the real dependency runs. Strict `.mjs` dependency graphs
-bypass CommonJS mocking, although a top-level `require()` may be intercepted
-before reaching the loader. Keep tests for cache resets, stubs, and instrumented
-transforms.
+`native-suites.test.ts` launches the compiled legacy harness in real Node
+processes. Original-application verifiers and real-host checks provide different
+evidence from synthetic tests. Keep their documented scope explicit.
 
-## Package resolution and legacy interop
+## Runtime contracts
 
-Package `exports` takes precedence over `main` and `mainFields`. Import and
-require conditions are selected separately in declaration order. No fallback
-to private files or other conditions is allowed after a blocked, missing, or
-invalid selected target. Exact subpaths precede patterns, the most specific
-pattern wins, and path traversal or encoded separators are rejected. Targets
-are exact files (including `.cjs`). Arrays choose the first valid matching
-target without checking file existence. Supported conditions include `node`,
-`default`, host `module-sync` / `node-addons`, and custom `--conditions` values.
-The historical `"./": "./dist/"` folder map remains supported for Node 13
-compatibility alongside modern patterns.
-
-For pseudo-ESM CommonJS exports marked `__esModule`, an absent `default` is
-synthesised from `module.exports` **only when another export is present**.
-Marker-only namespaces remain empty. Explicit defaults are preserved. This
-v1.0.6/v1.0.7 contract protects both Log4brains' `tslib@2.2.0` and the
-native import suite.
+- Persistent compiler caches and evaluated module registries are separate.
+  `ESM_DISABLE_CACHE=true`/`1` bypasses disk caches without flushing live modules.
+  NYC uses a configuration-specific instrumentation namespace; changing its
+  include/exclude rules must not reuse earlier instrumented output.
+- CommonJS bytecode is captured after evaluation through `vm.Script`. Preserve
+  source/error locations, accepted warm bytecode, cache repair, wrapper hooks,
+  failed-load retries, and release of duplicate warm-cache text.
+- Package `exports` and private `imports` select conditions in declaration order.
+  Selected blocked, invalid, or missing targets are terminal. Arrays select
+  valid mappings without probing file existence; path traversal and encoded
+  separators remain rejected. Keep native Node comparison tests.
+- Pseudo-ESM CommonJS with named exports may synthesise a missing default;
+  marker-only `__esModule` namespaces remain empty. Explicit defaults survive.
+- `.js` interop can participate in CommonJS mocking hooks. Strict `.mjs` graphs
+  deliberately bypass them. Native await context/error contracts are documented
+  in [async module loading](async-module-loading.md).
+- Test fixture input belongs in JSON/files or process arguments, not interpolated
+  JavaScript. Preserve hostile-input regressions without suppressing CodeQL.
 
 ## Global-reference rewriting
 
-Upstream report: [https://github.com/standard-things/esm/issues/865](https://github.com/standard-things/esm/issues/865).
+`src/visitor/globals.ts` routes selected unshadowed `console`/`Reflect`
+references through the runtime global proxy. This provides namespace formatting,
+inspector integration, and Reflect namespace-mutation behaviour while respecting
+host global replacements and descriptors. Local bindings, `typeof`, property
+names, strings, and comments retain their original meaning. Literal-only console
+calls can avoid rewriting.
 
-The user-source compiler routes selected unshadowed `console` and `Reflect`
-references through the loader runtime when transforming static or dynamic
-imports. In generated code, `_.g` is the runtime's global proxy. `_` is the
-schematic runtime identifier used below, not an application variable or public
-API. The generated name can differ.
+`src/visitor/undeclared.ts` separately guards absent CommonJS wrapper variables
+when `cjs.vars` is disabled; an explicit `createRequire` binding remains local.
+Keep the scope, shorthand, shadowing, and `typeof` compiler regressions. The
+runtime proxy is internal and is not a public API.
 
-```js
-// Source, in a module containing an import:
-console.log(value)
-Reflect.set(target, "key", value)
-const context = { console }
+## Dependencies and releases
 
-// Corresponding expressions after compilation:
-_.g.console.log(value)
-_.g.Reflect.set(target, "key", value)
-const context = { console: _.g.console }
-```
-
-This lets the loader's console format its emulated namespace objects and
-connect to the host inspector. Its Reflect wrappers handle namespace mutation
-operations (`defineProperty`, `deleteProperty`, and `set`), returning `false`
-for rejected namespace operations while preserving errors for other targets.
-The global proxy respects replacements of host globals and property descriptor
-constraints. Reflect polyfill additions, replacements, and deletions remain
-shared with CommonJS.
-
-The transform is selective. It preserves local bindings, including function
-parameters and imported `console`/`Reflect` names, and does not rewrite property
-names, comments, or strings. `typeof console` and `typeof Reflect` remain
-unchanged. Direct console member calls with no arguments or only literal or
-template-literal arguments are skipped. `console.log(value)` is rewritten.
-For example, `import console from "node:console"` creates a local binding and
-skips this prefixing. That import still follows the loader's builtin-module
-handling.
-
-A separate transform enforces the absence of CommonJS wrapper locals in ESM
-when `cjs.vars` is disabled. Unbound `require` becomes `_.t("require")`, which
-checks the actual global and throws if absent. `typeof require` becomes
-`typeof _.g.require`, preserving its non-throwing lookup. The same handling
-applies to `__dirname`, `__filename`, `arguments`, `exports`, and `module`.
-Explicit local bindings, including a `require` created with `createRequire`,
-remain local. This is not a blanket rewrite of globals such as `process` or
-`Buffer`.
-
-Start with [the compiler](../src/compiler.ts),
-[the globals visitor](../src/visitor/globals.ts), and
-[the undeclared-variable visitor](../src/visitor/undeclared.ts). Runtime aliases
-are in [runtime.ts](../src/runtime.ts). Proxy and wrapper behaviour is in
-[global.ts](../src/builtin/global.ts), [console.ts](../src/builtin/console.ts),
-and [reflect.ts](../src/builtin/reflect.ts). Keep the scope, shorthand,
-`typeof`, and shadowing cases in [the compiler tests](../test/vitest/compiler.test.ts)
-when changing this code. The strict/sloppy and equality build transforms in
-[config/babel.ts](../config/babel.ts) act on the loader's own bundle and are a
-separate compilation stage.
-
-## Dependency policy
-
-`punycode` is the only declared production dependency. Runtime Acorn source
-is bundled. Keep external test runners (Jest 26, NYC, AVA, Mocha, Jasmine,
-Lab, Babel hooks, ts-node, Webpack, etc.) when they own passing integration
-scenarios, even if the runtime bundle does not directly import them.
-`pnpm-workspace.yaml` holds security overrides for legacy dependencies. Review
-advisories before changing/removing overrides. `pnpm audit:prod`,
-`pnpm audit:all`, and `pnpm lint:unused` are separate checks. Maintain the
-lockfile locally if dependencies change, but **do not include generated
-`pnpm-lock.yaml` in incremental patches**.
+`punycode` is the only declared production dependency; Acorn source is bundled.
+Keep legacy development runners while they own real integration scenarios.
+Review advisories before removing overrides from `pnpm-workspace.yaml`.
+Generated lockfiles and build outputs do not belong in incremental patches.
+See [releasing](../script/RELEASING.md) for tagged artifact verification and npm
+Trusted Publishing.

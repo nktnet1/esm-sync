@@ -97,14 +97,9 @@ A failed synchronous load abandons affected generators without executing user
 `finally` blocks or exposing partially evaluated exports. It does **not** cancel
 external I/O already started, nor can it preempt an infinite JavaScript callback.
 
-## Regression tests
+## Verification
 
-`test/vitest/top-level-await.test.ts`, `async-syntax.test.ts`, and
-`async-contexts.test.ts` cover evaluation, caching, disposal, failure identity,
-context restrictions, workers, and the bridge. Pinned Test262 async regressions
-cover module ordering and error phases. To compare startup and cached-load costs
-against a previously built checkout, use:
-
-```sh
-pnpm benchmark:await --baseline /path/to/baseline --samples 7 --iterations 5000
-```
+The async Vitest suites and pinned Test262 checks cover evaluation, caching,
+disposal, failure identity, context restrictions, workers, and the bridge.
+`pnpm verify:all` includes them on Node 22/24/26. See
+[tooling and performance](tooling-and-performance.md) for focused await benchmarks.

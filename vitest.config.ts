@@ -21,6 +21,7 @@ module.exports = defineConfig(({ mode }) => ({
     env: {
       ESM_SYNC_NODE_ENV: mode === "production" ? "production" : "development"
     },
+    passWithNoTests: true,
     testTimeout: 30_000,
     // Cold TypeScript bootstrap checks must not compete with the native suites'
     // nested Node, Jest, AVA, and PM2 processes on smaller CI runners.

@@ -791,13 +791,13 @@ describe("miscellaneous tests", () => {
         )
       )
     })
-    it("should re-evaluate requests with different URL query/fragments", () =>
+    it("should re-evaluate requests with different non-empty URL query/fragments", () =>
       (import("./fixture/load-count.mjs" as string) as Promise<Namespace>).then((oldNs) =>
         [
-          { id: "./fixture/load-count.mjs?", count: 2 },
-          { id: "./fixture/load-count.mjs#", count: 3 },
-          { id: "./fixture/load-count.mjs?", count: 2 },
-          { id: "./fixture/load-count.mjs#", count: 3 },
+          { id: "./fixture/load-count.mjs?2", count: 2 },
+          { id: "./fixture/load-count.mjs#3", count: 3 },
+          { id: "./fixture/load-count.mjs?2", count: 2 },
+          { id: "./fixture/load-count.mjs#3", count: 3 },
           { id: "./fixture/load-count.mjs?4", count: 4 },
           { id: "./fixture/load-count.mjs#5", count: 5 },
           { id: "./fixture/load-count.mjs?4", count: 4 },

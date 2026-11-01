@@ -1,73 +1,42 @@
-# Desktop-host reproductions
+# Desktop-host fixtures
 
-The original #867/#915 and get-port fixtures are copied verbatim from the supplied upstream archives.
-They retain the original file names, module syntax, package manifests and
-licences. The host verifier stages private copies, supplies the built fork as
-`esm`, and compiles the original extension TypeScript. It never installs the
-reproductions' historical development dependency trees.
+Original application files retain their names, syntax, manifests, and licences.
+The host verifier stages private copies, supplies the current loader as `esm`,
+and compiles the original extension TypeScript without installing historical
+application development trees.
 
-| Fixture | Pinned source | Included licence |
+| Fixture | Pinned source | Licence |
 | --- | --- | --- |
 | `issue-867` | `aistrych/electron-quick-start` at `9ca5498beacf08d1572ffee05df385faad261dd0` | `issue-867/LICENSE.md` (CC0) |
 | `issue-915` | `hakonhagland/vscode-test-getport` at `50431382967ed8d6ca45e81433b2c753c5356a70` | `issue-915/LICENSE` (Artistic 2.0) |
-| `issue-817` application files | `dsanders11/electron-quick-start` at `5e0749955d9489a30f742f5597f432dc4a6b1562` | `issue-817/LICENSE.md` (CC0) |
-| `get-port-6.1.2` | Original `get-port@6.1.2` npm package | `get-port-6.1.2/license` (MIT) |
+| `issue-817` application | `dsanders11/electron-quick-start` at `5e0749955d9489a30f742f5597f432dc4a6b1562` | `issue-817/LICENSE.md` (CC0) |
+| `get-port-6.1.2` | Original npm package | `get-port-6.1.2/license` (MIT) |
 
-Only files used by the reproductions and their licences are retained. No
-lockfiles, generated extension output, archives or desktop binaries are checked
-in. Regression tests anchor the executed source files to their original
-SHA-256 hashes. Updating the fixtures requires an explicit provenance review.
+Regression tests verify original source SHA-256 hashes; `.gitattributes` pins
+LF bytes on Windows. Updating these fixtures requires provenance review. No
+archives, desktop binaries, or generated extension output are checked in.
 
-The three desktop runtime archives and Electron 5 headers are fetched by the TypeScript
-downloader during the Docker build, verified against pinned SHA-256 hashes,
-and cached under the ignored `.cache/host-runtimes/` directory. The built image
-contains everything needed to run the desktop reproductions offline. Docker
-Desktop on macOS is supported; these checks target Linux/amd64 inside the
-container and do not require a Linux PC.
+`issue-691` is an authored MIT reconstruction of the reported renderer syntax
+error, plus runtime-error and recovery controls. It reuses Electron 8 and checks
+DevTools frames and unsuppressed window error events. It does not represent the
+deleted original application or its exact Electron version.
 
-The #817 application files are copied from the pinned upstream commit.
-Its `addon.cc`, `repeat.js` and `usb/` shim are newly authored MIT controls.
-The image compiles the addon for Node 24 ABI 137 and Electron 5 ABI 70.
-The original application's `usb` import resolves to this minimal addon;
-reports explicitly label that scope. Passing these controls does not resolve
-the original full USB hang.
+`issue-917` is an authored MIT shared-intrinsic VM regression and reconstructed
+consumer, not the historical Ember application. Verification includes offline
+VM controls and the actual WebContainer SDK in Chromium with automatically
+mounted JavaScript, consumer files, and vendored punycode. A loader with its
+shared-realm guard disabled supplies the offline negative control.
 
-`issue-691` is a newly authored reconstruction of the invalid renderer `await`
-in [the original report](https://github.com/standard-things/esm/issues/691), plus
-a runtime-error control. It uses this repository's MIT licence. It is not the
-deleted `stack-trace-repro` branch: the current GitHub repository and all seven
-Software Heritage snapshots available on 31 October 2026 lacked that branch;
-Wayback returned its temporarily-offline page. The earliest available snapshot
-is [adb9b2f59fa0ffe103ad5c16e182a52cc25c2e7c](https://archive.softwareheritage.org/api/1/snapshot/adb9b2f59fa0ffe103ad5c16e182a52cc25c2e7c/).
-The reconstruction reuses Electron 8.0.0 from #867 and records both native
-DevTools exception frames and unsuppressed window error events. It does not
-claim to reproduce the original deleted application or Electron version. The
-passing Docker reconstruction satisfies the agreed resolution criterion for
-#691; recovering that application is not required to mark the issue resolved.
+`issue-817` also contains authored MIT minimal-addon, queue, and crash-trace
+controls. They are labelled separately from the full original USB 1.6.0 checks.
+The Docker builder downloads checksum-pinned USB/libusb/Nan/bindings sources
+and published binaries with their licences, applies the reviewed native patch,
+and compiles ABI-64/70 controls. Published and freshly compiled unpatched
+ABI-64 binaries remain crashing negative controls. Compatible patched imports
+must keep debugging and sixteen queue callbacks responsive without physical
+USB hardware.
 
-`issue-917` is a newly authored MIT regression for a VM that shares host
-intrinsics. Its `application/` directory is a reconstructed consumer that calls
-the loader factory and builds the small CommonJS/ESM graph. It is not the
-historical Ember application or its dependency graph. The Docker command runs
-the offline VM emulation and then launches Chromium to run the actual
-WebContainer SDK without VM emulation. A copy of the current production loader
-with only the shared-realm guard disabled supplies the offline negative control.
-The worker is compiled to JavaScript and mounted automatically, including the
-reconstructed consumer and vendored punycode. No manual archive transfer or
-WebContainer dependency installation is required. The pinned SDK download,
-extracted SDK and all reports remain gitignored. Only the real-host phase needs
-network access at run time.
-
-The full #817 checks additionally use actual USB 1.6.0 source, nan 2.13.2,
-bindings 1.5.0, file-uri-to-path 1.0.0 and USB's published Node ABI-64 binary.
-These are checksum-pinned downloads, retained with their licences under ignored
-`.cache/` paths. The original USB JavaScript is not replaced with the minimal
-shim in these separate checks. The builder applies the pinned native patch in `script/patches` and compiles
-patched binaries for ABIs 64 and 70. The published and freshly compiled unchanged
-ABI-64 binaries are retained as negative controls. Patched ABI rejection must
-keep the process alive; compatible imports must keep the debugger responsive.
-`queue-probe.cc` and `native-crash-trace.c` are authored MIT diagnostics. The
-queue probe exercises the exact patched USB header without requiring physical
-USB access, including repeated initialization and sixteen callbacks. Downloaded
-USB/libusb/Nan licences remain with their staged sources. The same Docker command
-runs all controls on Linux/amd64, including from Docker Desktop on macOS.
+Runtime archives, headers, packages, extracted SDK, and reports remain under
+ignored `.cache/` paths. The Docker command builds all assets and runs desktop
+checks offline, then real WebContainer checks online. See
+[host integrations](../../../docs/host-integrations.md) for commands and limits.

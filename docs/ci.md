@@ -1,52 +1,46 @@
 # CI selection and caches
 
-Pipeline always reports a stable **CI** job, including documentation-only
-changes. Use that job as the required completion check. Its selection job uses
-Node's built-in TypeScript support and needs no dependency installation.
+The stable **CI** completion job runs even for documentation-only changes.
+Use it as the required aggregate check. Selection uses Node's built-in
+TypeScript support without installing dependencies.
 
-| Changed inputs                                                                                                                                     | Checks                                                               |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Markdown/docs only                                                                                                                                 | Selection and completion only                                        |
-| Tooling test, benchmark or lint configuration                                                                                                      | Ubuntu tooling job                                                   |
-| Release/packaging implementation or release workflow                                                                                               | Tooling, production and registry verification                        |
-| Runtime test listed in `config/test-suites.ts`                                                                                                     | OS/Node library matrix, tooling and production/registry verification |
-| Library/native source, shared configs/helpers, fixtures, build/test scripts, public entries/declarations, Pipeline/local actions or unknown inputs | Library matrix, tooling and production/registry verification         |
-| Dependency manifests, workspace configuration or lockfile                                                                                          | All checks, including production dependency audit                    |
-| Manual or reusable workflow call, or tag/release                                                                                                   | All checks regardless of changed files                               |
+| Changes                                                                                                                   | Selected checks                                  |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Markdown/docs only                                                                                                        | Selection and completion.                        |
+| Tooling tests, benchmarks, lint configuration                                                                             | Ubuntu tooling.                                  |
+| Release/packaging implementation or workflow                                                                              | Tooling, production, registry.                   |
+| Runtime test listed in `config/test-suites.ts`                                                                            | OS/Node matrix, tooling, production, registry.   |
+| Library/native code, shared helpers/configs, fixtures, build scripts, public entries, Pipeline/actions, or unknown inputs | Full library/tooling/production/registry checks. |
+| Dependency manifests, workspace configuration, lockfile                                                                   | All checks including production audit.           |
+| Manual/reusable workflow or tagged release                                                                                | All checks regardless of changed paths.          |
 
-`config/test-suites.ts` is shared with Vitest so newly introduced tests default
-to the tooling job in both places. Add platform-dependent regressions to its
-runtime list. A runtime test deletion or move still selects the matrix.
+The library matrix is Linux/macOS/Windows on Node 22/24/26. Tooling and
+production/registry verification run on Ubuntu/Node 24. Installed CJS/ESM
+consumers also run on each OS's Node 24 job. New unclassified Vitest files
+default to tooling; platform regressions opt into the shared runtime list.
+Runtime-test moves/deletions still select the matrix.
 
-Push comparisons include the complete `before..after` range; PR comparisons
-use `base...head` to exclude unrelated changes on the base branch. A local Git
-diff with NUL delimiters includes all paths, including renamed/deleted files
-and filenames containing newlines. It does not rely on GitHub's 300-file path
-filter limit. Missing history, malformed payloads and new-branch zero SHAs
-fall back to all checks. Reusable workflows default to full verification;
-the tagged release does not inherit a partial selection.
+Push selection uses the full `before..after` range; PRs use `base...head`.
+NUL-delimited Git diffs include all paths, moves, deletions, and unusual
+filenames without GitHub's 300-file filter limit. Missing history or malformed
+inputs conservatively select everything. Superseded PR runs are cancelled;
+main and release runs are not.
 
-The library matrix remains Linux/macOS/Windows on Node 22/24/26. Production
-and registry verification run once on Ubuntu when selected. Superseded PR
-runs are cancelled; main-branch and release runs are not cancelled.
+The pnpm store and verified Acorn/Test262 source fixtures are cached. Fixture
+keys include OS, installed Acorn version, lockfile, and preparation scripts;
+restores still validate required files and version/revision markers. Only
+trusted main jobs save fixtures, with Node 24 the writer per OS. Windows
+Node-API headers/import libraries use exact OS/architecture/Node-version keys.
+Generated bundles, native binaries, and loader test caches are rebuilt.
 
-pnpm's existing package-store cache is retained. The local fixture action adds
-an OS-specific cache for Acorn sources and the pinned prepared Test262 corpus,
-keyed by installed Acorn version, lockfile and the preparation scripts. Preparation
-still checks required files and version/revision markers on every restore.
-Only trusted main-branch jobs save source fixtures; the library matrix's Node
-24 job is the writer per OS. Windows Node-API headers/import libraries use an
-exact OS/architecture/Node-version cache and are exported on cache hits too.
+Hashed original fixtures are pinned to LF in `.gitattributes`. A real Git
+checkout regression enables `core.autocrlf=true` and proves conversion remains
+active for a control file while original fixture hashes stay unchanged.
 
-Build outputs, native binaries and loader test caches are not restored from CI
-caches. Builds continue to validate current sources and native ABI compatibility;
-cache regressions retain control over their own cold/warm state.
+CodeQL retains weekly/manual scans and skips docs/excluded-fixture-only
+push/PR changes. Account for those filters if its individual status is required.
 
-CodeQL skips documentation and excluded fixture-only changes on push/PR, while
-retaining its weekly scheduled scan and manual trigger. If CodeQL's workflow
-status is independently required by branch protection, account for those path
-filters when configuring required checks.
-
-`test/vitest/ci-changes.test.ts` exercises real temporary Git histories, including
-multi-commit pushes, divergent PR bases, more than 300 paths, moves/deletions,
-unusual filenames, release forcing and conservative failure fallbacks.
+For exhaustive local verification on macOS or Linux, use `pnpm verify:all` or
+`node script/src/esm/verify-all.ts`. It runs all repository suites, full Test262,
+package/registry/audit checks, benchmarks, and host checks; it does not apply
+CI's changed-path selection. Linux containers complement the OS matrix.

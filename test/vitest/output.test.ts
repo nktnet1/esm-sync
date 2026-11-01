@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { describe, expect, it } from "vitest"
 import Compiler from "../../dist/build/compiler.js"
 
 import fs from "fs-extra"
@@ -53,7 +53,7 @@ describe("output tests", () => {
       const actual = result.code
         .replace(/\u200D/g, "")
         .replace(/[ \t]+$/gm, "")
-        .trimRight()
+        .trimEnd()
 
       expect(actual).toBe(expected)
     })

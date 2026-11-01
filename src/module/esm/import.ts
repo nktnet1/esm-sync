@@ -8,6 +8,7 @@ import Module from "../../module.js"
 
 import dualResolveFilename from "../internal/dual-resolve-filename.js"
 import { isPackageExportsRequest, isPackageExportsError } from "../internal/package-exports.js"
+import { resolveImportSpecifier } from "./resolve-filename.js"
 import resolveLookupPaths from "../internal/resolve-lookup-paths.js"
 import errors from "../../errors.js"
 import esmLoad from "./load.js"
@@ -30,6 +31,8 @@ function esmImport(
   isDynamic = false,
   moduleType: string | undefined = void 0
 ) {
+  const privateImport = request.startsWith("#")
+  if (privateImport) request = resolveImportSpecifier(request, parentEntry.module)
   if (moduleType === "text" || moduleType === "bytes") {
     return importValue(request, parentEntry, setterArgsList, moduleType)
   }
@@ -146,6 +149,7 @@ function esmImport(
   }
 
   if (
+    !privateImport &&
     parentEntry.extname === ".mjs" &&
     entry !== null &&
     entry.type === TYPE_ESM &&

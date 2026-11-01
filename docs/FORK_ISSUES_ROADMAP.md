@@ -1,87 +1,37 @@
-# Upstream issue roadmap
+# Compatibility scope and remaining work
 
-Status as of 1 November 2026 for the 83 reports in
-[`standard-things/esm`](https://github.com/standard-things/esm/issues).
-The tests and source code, not a historical status label, are authoritative for
-current behaviour. Keep an issue open until its agreed resolution criterion has
-been verified. For #691, the passing Electron reconstruction satisfies that
-criterion; recovering the deleted original application is not required.
-See [tooling and performance](tooling-and-performance.md) for evidence
-on the two application reproductions.
-For the scoped host reports, see the [full/partial/not-implemented status table](host-integrations.md) and verification instructions.
+Current source and regression tests define support. A passing mechanism test
+does not certify every historical application or dependency graph associated
+with an upstream issue.
 
-| Classification                                |  Count |
-| --------------------------------------------- | -----: |
-| Confirmed fixes still awaiting implementation |      0 |
-| Investigate                                   |      0 |
-| Documentation follow-ups                      |      0 |
-| Already covered                               |     61 |
-| Not planned                                   |     22 |
-| **Total**                                     | **83** |
+| Area                                        | Current verification and boundary                                                                                                                                                                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dynamic imports (#829)                      | Both unchanged Dyo utility tests run through Mocha CLI and synchronous loading with disabled/cold/warm caches. Raw source hashes are checked, including a CRLF-enabled Git checkout. The full historical DOM suite is not included. |
+| Package resolution                          | Public `exports`, private `imports`, mapping conditions, terminal errors, URL/symlink identity, and `import.meta` helpers are compared with native Node.                                                                            |
+| Async modules                               | Evaluation, live bindings, failure identity, disposal, and cache reconstruction are covered; timer/I/O awaits retain the [native bridge context limits](async-module-loading.md).                                                   |
+| Jest and mocking                            | Jest 26 integrations cover registry resets, isolation, constructor identity, and VM globals. Strict `.mjs` dependencies bypass CommonJS mocking hooks.                                                                              |
+| Mocha and native migration                  | Current setup and export-shape rules are in [interop and migration](interop-and-migration.md).                                                                                                                                      |
+| Babel (#810) and Log4brains (#844)          | Dedicated verifiers use separately installed original applications; synthetic startup checks do not certify their full graphs. See [tooling verification](tooling-and-performance.md).                                              |
+| REPL (#791, #854, #886)                     | Global and programmatic REPL loading and static imports through the active global REPL's VM shortcut are covered. Arbitrary VM scripts keep their native grammar.                                                                   |
+| Electron, VS Code, native USB, WebContainer | Automatic Docker checks and their exact original/reconstructed scopes are in [host integrations](host-integrations.md).                                                                                                             |
 
-## Verified application integration
+## Follow-ups that need new evidence or design
 
-- **Babel aliases and top-level await** - [https://github.com/standard-things/esm/issues/810](https://github.com/standard-things/esm/issues/810). **Fixed for the supported native-bridge startup path**. The physical root `esm.js`/`index.js` shims were not recognised as preloads because their metadata paths retained `dist/../`. Resolving those paths installs the same hooks as the generated entry. The unchanged original Express/Babel configuration passes checks for single database evaluation and database completion before `listen()`, followed by the expected HTTP response. Verification covers both preload orders and disabled/cold/warm caches. Timer awaits on Node 20 remain outside the native bridge's supported range and fail explicitly. This does not extend legacy timer-await support. See the [verification evidence](tooling-and-performance.md#babel-aliases-and-top-level-await).
+- Exercise newer Jest majors in their real execution environments before
+  extending the Jest 26 compatibility claim.
+- Define an explicit, scoped contract before adding `.mjs` mocking; preserve
+  strict ESM behaviour for existing consumers.
+- Verify PM2 cluster mode, Lerna-forwarded diagnostics, and packaged virtual
+  filesystems in their actual hosts. Existing subprocess/fork tests alone do
+  not certify those environments.
+- Recover and run the historical Ember dependency graph before claiming that
+  complete application works in WebContainer. The current real-host regression
+  exercises the shared-VM failure and a reconstructed consumer.
+- Treat hot reload and precompile APIs as design work. Compiler-cache deletion
+  does not reset an evaluated module graph.
 
-- **Startup performance** - [https://github.com/standard-things/esm/issues/844](https://github.com/standard-things/esm/issues/844). **Resolved**. Canonical production builds verify the historical Log4brains CLI and complete preview HTTP readiness. v1.0.11 reduced repeated CommonJS stack checks and captured bytecode after initialisation. v1.0.12 reduces retained warm-cache compilation state while preserving cold compilation and bytecode capture. See the [release measurements](tooling-and-performance.md#lower-startup-memory-v1012).
-
-## Verified custom REPL integration
-
-- **Programmatic REPL static imports** - [https://github.com/standard-things/esm/issues/854](https://github.com/standard-things/esm/issues/854). **Fixed for the tested Node 22, 24, and 26 preload path**. An application's `repl.start()` does not enter the same startup branch as `node -i`. A one-time, lazy context hook now activates REPL compilation when the application first creates a server. Non-REPL `vm.createScript()` calls retain their normal behaviour, including after creating multiple REPL servers. Tests cover cached and uncached configurations, custom prompts, sloppy mode, isolated contexts, relative-file imports, repeated imports, and a second active server. This does not change arbitrary `vm` script evaluation or promise rejection handling in the Node REPL.
-
-- **Static imports through the global REPL VM shortcut (#886)** - **Resolved for the original report.** The report uses the loader-enabled global REPL, rather than a standalone VM script. Its `vm.runInThisContext` shortcut now uses the active REPL compiler for module syntax rejected by the native script API, while ordinary scripts retain native behavior. The same `index.mjs` imports through `'.'` both at the prompt and inside the shortcut, across disabled/cold/warm caches on Node 22, 24 and 26. Programmatic global REPLs, live imports, failure recovery and timeouts are covered. Directly loaded native VM methods and isolated contexts retain their script grammar. See [scope and verification](host-integrations.md#static-imports-in-vm-scripts-886).
-
-## Verified desktop hosts
-
-- **Electron renderer module loading (#867)** and **VS Code extension-host ESM loading (#915)** are **resolved for the original Linux reproductions**. The supplied Arch Linux/Wayland run passed all six disabled/cold/warm host cases using Electron 8.0.0 and VS Code 1.66.2 under Xvfb. Electron greeted exactly once on the first page load and each of three reloads in every cache mode. VS Code activated the original extension, executed its command and allocated a valid port in every mode. VS Code checks use fresh host processes; UI Reload Window is not automated. See [host verification](host-integrations.md) and run `pnpm verify:hosts:docker` for the self-contained Docker path.
-
-- **Electron renderer error stacks (#691)** - **Resolved.** Captured frames alone were insufficient: Chromium still reported the outer loader rethrow. Renderer errors now leave that boundary through a source-mapped function at their original location, preserving the error object. The user confirmed that all twelve Docker cases pass, including #691 syntax and runtime errors in disabled/cold/warm modes, followed by a healthy reload. The reconstruction satisfies the agreed resolution criterion; the deleted original application is not a remaining requirement. See [reconstruction and verification](host-integrations.md#chromium-error-presentation-691).
-
-- **Electron dynamic imports and native-addon failures (#817)** - **Resolved for the pinned Linux reproduction with the native USB patch.** USB 1.6.0's global queues touched libuv before ABI validation. The checked-in native source patch defers initialization until the addon has been accepted, allowing ABI-64 rejection to leave Electron ABI 70 alive. The Docker command automatically patches and rebuilds both ABIs, verifies require/import, debugger responses and sixteen native queue callbacks in every cache mode, and retains published and freshly compiled unchanged binaries as negative controls. Installing esm-sync alone does not replace an already-installed defective USB binary. See [native fix and verification](host-integrations.md#full-usb-and-real-webcontainer-verification). The latest supplied complete Docker run passes both offline and real WebContainer phases, including all patched full USB checks and original crashing controls.
-
-## Verified embedded VM host
-
-- **StackBlitz/WebContainers (#917)** - **Resolved for the verified shared-VM failure.** The latest supplied Docker run verifies the current production loader in a real WebContainer on Node 22.22.3, with disabled/cold/warm graph checks and a reconstructed consumer build in each mode. The eight builtin descriptors remain intact, imports and caught rejections pass, and every consumer build invokes the fork and exits 0. The strict report validator accepts the evidence, the offline/online/exported ZIP loader digests match, and Docker reports successful export and cleanup. See [scope and evidence](host-integrations.md#full-usb-and-real-webcontainer-verification).
-
-The historical Ember dependency graph remains unverified. The earlier linked
-build returned zero without invoking esm; it is not evidence for that application.
-The resolved classification covers the shared-VM corruption failure and the
-reconstructed consumer in the actual host. `pnpm verify:hosts:docker` automates
-both offline regressions and this real-host verification without manual browser
-actions. The native #817 repair is now built and tested automatically by the same command.
-
-## Completed documentation follow-ups
-
-All four reports now have documentation coverage in this fork. The examples
-were checked against the release runtime, Mocha 8.4.0, and native Node ESM.
-This records local completion rather than changes to the upstream issue tracker.
-
-| Report                                                                                                 | Documentation                                                                                                                  |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| [https://github.com/standard-things/esm/issues/885](https://github.com/standard-things/esm/issues/885) | [`cjs.dedefault`: examples and export-shape boundaries](interop-and-migration.md#commonjs-default-export-unwrapping)           |
-| [https://github.com/standard-things/esm/issues/873](https://github.com/standard-things/esm/issues/873) | [Mocha preloads and configured factory entry points](interop-and-migration.md#mocha-preloads-and-factory-entry-points)         |
-| [https://github.com/standard-things/esm/issues/865](https://github.com/standard-things/esm/issues/865) | [Contributor guide to global-reference rewriting](MAINTAINER_GUIDE.md#global-reference-rewriting)                              |
-| [https://github.com/standard-things/esm/issues/838](https://github.com/standard-things/esm/issues/838) | [Native Node ESM migration and asynchronous startup](interop-and-migration.md#migrating-a-consumer-project-to-native-node-esm) |
-
-## Triaged, not currently actionable
-
-The following **61** reports are classified _already covered_ by an existing
-fix, regression, supported behaviour, or documented boundary. That does not
-certify every historical third-party application: reopen on a concrete failing
-reproduction.
-
-931, 926, 924, 922, 921, 918, 917, 916, 915, 914, 913, 910, 909, 904, 900, 898, 897,
-896, 888, 887, 886, 885, 880, 879, 876, 875, 874, 873, 872, 868, 867, 866, 865, 864, 863, 855, 854, 852,
-846, 844, 843, 841, 839, 838, 824, 821, 817, 816, 813, 812, 810, 809, 805, 798, 796, 794,
-786, 779, 775, 706, 691.
-
-The following **22** reports are _not planned_: they concern external tooling,
-obsolete environments, different products, unsupported feature requests, or
-insufficient reproductions.
-
-930, 929, 928, 927, 920, 919, 907, 903, 893, 892, 890, 884, 869, 862,
-861, 859, 845, 833, 829, 828, 791, 780.
-
-For build, fixture, and compatibility-test commands, see the
-[maintainer guide](MAINTAINER_GUIDE.md). Do not mark an investigation fixed
-based solely on a synthetic test or a passing CLI startup.
+Browser-only/non-Node module loading and obsolete native timer-await runtimes
+are outside the current support contract. Reopen a compatibility investigation
+with a concrete failing reproduction, runtime version, cache configuration, and
+expected behaviour. Use the [maintainer guide](MAINTAINER_GUIDE.md) for complete
+and focused verification commands.

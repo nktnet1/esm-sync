@@ -17,7 +17,13 @@ import decodeURIComponent from "../../util/decode-uri-component.js"
 import emptyArray from "../../util/empty-array.js"
 import errors from "../../errors.js"
 import findPath from "../internal/find-path.js"
-import { resolveSelfExports, isPackageExportsError } from "../internal/package-exports.js"
+import {
+  resolveSelfExports,
+  isPackageExportsError,
+  resolvePackageExportsURL
+} from "../internal/package-exports.js"
+import resolvePackageImports, { hasPackageImports } from "../internal/package-imports.js"
+import getURLFromFilePath from "../../util/get-url-from-file-path.js"
 import type { ExportsMode } from "../internal/resolve-exports.js"
 import getFilePathFromURL from "../../util/get-file-path-from-url.js"
 import hasEncodedSep from "../../path/has-encoded-sep.js"
@@ -59,7 +65,8 @@ function resolveFilename(
   isMain: boolean = false,
   options: { paths?: string[] } | undefined = void 0,
   allowUnknownExtension = false,
-  mode: ExportsMode = "import"
+  mode: ExportsMode = "import",
+  packageTarget = false
 ) {
   if (request.startsWith("node:")) {
     request = request.substr(5)
@@ -89,6 +96,21 @@ function resolveFilename(
 
   if (parentEntry !== null) {
     parentEntry.updateFilename()
+  }
+
+  if (
+    request.startsWith("#") &&
+    !packageTarget &&
+    (mode === "import" || hasPackageImports(parentEntry?.dirname ?? ""))
+  ) {
+    return resolveFilename(
+      resolveImportSpecifier(request, parent, mode),
+      parent,
+      isMain,
+      options,
+      allowUnknownExtension,
+      mode
+    )
   }
 
   let fromPath: string | null
@@ -222,7 +244,10 @@ function resolveFilename(
     throw error
   }
 
-  foundPath = tryLegacyResolveFilename(request, parent, isMain, options)
+  foundPath =
+    packageTarget && request.startsWith("#")
+      ? ""
+      : tryLegacyResolveFilename(request, parent, isMain, options)
 
   if (foundPath !== "") {
     if (cjsPaths) {
@@ -332,6 +357,71 @@ function tryLegacyResolveFilename(
   }
 
   return ""
+}
+
+export function resolveImportSpecifier(
+  request: string,
+  parent: ModuleRecord | null | undefined,
+  mode: ExportsMode = "import"
+) {
+  const entry = Entry.get(parent)
+  if (entry !== null) entry.updateFilename()
+  if (mode === "require" && !hasPackageImports(entry?.dirname ?? ""))
+    return resolveFilename(request, parent, false, void 0, true, mode, true)
+  return resolvePackageImports(
+    request,
+    entry?.dirname ?? "",
+    parent,
+    mode,
+    (target, packageParent) => {
+      try {
+        const mapped = resolvePackageExportsURL(
+          target,
+          dirname(packageParent.filename!),
+          resolveLookupPaths(target, packageParent, true) ?? [],
+          mode,
+          false
+        )
+        if (mapped !== undefined) return mapped
+        const filename = resolveFilename(target, packageParent, false, void 0, true, mode, true)
+        return builtinLookup.has(filename) ? "node:" + filename : getURLFromFilePath(filename)
+      } catch (error) {
+        if (
+          mode === "import" &&
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "MODULE_NOT_FOUND"
+        )
+          throw new errors.ERR_MODULE_NOT_FOUND(target)
+        throw error
+      }
+    }
+  )
+}
+
+export function resolveMappedSpecifier(
+  request: string,
+  parent: ModuleRecord | null | undefined,
+  mode: ExportsMode = "import"
+) {
+  if (request.startsWith("#")) return resolveImportSpecifier(request, parent, mode)
+  if (
+    builtinLookup.has(request) ||
+    request.indexOf(":") !== -1 ||
+    isAbsolute(request) ||
+    isRelative(request)
+  )
+    return undefined
+  const entry = Entry.get(parent)
+  if (entry !== null) entry.updateFilename()
+  return resolvePackageExportsURL(
+    request,
+    entry?.dirname ?? "",
+    resolveLookupPaths(request, parent, true) ?? [],
+    mode,
+    false
+  )
 }
 
 export default resolveFilename

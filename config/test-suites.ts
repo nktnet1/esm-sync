@@ -20,6 +20,7 @@ export const runtimeTests = [
   "legacy-runtime",
   "main-hook",
   "module-mocking",
+  "modern-packages",
   "native-suites",
   "observable-compatibility",
   "optional-native",
@@ -36,6 +37,7 @@ export const runtimeTests = [
   "test262-instantiation",
   "top-level-await",
   "upstream-regressions",
+  "upstream-dynamic-import",
   "value-imports",
   "webcontainer"
 ].map((name) => `test/vitest/${name}.test.ts`)

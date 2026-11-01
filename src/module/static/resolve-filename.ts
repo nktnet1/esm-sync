@@ -17,6 +17,7 @@ import bundledLookup from "../../bundled-lookup.js"
 import { dirname } from "../../safe/path.js"
 import errors from "../../errors.js"
 import { resolveSelfExports } from "../internal/package-exports.js"
+import resolvePackageImports, { hasPackageImports } from "../internal/package-imports.js"
 import isAbsolute from "../../path/is-absolute.js"
 import isObject from "../../util/is-object.js"
 import isRelative from "../../path/is-relative.js"
@@ -40,7 +41,8 @@ const resolveFilename = maskFunction(function (
   request: string,
   parent: ModuleRecord | null | undefined = void 0,
   isMain: boolean = false,
-  options: { paths?: string[] } | undefined = void 0
+  options: { paths?: string[] } | undefined = void 0,
+  packageTarget = false
 ) {
   validateString(request, "request")
 
@@ -64,6 +66,20 @@ const resolveFilename = maskFunction(function (
 
   if (parentEntry !== null) {
     parentEntry.updateFilename()
+  }
+
+  if (request.startsWith("#") && !packageTarget && hasPackageImports(parentEntry?.dirname ?? "")) {
+    const resolved = resolvePackageImports(
+      request,
+      parentEntry?.dirname ?? "",
+      parent,
+      "require",
+      (target, packageParent) => {
+        const filename = resolveFilename(target, packageParent, false, void 0, true)
+        return builtinLookup.has(filename) ? "node:" + filename : filename
+      }
+    )
+    return resolved.startsWith("node:") ? resolved.slice(5) : resolved
   }
 
   let fromPath: string | null

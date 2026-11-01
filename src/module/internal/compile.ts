@@ -188,7 +188,9 @@ function compile(
 
   let useFallback = false
 
-  if (!isESM && !isWASM && typeof fallback === "function") {
+  // Native CommonJS execution cannot run loader transforms. In particular,
+  // passing the original import() to a VM wrapper loses its import callback.
+  if (!isESM && !isWASM && compileData.transforms === 0 && typeof fallback === "function") {
     const parentEntry = Entry.get(entry.parent)
     const parentIsESM = parentEntry === null ? false : parentEntry.type === TYPE_ESM
     const parentPkg = parentEntry === null ? null : parentEntry.package
