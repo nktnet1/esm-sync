@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest"
+import { it, expect } from "vitest"
 import Compiler from "../../dist/build/compiler.js"
 
 import fs from "fs-extra"
@@ -33,7 +33,7 @@ const tests = files.reduce<
   return tests
 }, {})
 
-describe("output tests", () => {
+it("output tests", () => {
   const dirPaths = Object.keys(tests)
 
   for (const dirPath of dirPaths) {
@@ -53,7 +53,7 @@ describe("output tests", () => {
       const actual = result.code
         .replace(/\u200D/g, "")
         .replace(/[ \t]+$/gm, "")
-        .trimRight()
+        .trimEnd()
 
       expect(actual).toBe(expected)
     })
