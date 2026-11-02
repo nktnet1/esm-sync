@@ -116,7 +116,9 @@ function isCyclicStarReExport(
   entry: Entry,
   exportedName: string
 ): boolean {
-  const seen = new Set()
+  if (getter === void 0 || !getter.deferred) return false
+
+  const seen = new Set<Getter>()
 
   while (getter !== void 0 && getter.deferred && !seen.has(getter)) {
     seen.add(getter)
@@ -241,6 +243,16 @@ const Runtime: RuntimeMethods & {
         // A star export is ambiguous only if the original module or binding
         // differs. Explicit exports still take precedence over star exports.
         if (getter !== void 0 && getter.owner === entry) {
+          continue
+        }
+
+        if (
+          getter !== void 0 &&
+          getter === childGetter &&
+          (childEntry.type === TYPE_ESM || entry.extname !== ".mjs")
+        ) {
+          // Re-exporting the same getter needs no rebinding. Retain the
+          // CJS-to-.mjs wrapper for namespace interoperability.
           continue
         }
 

@@ -717,17 +717,25 @@ class Entry {
 
     this._changed = false
 
-    // When a non-cyclic ESM module is only linked, its exports cannot yet be
-    // observed through the completed module namespace. Re-evaluating all of
-    // its getters after each child finishes is quadratic for large export-star
-    // barrels. The module's first execution performs the full refresh.
-    if (
-      this.type !== TYPE_ESM ||
-      this.circular ||
-      this.state >= STATE_EXECUTION_STARTED ||
-      this._loaded === LOAD_COMPLETED ||
-      updateType !== UPDATE_TYPE_LIVE
-    ) {
+    // A non-cyclic ESM importer cannot expose its completed namespace while
+    // its dependencies are being linked or evaluated. Dependency propagation
+    // (identified by `seen`) may happen with state EXECUTION_STARTED because
+    // resumeChildren() runs while the importer is marked running. Refreshing
+    // every getter after each child is quadratic for large export-star barrels.
+    // The importer's own updateBindings() call still refreshes all getters,
+    // and completed, cyclic, or async-evaluating modules retain live updates.
+    const isLinkingUpdate =
+      this.type === TYPE_ESM &&
+      !this.circular &&
+      this._loaded === LOAD_INCOMPLETE &&
+      updateType === UPDATE_TYPE_LIVE &&
+      (this.state < STATE_EXECUTION_STARTED ||
+        (seen !== void 0 &&
+          this.running &&
+          this.state < STATE_EXECUTION_COMPLETED &&
+          this.asyncEvaluation === null))
+
+    if (!isLinkingUpdate) {
       runGetters(this, names)
     }
     runSetters(
