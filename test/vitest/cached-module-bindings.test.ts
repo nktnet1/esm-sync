@@ -183,6 +183,39 @@ assert.deepEqual(load(path.join(dir, 'loop-cycle.mjs')).seen, [31, 32])
       })
     })
 
+    it("defers non-cyclic ESM getter refreshes while modules are linked", async ({ expect }) => {
+      const source = `
+const assert = require('node:assert/strict')
+const NativeModule = require('node:module')
+const { shared, ownRequire } = require('./test262/protocol.cjs').loadOwnProtocol()
+const Entry = ownRequire(shared.symbol.entry)
+const mod = new NativeModule('linked-getters')
+mod.filename = require('node:path').join(process.cwd(), 'linked-getters.mjs')
+const entry = Entry.get(mod)
+entry.type = 3 // TYPE_ESM
+entry.state = 2 // STATE_PARSING_COMPLETED
+entry._loaded = 0 // LOAD_INCOMPLETE
+let reads = 0
+entry.addGetter('value', () => { reads++; return 42 })
+entry.updateBindings(null, 2) // UPDATE_TYPE_LIVE
+assert.equal(reads, 0, 'linking should not scan getters before evaluation')
+entry.state = 3 // STATE_EXECUTION_STARTED
+entry.updateBindings(null, 2)
+assert.equal(reads, 1, 'executing modules still refresh getters')
+assert.equal(entry.exports.value, 42)
+entry.state = 2
+entry.circular = true
+entry.updateBindings(null, 2)
+assert.equal(reads, 2, 'cyclic modules still refresh during linking')
+console.log('linking-getters:pass')
+`
+      const result = await runNode(["-e", source], esmEnv, options, {
+        cacheNamespace: "linking-getter-refresh"
+      })
+      expect(result.exitCode, (result.stderr || result.stdout).slice(-1600)).toBe(0)
+      expect(result.stdout.trim()).toBe("linking-getters:pass")
+    })
+
     it("does not refresh completed module bindings on repeated cache hits", async ({ expect }) => {
       await withFixtures(async (directory) => {
         const small = path.join(directory, "small.mjs")
