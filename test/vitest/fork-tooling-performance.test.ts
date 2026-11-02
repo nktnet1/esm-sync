@@ -11,6 +11,7 @@ import {
 import { runNode, testEnvironments, testPath } from "./helpers/run-node.ts"
 
 const require = createRequire(import.meta.url)
+const packageVersion = (require("../../package.json") as { version: string }).version
 const loaderPath = path.resolve(testPath, "../esm.js")
 const jestCLI = require.resolve("jest/bin/jest.js")
 const protobuf = createRequire(require.resolve("newrelic")).resolve("protobufjs")
@@ -369,7 +370,10 @@ it(
     const loader = await readFile(path.join(path.dirname(loaderPath), "esm/loader.js"), "utf8")
     await withCompatibilityFiles(
       {
-        "package/package.json": '{"name":"esm-sync-private-cache","version":"3.4.0"}',
+        "package/package.json": JSON.stringify({
+          name: "esm-sync-private-cache",
+          version: packageVersion
+        }),
         "package/dist/esm.js": bootstrap,
         "package/dist/esm/loader.js": loader,
         "entry.js": "export const value=42",
