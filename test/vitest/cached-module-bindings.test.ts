@@ -216,6 +216,63 @@ console.log('linking-getters:pass')
       expect(result.stdout.trim()).toBe("linking-getters:pass")
     })
 
+    it("defers propagated getter scans until a non-cyclic importer executes", async ({
+      expect
+    }) => {
+      const source = `
+const assert = require('node:assert/strict')
+const NativeModule = require('node:module')
+const { shared, ownRequire } = require('./test262/protocol.cjs').loadOwnProtocol()
+const Entry = ownRequire(shared.symbol.entry)
+const mod = new NativeModule('propagated-getters')
+mod.filename = require('node:path').join(process.cwd(), 'propagated-getters.mjs')
+const entry = Entry.get(mod)
+entry.type = 3 // TYPE_ESM
+entry.state = 3 // STATE_EXECUTION_STARTED
+entry.running = true // parent is inside resumeChildren()
+entry._loaded = 0 // LOAD_INCOMPLETE
+let reads = 0
+let value = 1
+entry.addGetter('value', () => { reads++; return value })
+for (let i = 0; i < 10; i++) {
+  entry.updateBindings(null, 2, new Set()) // dependency-propagated UPDATE_TYPE_LIVE
+}
+assert.equal(reads, 0, 'unobservable importer should not rescan on each dependency')
+entry.updateBindings() // its own evaluation/assignment must refresh
+assert.equal(reads, 1)
+assert.equal(entry.exports.value, 1)
+value = 2
+entry.updateBindings(null, 2) // direct live update must remain observable
+assert.equal(reads, 2)
+assert.equal(entry.exports.value, 2)
+entry.running = false
+entry.updateBindings(null, 2, new Set())
+assert.equal(reads, 3, 'non-running importer must refresh')
+entry.running = true
+entry.asyncEvaluation = {} // asynchronous evaluation may expose live bindings
+entry.updateBindings(null, 2, new Set())
+assert.equal(reads, 4, 'async importer must refresh')
+entry.asyncEvaluation = null
+entry.state = 4 // STATE_EXECUTION_COMPLETED
+entry.updateBindings(null, 2, new Set())
+assert.equal(reads, 5, 'completed evaluation must refresh')
+entry.state = 3
+entry.circular = true
+entry.updateBindings(null, 2, new Set())
+assert.equal(reads, 6, 'circular importer must refresh')
+entry.circular = false
+entry._loaded = 1 // LOAD_COMPLETED
+entry.updateBindings(null, 2, new Set())
+assert.equal(reads, 7, 'loaded importer must refresh')
+console.log('propagated-getters:pass')
+`
+      const result = await runNode(["-e", source], esmEnv, options, {
+        cacheNamespace: "propagated-getter-refresh"
+      })
+      expect(result.exitCode, (result.stderr || result.stdout).slice(-1600)).toBe(0)
+      expect(result.stdout.trim()).toBe("propagated-getters:pass")
+    })
+
     it("does not refresh completed module bindings on repeated cache hits", async ({ expect }) => {
       await withFixtures(async (directory) => {
         const small = path.join(directory, "small.mjs")
