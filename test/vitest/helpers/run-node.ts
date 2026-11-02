@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { capturedOutputEnv } from "./captured-env.ts"
 
 export interface NodeResult {
   exitCode: number | null
@@ -76,13 +77,15 @@ export function runNode(
     const effectiveOptions = cacheNamespace
       ? isolateLoaderCache(options, esmEnv, cacheNamespace)
       : options
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      ESM_ENV: esmEnv,
-      NODE_ENV: nodeEnv,
-      NODE_OPTIONS: "--disable-warning=DEP0144",
-      ...effectiveOptions
-    }
+    const env = capturedOutputEnv(
+      {
+        ...process.env,
+        ESM_ENV: esmEnv,
+        NODE_ENV: nodeEnv,
+        NODE_OPTIONS: "--disable-warning=DEP0144"
+      },
+      effectiveOptions
+    )
 
     // A scenario without explicit options must not inherit a developer override.
     if (!Object.hasOwn(effectiveOptions, "ESM_OPTIONS")) {

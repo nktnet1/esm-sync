@@ -2,13 +2,12 @@ import assert from "node:assert/strict"
 import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { createWriteStream, realpathSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs, styleText } from "node:util"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
-const versions = [22, 24, 26] as const
 type Step = {
   id: string
   label: string
@@ -16,7 +15,6 @@ type Step = {
   args: string[]
   dependencies?: string[]
   env?: NodeJS.ProcessEnv
-  timeoutMs?: number
 }
 type Result = {
   id: string
@@ -26,7 +24,7 @@ type Result = {
   durationMs: number
   error?: string
 }
-type Execute = (step: Step, logFile: string, cleanup?: boolean) => Promise<number>
+type Execute = (step: Step, logFile: string) => Promise<number>
 type Report = {
   nonce: string
   nodeMajor: number
@@ -37,11 +35,48 @@ type Report = {
   results: Result[]
 }
 
-export function workerSteps(major: number, reports: string): Step[] {
-  assert.ok(
-    versions.some((value) => value === major),
-    "Expected Node 22, 24 or 26"
+/** Respect terminal colour preferences while allowing explicit FORCE_COLOR in pipes. */
+export function verificationColorsEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+  isTTY = Boolean(process.stdout.isTTY)
+): boolean {
+  if (env.FORCE_COLOR !== undefined) return env.FORCE_COLOR !== "0"
+  if (
+    env.NO_COLOR !== undefined ||
+    env.NODE_DISABLE_COLORS !== undefined ||
+    env.CLICOLOR === "0" ||
+    env.TERM === "dumb"
   )
+    return false
+  if (env.CLICOLOR_FORCE !== undefined && env.CLICOLOR_FORCE !== "0") return true
+  return isTTY
+}
+
+/** Child output is piped to both the terminal and log, so preserve TTY colour. */
+export function verificationChildEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  isTTY = Boolean(process.stdout.isTTY)
+): NodeJS.ProcessEnv {
+  const childEnv = { ...env }
+  if (verificationColorsEnabled(env, isTTY)) {
+    childEnv.FORCE_COLOR ??= "1"
+    // FORCE_COLOR takes precedence. Avoid Node's repeated conflicting-env warnings.
+    delete childEnv.NO_COLOR
+    delete childEnv.NODE_DISABLE_COLORS
+  } else if (env.NO_COLOR !== undefined || env.NODE_DISABLE_COLORS !== undefined) {
+    if (env.FORCE_COLOR === "0") delete childEnv.FORCE_COLOR
+  } else if (env.FORCE_COLOR === undefined) {
+    childEnv.FORCE_COLOR = "0"
+  }
+  return childEnv
+}
+
+function colorToken(color: Parameters<typeof styleText>[0], token: string): string {
+  return verificationColorsEnabled() ? styleText(color, token, { validateStream: false }) : token
+}
+
+/** Compose the repository's existing package scripts; CI handles the version matrix. */
+export function localVerificationSteps(reports: string): Step[] {
   const pnpm = (
     id: string,
     label: string,
@@ -49,93 +84,76 @@ export function workerSteps(major: number, reports: string): Step[] {
     dependencies: string[] = [],
     env: NodeJS.ProcessEnv = {}
   ): Step => ({ id, label, command: "pnpm", args, dependencies, env })
-  const steps = [pnpm("fixtures", "Prepare pinned vendor fixtures", ["fixtures:prepare"])]
-  if (major === 24)
-    steps.push(
-      pnpm("lint", "Check formatting and lint", ["lint"]),
-      pnpm("types", "Check implementation, tooling and declarations", ["typecheck"]),
-      pnpm("unused", "Check unused code and dependencies", ["lint:unused"])
-    )
-  for (const mode of ["development", "production"]) {
-    const build = `${mode}-build`
-    const env = { NODE_ENV: mode, ESM_ENV: `${mode}-test` }
-    steps.push(
-      pnpm(
-        build,
-        `Build ${mode} test bundles and native bridge`,
-        ["build", ...(mode === "production" ? ["--prod"] : []), "--test"],
-        ["fixtures"],
-        env
-      ),
-      pnpm(
-        `${mode}-tests`,
-        `Run every ${mode} Vitest project`,
-        [mode === "production" ? "test:run:prod" : "test:run"],
-        [build],
-        env
-      ),
-      pnpm(
-        `${mode}-conformance`,
-        `Run complete ${mode} Test262 selection`,
-        [
-          "test:conformance:run",
-          "--reporter",
-          "dot",
-          "--report",
-          path.join(reports, `${mode}-test262.json`)
-        ],
-        [build],
-        env
-      ),
-      pnpm(
-        `${mode}-packed`,
-        `Verify installed ${mode} CJS and ESM packages`,
-        ["test:packed", "--format=both"],
-        [build],
-        env
-      )
-    )
-  }
-  steps.push(
-    pnpm("release-build", "Build the actual release artifact", ["build:prod"], ["fixtures"]),
+  return [
+    pnpm("fixtures", "Prepare pinned vendor fixtures", ["fixtures:prepare"]),
+    pnpm("lint", "Check formatting and lint", ["lint"]),
+    pnpm("types", "Check implementation, tooling and declarations", ["typecheck"], ["fixtures"]),
+    pnpm("unused", "Check unused code and dependencies", ["lint:unused"], ["fixtures"]),
+    // CI also uses verify:prod; it builds with --prod --test and runs Vitest.
+    pnpm(
+      "production-tests",
+      "Run the production build and all Vitest projects",
+      ["verify:prod"],
+      ["fixtures"]
+    ),
+    pnpm(
+      "production-conformance",
+      "Run complete production Test262 selection",
+      [
+        "test:conformance:run",
+        "--reporter",
+        "dot",
+        "--report",
+        path.join(reports, "production-test262.json")
+      ],
+      ["production-tests"],
+      { NODE_ENV: "production", ESM_ENV: "production-test" }
+    ),
+    // The publishable build differs from the production test bundle.
+    pnpm(
+      "release-build",
+      "Build the publishable production package",
+      ["build:prod"],
+      ["production-conformance"]
+    ),
     pnpm(
       "release-packed",
       "Verify installed release CJS and ESM consumers",
       ["test:packed", "--format=both"],
-      ["release-build"],
-      { NODE_ENV: "production" }
+      ["release-build"]
     ),
     pnpm(
       "startup",
       "Verify synthetic startup and cache workloads",
       ["benchmark:startup", "--json"],
-      ["release-build"]
+      ["release-packed"]
     ),
     pnpm(
       "startup-await",
       "Verify async startup and cache workloads",
       ["benchmark:startup", "--await", "--json"],
-      ["release-build"]
+      ["release-packed"]
     ),
     pnpm(
       "await-benchmark",
       "Verify native await and cached graph workloads",
       ["benchmark:await", "--json"],
-      ["release-build"]
+      ["release-packed"]
+    ),
+    pnpm(
+      "registry",
+      "Verify disposable-registry publish and install",
+      ["test:verdaccio"],
+      ["release-packed"]
+    ),
+    pnpm("audit-all", "Audit production and development dependencies", ["audit:all"]),
+    pnpm(
+      "hosts",
+      "Verify Electron, VS Code, native USB and WebContainer hosts",
+      ["verify:hosts:docker"],
+      ["release-packed"]
     )
-  )
-  if (major === 24)
-    steps.push(
-      pnpm(
-        "registry",
-        "Verify disposable-registry publish, install and worker consumers",
-        ["test:verdaccio"],
-        ["release-build"]
-      ),
-      pnpm("audit-production", "Audit production dependencies", ["audit:prod"]),
-      pnpm("audit-all", "Audit development and production dependencies", ["audit:all"])
-    )
-  return steps
+  ]
 }
 
 export async function runSteps(
@@ -158,11 +176,11 @@ export async function runSteps(
         durationMs: 0,
         error: `Prerequisites failed: ${missing.join(", ")}`
       })
-      console.log(`${styleText("yellow", "BLOCKED")} ${step.label}: ${missing.join(", ")}`)
+      console.log(`${colorToken("yellow", "BLOCKED")} ${step.label}: ${missing.join(", ")}`)
       await writeFile(path.join(reports, "steps.json"), JSON.stringify(results, null, 2) + "\n")
       continue
     }
-    console.log(`\n[${index + 1}/${steps.length}] ${styleText("cyan", "RUN")} ${step.label}`)
+    console.log(`\n[${index + 1}/${steps.length}] ${colorToken("cyan", "RUN")} ${step.label}`)
     const started = Date.now()
     let code: number | null = null
     let error: string | undefined
@@ -181,7 +199,7 @@ export async function runSteps(
     }
     results.push(result)
     console.log(
-      `${styleText(code === 0 ? "green" : "red", code === 0 ? "PASS" : "FAIL")} ${step.label}${error ? `: ${error}` : ""}`
+      `${colorToken(code === 0 ? "green" : "red", code === 0 ? "PASS" : "FAIL")} ${step.label}${error ? `: ${error}` : ""}`
     )
     // Save progress even when a later check is interrupted or the machine stops.
     await writeFile(path.join(reports, "steps.json"), JSON.stringify(results, null, 2) + "\n")
@@ -219,26 +237,19 @@ function commandRunner(cwd: string): { execute: Execute; close: () => void } {
       process.removeListener("SIGINT", interrupt)
       process.removeListener("SIGTERM", interrupt)
     },
-    execute(step, logFile, cleanup = false) {
-      if (interrupted && !cleanup) return Promise.reject(new Error("Verification interrupted"))
+    execute(step, logFile) {
+      if (interrupted) return Promise.reject(new Error("Verification interrupted"))
       return new Promise((resolve, reject) => {
         const log = createWriteStream(logFile)
         const child = spawn(step.command, step.args, {
           cwd,
-          env: { ...process.env, ...step.env },
+          env: verificationChildEnv({ ...process.env, ...step.env }),
           shell: false,
           detached: true,
           stdio: ["ignore", "pipe", "pipe"]
         })
         active = child
         let failure: Error | undefined
-        const timer = step.timeoutMs
-          ? setTimeout(() => {
-              failure = new Error(`${step.label} exceeded ${step.timeoutMs} ms`)
-              stop(child, "SIGKILL")
-            }, step.timeoutMs)
-          : undefined
-        timer?.unref()
         child.stdout.pipe(process.stdout, { end: false })
         child.stdout.pipe(log, { end: false })
         child.stderr.pipe(process.stderr, { end: false })
@@ -248,14 +259,12 @@ function commandRunner(cwd: string): { execute: Execute; close: () => void } {
           stop(child, "SIGKILL")
         })
         child.once("error", (error) => {
-          if (timer) clearTimeout(timer)
           if (active === child) active = undefined
           log.end()
           reject(error)
         })
         child.once("close", (code, signal) => {
           if (force) clearTimeout(force)
-          if (timer) clearTimeout(timer)
           if (active === child) active = undefined
           log.end(() => {
             if (failure) reject(failure)
@@ -268,136 +277,18 @@ function commandRunner(cwd: string): { execute: Execute; close: () => void } {
   }
 }
 
-function object(value: unknown): Record<string, unknown> {
-  assert.ok(
-    value !== null && typeof value === "object" && !Array.isArray(value),
-    "Invalid verification report"
-  )
-  return value as Record<string, unknown>
-}
-
-export function validateWorkerReport(
-  value: unknown,
-  major: number,
-  nonce: string,
-  exitCode: number
-): void {
-  const report = object(value)
-  assert.equal(report.nonce, nonce, "Worker report belongs to another run")
-  assert.equal(report.nodeMajor, major, "Worker used the wrong Node version")
-  assert.match(String(report.node), new RegExp(`^v${major}\\.\\d+\\.\\d+$`))
-  assert.equal(report.platform, "linux")
-  assert.equal(report.arch, "x64")
-  assert.equal(report.passed, exitCode === 0)
-  assert.ok(Array.isArray(report.results))
-  const results: unknown[] = report.results
-  const expected = workerSteps(major, "/reports").map((step) => step.id)
-  assert.deepEqual(
-    results.map((result) => object(result).id),
-    expected,
-    "Worker omitted or reordered a check"
-  )
-  if (exitCode === 0)
-    for (const result of results) {
-      assert.equal(
-        object(result).status,
-        "passed",
-        "Worker reported success with incomplete checks"
-      )
-      assert.equal(object(result).exitCode, 0)
-    }
-}
-
-export async function runMatrix(
-  major: number,
-  reports: string,
-  pnpmVersion: string,
-  execute: Execute
-): Promise<number> {
-  const name = `esm-sync-verify-${major}-${randomUUID()}`
-  const nonce = randomUUID()
-  const iid = path.join(reports, "image-id")
-  const docker = (id: string, args: string[], cleanup = false) =>
-    execute(
-      {
-        id,
-        label: `Node ${major}: ${id}`,
-        command: "docker",
-        args,
-        timeoutMs: id === "build" ? 1_800_000 : id === "run" ? 28_800_000 : 30_000
-      },
-      path.join(reports, `${id}.log`),
-      cleanup
-    )
-  let attempted = false
-  try {
-    const build = await docker("build", [
-      "build",
-      "--platform",
-      "linux/amd64",
-      "--file",
-      "script/docker/verify-all.Dockerfile",
-      "--build-arg",
-      `NODE_MAJOR=${major}`,
-      "--build-arg",
-      `PNPM_VERSION=${pnpmVersion}`,
-      "--iidfile",
-      iid,
-      "."
-    ])
-    if (build !== 0) return build
-    const image = (await readFile(iid, "utf8")).trim()
-    assert.match(image, /^sha256:[a-f0-9]{64}$/, "Docker did not identify the built image")
-    attempted = true
-    const code = await docker("run", [
-      "run",
-      "--platform",
-      "linux/amd64",
-      "--init",
-      "--name",
-      name,
-      image,
-      "node",
-      "script/src/esm/verify-all.ts",
-      "--worker",
-      "--reports",
-      "/reports",
-      "--nonce",
-      nonce
-    ])
-    const copy = await docker("export", ["cp", `${name}:/reports/.`, reports], true)
-    assert.equal(copy, 0, "Cannot export worker reports")
-    validateWorkerReport(
-      JSON.parse(await readFile(path.join(reports, "summary.json"), "utf8")) as unknown,
-      major,
-      nonce,
-      code
-    )
-    return code
-  } finally {
-    if (attempted)
-      assert.equal(
-        await docker("cleanup", ["rm", "--force", name], true),
-        0,
-        "Cannot remove the verification container"
-      )
-  }
-}
-
 async function main() {
   const { values } = parseArgs({
     options: {
       help: { type: "boolean", short: "h" },
-      worker: { type: "boolean" },
       reports: { type: "string" },
-      nonce: { type: "string" },
       "babel-project": { type: "string" },
       "log4brains-project": { type: "string" }
     }
   })
   if (values.help) {
     console.log(
-      "pnpm verify:all [--reports <parent>] [--babel-project <installed-project>] [--log4brains-project <installed-project>]\nRequires Node 24+ and Docker Engine/Desktop on macOS or Linux. Runs complete development/production suites, Test262, installed packages and benchmarks on Node 22/24/26 in Linux/amd64 containers, plus lint/types/unused checks, audits, a disposable registry and automatic real-host verification. Saves logs/reports and removes containers. No production publishing. Optional original-application checks use the supplied installed projects and local development tooling."
+      "pnpm verify:all [--reports <parent>] [--babel-project <installed-project>] [--log4brains-project <installed-project>]\nUses the current Node.js runtime (22.18+), pnpm, installed development dependencies, a native build toolchain, and macOS or Linux. Orchestrates existing package.json scripts for production Vitest, Test262, release packaging, benchmarks, lint/types/unused checks, dependency audit, and Verdaccio. Regular checks run natively; Docker is needed only for host integration verification. Saves logs/reports; does not publish to npm. CI owns the Node/OS matrix."
     )
     return
   }
@@ -406,99 +297,41 @@ async function main() {
     process.platform === "linux" || process.platform === "darwin",
     "verify:all requires macOS or Linux"
   )
-  assert.ok(values.worker || major >= 24, "Run verify:all with Node 24 or newer")
-  const parent = path.resolve(values.reports ?? path.join(root, ".cache/verification"))
+  // Production Vitest cleans .cache; dist is retained during test fixture resets.
+  const parent = path.resolve(values.reports ?? path.join(root, "dist/verification"))
   await mkdir(parent, { recursive: true })
-  const reports = values.worker
-    ? await realpath(parent)
-    : await realpath(await mkdtemp(path.join(await realpath(parent), "run-")))
-  const nonce = values.nonce ?? randomUUID()
+  const reports = await realpath(await mkdtemp(path.join(await realpath(parent), "run-")))
+  const nonce = randomUUID()
   const runner = commandRunner(root)
+  console.log(
+    `\n${colorToken("cyan", "NODE")} ${process.version} (${process.platform}/${process.arch})`
+  )
   let results: Result[] = []
   try {
-    if (values.worker)
-      results = await runSteps(workerSteps(major, reports), reports, runner.execute)
-    else {
-      const preflight = await runner.execute(
-        {
-          id: "docker",
-          label: "Check Docker daemon",
-          command: "docker",
-          args: ["version", "--format", "{{.Server.Version}}"],
-          timeoutMs: 30_000
-        },
-        path.join(reports, "docker.log")
-      )
-      assert.equal(preflight, 0, "Docker Engine/Desktop and a running daemon are required")
-      const manifest = object(
-        JSON.parse(await readFile(path.join(root, "package.json"), "utf8")) as unknown
-      )
-      assert.equal(typeof manifest.packageManager, "string")
-      const match = /^pnpm@(\d+\.\d+\.\d+)$/.exec(manifest.packageManager as string)
-      assert.ok(match, "packageManager must pin an exact pnpm version")
-      const steps: Step[] = versions.map((version) => ({
-        id: `node-${version}`,
-        label: `Complete verification on Node ${version}`,
-        command: "matrix",
-        args: [String(version)]
-      }))
+    const steps = localVerificationSteps(reports)
+    if (values["babel-project"])
       steps.push({
-        id: "hosts",
-        label: "Offline Electron/VS Code/USB and real WebContainer verification",
-        command: process.execPath,
-        args: ["script/src/esm/verify-hosts-docker.ts"]
+        id: "babel-original",
+        label: "Verify installed original Babel application",
+        command: "pnpm",
+        dependencies: ["release-packed"],
+        args: ["verify:babel-repro", `--project=${realpathSync(values["babel-project"])}`, "--json"]
       })
-      if (values["babel-project"] || values["log4brains-project"])
-        steps.push(
-          {
-            id: "original-fixtures",
-            label: "Prepare local Acorn source for original applications",
-            command: process.execPath,
-            args: ["script/src/esm/cli.ts", "setup-fixtures", "acorn"]
-          },
-          {
-            id: "original-release",
-            label: "Build the local release for original applications",
-            command: process.execPath,
-            args: ["script/src/esm/cli.ts", "build", "--prod"],
-            dependencies: ["original-fixtures"]
-          }
-        )
-      if (values["babel-project"])
+    if (values["log4brains-project"])
+      for (const workload of ["version", "preview"])
         steps.push({
-          id: "babel-original",
-          label: "Verify installed original Babel application",
-          command: process.execPath,
-          dependencies: ["original-release"],
+          id: `log4brains-${workload}`,
+          label: `Verify original Log4brains ${workload}`,
+          command: "pnpm",
+          dependencies: ["release-packed"],
           args: [
-            "script/src/esm/cli.ts",
-            "verify-babel-repro",
-            `--project=${realpathSync(values["babel-project"])}`,
+            "benchmark:log4brains",
+            `--project=${realpathSync(values["log4brains-project"])}`,
+            `--workload=${workload}`,
             "--json"
           ]
         })
-      if (values["log4brains-project"])
-        for (const workload of ["version", "preview"])
-          steps.push({
-            id: `log4brains-${workload}`,
-            label: `Verify original Log4brains ${workload}`,
-            command: process.execPath,
-            dependencies: ["original-release"],
-            args: [
-              "script/src/esm/cli.ts",
-              "benchmark-log4brains",
-              `--project=${realpathSync(values["log4brains-project"])}`,
-              `--workload=${workload}`,
-              "--json"
-            ]
-          })
-      results = await runSteps(steps, reports, async (step, log) => {
-        if (step.command !== "matrix") return runner.execute(step, log)
-        const directory = path.join(reports, step.id)
-        await mkdir(directory)
-        return runMatrix(Number(step.args[0]), await realpath(directory), match[1]!, runner.execute)
-      })
-    }
+    results = await runSteps(steps, reports, runner.execute)
   } finally {
     runner.close()
     const report: Report = {
@@ -516,7 +349,7 @@ async function main() {
   const failed = results.filter((result) => result.status !== "passed")
   process.exitCode = failed.length ? 1 : 0
   console.log(
-    `${styleText(failed.length ? "red" : "green", failed.length ? "FAIL" : "PASS")} ${results.length - failed.length}/${results.length} verification stages`
+    `${colorToken(failed.length ? "red" : "green", failed.length ? "FAIL" : "PASS")} ${results.length - failed.length}/${results.length} verification stages`
   )
 }
 

@@ -51,7 +51,6 @@
     "@babel/polyfill",
     "@babel/runtime",
     "@std/esm",
-    "lefthook",
     "babel-plugin-transform-for-of-as-array",
     "babel-plugin-transform-remove-console",
     "babel-plugin-transform-remove-debugger",

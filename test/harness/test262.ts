@@ -10,6 +10,8 @@ import test262Parser from "test262-parser"
 
 const require = createRequire(import.meta.url)
 const test262NodeFlags = require("../script/test262-node-flags.js") as string[]
+const test262CaseEnvironment =
+  require("../script/test262-case-env.js") as typeof import("../../script/src/test262-case-env.js")
 const setupTest262 =
   require("../script/setup-test262.js") as typeof import("../../script/src/setup-test262.js")
 const { assertTest262Outcome } =
@@ -102,14 +104,8 @@ async function runCase(
       cwd: fixturePath,
       reject: false,
       timeout: 20_000,
-      env: {
-        ...process.env,
-        NODE_ENV: "development",
-        ESM_ENV: "development-test",
-        // The case itself still runs with its declared Script/Module goal.
-        // Imported fixtures are modules even without import/export syntax.
-        ESM_OPTIONS: "{cjs:false,cache:false,mode:'all'}"
-      }
+      env: test262CaseEnvironment(process.env),
+      extendEnv: false
     }
   )
 

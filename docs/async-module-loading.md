@@ -101,5 +101,5 @@ external I/O already started, nor can it preempt an infinite JavaScript callback
 
 The async Vitest suites and pinned Test262 checks cover evaluation, caching,
 disposal, failure identity, context restrictions, workers, and the bridge.
-`pnpm verify:all` includes them on Node 22/24/26. See
+`pnpm verify:all` includes them on the active Node.js version; CI checks Node 22/24/26. See
 [tooling and performance](tooling-and-performance.md) for focused await benchmarks.

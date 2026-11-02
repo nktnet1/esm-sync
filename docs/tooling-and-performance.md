@@ -10,8 +10,8 @@ pnpm benchmark:startup --await --json
 pnpm benchmark:await --samples=7 --iterations=5000 --json
 ```
 
-`verify:all` runs these self-contained workloads on Node 22/24/26 after release
-builds. Performance tools check workload correctness and cache identity without
+`verify:all` runs these self-contained workloads natively on the active Node.js version after the release
+build. Performance tools check workload correctness and cache identity without
 fragile timing thresholds. Results describe the measured machine, runtime,
 build, and workload; they are not universal latency or memory guarantees.
 

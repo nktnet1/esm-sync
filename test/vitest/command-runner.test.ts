@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
-import { describe, it, expect } from "vitest"
+import { stripVTControlCharacters } from "node:util"
+import { describe, it, expect, vi } from "vitest"
+import { capturedOutputEnv } from "./helpers/captured-env.ts"
+import { runNode } from "./helpers/run-node.ts"
 import { runNodeCommand } from "./helpers/run-command.ts"
 
 const cwd = os.tmpdir()
@@ -13,6 +16,46 @@ describe("Node command diagnostics", () => {
     const result = await runNodeCommand(["-e", output], { cwd, timeout: 10_000 })
     expect(result.stdout, result.diagnostic).toBe("captured stdout\n")
     expect(result.stderr, result.diagnostic).toBe("captured stderr\n")
+  })
+
+  it("keeps parent presentation colours out of captured Node output", async () => {
+    expect(capturedOutputEnv({ FORCE_COLOR: "1", CLICOLOR_FORCE: "1", PATH: "/bin" })).toEqual({
+      PATH: "/bin"
+    })
+    expect(
+      capturedOutputEnv({ FORCE_COLOR: "1" }, { FORCE_COLOR: "2", NO_COLOR: undefined })
+    ).toMatchObject({ FORCE_COLOR: "2" })
+
+    vi.stubEnv("FORCE_COLOR", "1")
+    vi.stubEnv("CLICOLOR_FORCE", "1")
+    try {
+      const command = await runNodeCommand(["-e", "console.log(42)"], {
+        cwd,
+        timeout: 10_000,
+        env: { ...process.env }
+      })
+      expect(command.stdout, command.diagnostic).toBe("42\n")
+      expect(command.stderr, command.diagnostic).toBe("")
+
+      const fixture = await runNode(["-e", "console.log(42)"], "production-test", {}, { cwd })
+      expect(fixture.exitCode, fixture.stderr).toBe(0)
+      expect(fixture.stdout).toBe("42\n")
+      expect(fixture.stderr).toBe("")
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("permits explicit colour when a fixture tests ANSI behaviour", async () => {
+    const result = await runNode(
+      ["-e", "console.log(42)"],
+      "production-test",
+      { FORCE_COLOR: "1", NO_COLOR: undefined, NODE_DISABLE_COLORS: undefined },
+      { cwd }
+    )
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(stripVTControlCharacters(result.stdout)).toBe("42\n")
+    expect(result.stdout).not.toBe("42\n")
   })
 
   it("reports nonzero exits with runtime, command, directory and both output streams", async () => {

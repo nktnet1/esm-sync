@@ -43,4 +43,6 @@ push/PR changes. Account for those filters if its individual status is required.
 For exhaustive local verification on macOS or Linux, use `pnpm verify:all` or
 `node script/src/esm/verify-all.ts`. It runs all repository suites, full Test262,
 package/registry/audit checks, benchmarks, and host checks; it does not apply
-CI's changed-path selection. Linux containers complement the OS matrix.
+CI's changed-path selection. It runs the existing verification scripts natively on the active Node.js version, with Docker
+reserved for host integrations. The Node 22/24/26 and operating-system matrix
+is handled by CI.

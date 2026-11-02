@@ -2,10 +2,10 @@
 
 ## Source and build boundaries
 
-Use Node 24.14+ for development tooling, the pnpm version pinned in
+Use Node 22.18+ for development tooling, the pnpm version pinned in
 `package.json`, matching Node headers, and a C++20 compiler for the native async
 bridge. Install development dependencies and prepare fixtures before a local
-build. The complete Docker driver handles those steps in containers.
+build. `verify:all` prepares fixtures and runs regular checks natively.
 
 Owned implementation and tooling live in `src/`, `script/src/`,
 `test/harness/`, and `test/vitest/`. Generated bundles, declarations, native
@@ -25,22 +25,31 @@ in `config/babel.ts` remain necessary for the loader bundle.
 node script/src/esm/verify-all.ts
 ```
 
-The standalone driver requires macOS or Linux, Node 24.14+, and a running Docker
-daemon, including Docker Desktop on Apple Silicon. It uses Linux/amd64 images
-for Node 22/24/26 and leaves the checkout's dependencies and build outputs alone.
-It runs every Vitest project in both development and production, the complete
-prepared Test262 selection in both modes, installed CJS/ESM consumers, release
-builds, and startup/await workloads. Node 24 also runs lint, typechecking, Knip,
-registry publish/install checks, and production/full dependency audits. The
-existing host driver then runs its offline and online checks.
+Run `pnpm verify:all` on macOS or Linux with your active Node.js version
+(22.18+), pnpm, installed
+development dependencies, and a native build toolchain. The driver invokes the
+existing `package.json` scripts on the host: `fixtures:prepare`, `lint`,
+`typecheck`, `lint:unused`, `verify:prod` (production test build and all Vitest
+projects), one
+production `test:conformance:run`, `build:prod`, `test:packed`, startup/await
+benchmarks, `test:verdaccio`, and `audit:all`. Only `verify:hosts:docker` uses
+Docker for Electron/VS Code/USB/WebContainer integration checks.
 
-Stages run sequentially. A failed build blocks its dependent checks; independent
-checks continue. Any failed, blocked, missing, stale, or inconsistent worker
-result makes the run fail. Logs, incremental `steps.json`, Test262 results, and
-`summary.json` go under `.cache/verification/run-*/`; `--reports <parent>` changes
-the destination. Containers are removed after success or failure. Docker may
-retain images/build caches for subsequent runs. Nothing publishes to npm.
-Host-specific diagnostics also remain under `.cache/host-verification/`.
+The test build and publishable production build are different outputs, so both
+are required. The complete Test262 suite runs **once**, with production
+runtime settings, after the test build. The release package is checked after
+the publishable build; development-mode suites are left to CI and focused
+local commands.
+
+Stages run sequentially. Failed prerequisites block dependent checks while
+independent checks continue. Logs, incremental `steps.json`, Test262 results,
+and `summary.json` are written under `dist/verification/run-*/`;
+`--reports <parent>` changes the destination. The default is under `dist/`
+because production Vitest removes the checkout's `.cache` directory. Host-specific
+diagnostics remain
+under `.cache/host-verification/`. The driver preserves terminal colours
+across piped subprocesses; `NO_COLOR` or `FORCE_COLOR=0` disables colour, and
+`FORCE_COLOR=1` enables it when output is redirected. Nothing publishes to npm.
 
 Original Babel and Log4brains applications require separately installed source
 projects; their complete dependency graphs are not checked into this repository.

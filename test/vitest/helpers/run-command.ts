@@ -1,6 +1,7 @@
 import { expect } from "vitest"
 import { performance } from "node:perf_hooks"
 import execa from "execa"
+import { capturedOutputEnv } from "./captured-env.ts"
 
 export async function runNodeCommand(
   args: readonly string[],
@@ -19,7 +20,8 @@ export async function runNodeCommand(
   const started = performance.now()
   const result = await execa(process.execPath, args, {
     cwd,
-    env,
+    env: capturedOutputEnv(env),
+    extendEnv: false,
     timeout,
     stdin: "ignore",
     windowsHide: true,

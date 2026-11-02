@@ -274,40 +274,45 @@ console.log(JSON.stringify(result))\n`
       )
     })
 
-    it("honours custom, node-addons and module-sync conditions", async ({ expect }) => {
-      await withFiles(
-        {
-          "package.json": JSON.stringify({
-            type: "module",
-            imports: {
-              "#value": {
-                development: "./development.cjs",
-                "node-addons": "./addons.cjs",
-                "module-sync": "./sync.cjs",
-                node: "./node.cjs"
+    for (const [caseName, flags] of Object.entries({
+      default: [],
+      development: ["--conditions=development"],
+      "no-addons": ["--no-addons"],
+      "no-addons-no-require-module": ["--no-addons", "--no-experimental-require-module"]
+    })) {
+      // Keep each flag combination within its own timeout while still comparing
+      // native Node, uncached, cold-cache and warm-cache behaviour in every case.
+      it(`honours custom, node-addons and module-sync conditions (${caseName})`, async ({
+        expect
+      }) => {
+        await withFiles(
+          {
+            "package.json": JSON.stringify({
+              type: "module",
+              imports: {
+                "#value": {
+                  development: "./development.cjs",
+                  "node-addons": "./addons.cjs",
+                  "module-sync": "./sync.cjs",
+                  node: "./node.cjs"
+                }
               }
-            }
-          }),
-          ...Object.fromEntries(
-            ["development", "addons", "sync", "node"].map((name) => [
-              name + ".cjs",
-              `module.exports = '${name}'\n`
-            ])
-          ),
-          "entry.mjs":
-            "console.log(JSON.stringify([(await import('#value')).default, import.meta.resolve('#value')]))\n"
-        },
-        async (directory) => {
-          for (const flags of [
-            [],
-            ["--conditions=development"],
-            ["--no-addons"],
-            ["--no-addons", "--no-experimental-require-module"]
-          ])
+            }),
+            ...Object.fromEntries(
+              ["development", "addons", "sync", "node"].map((name) => [
+                name + ".cjs",
+                `module.exports = '${name}'\n`
+              ])
+            ),
+            "entry.mjs":
+              "console.log(JSON.stringify([(await import('#value')).default, import.meta.resolve('#value')]))\n"
+          },
+          async (directory) => {
             await compare(expect, directory, esmEnv, "entry.mjs", flags)
-        }
-      )
-    })
+          }
+        )
+      })
+    }
 
     it("provides stable writable metadata, entry-point flags and a detached lexical resolver", async ({
       expect

@@ -24,6 +24,20 @@ function filterFor(root: string, paths: typeof path) {
 }
 
 describe("test fixture cleanup safety", () => {
+  it("retains verify:all reports in dist while still clearing the checkout cache", () => {
+    const project = "/repo/esm-sync"
+    const shouldClean = createTestCleanupFilter(
+      {
+        keptPaths: [path.posix.join(project, "dist")],
+        nodeModulesPath: path.posix.join(project, "node_modules"),
+        sharedCachePath: path.posix.join(project, "node_modules/.cache")
+      },
+      path.posix
+    )
+    expect(shouldClean(path.posix.join(project, "dist/verification/run-example"))).toBe(false)
+    expect(shouldClean(path.posix.join(project, ".cache"))).toBe(true)
+  })
+
   it("preserves re-included native source patches while deleting ignored build artifacts", async () => {
     const directory = await realpath(await mkdtemp(path.join(os.tmpdir(), "esm-cleanup ü -")))
     try {

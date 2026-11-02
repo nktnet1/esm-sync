@@ -76,22 +76,22 @@ and bootstrap caches. This does not re-evaluate modules already in memory.
 
 ## Development
 
-With Node 24.14+ and Docker Engine/Desktop on macOS or Linux, run the complete
-self-contained verification from the checkout:
+On macOS or Linux with Node.js 22.18+ (using your current Node version), pnpm,
+and development dependencies installed, run
+full local release verification:
 
 ```sh
-node script/src/esm/verify-all.ts
+pnpm verify:all
 ```
 
-`pnpm verify:all` is the equivalent package script. Dependencies and native
-builds run in disposable Linux/amd64 containers. The command runs all Vitest
-projects and full Test262 selection in development and production on Node
-22/24/26, installed CJS/ESM packages, release benchmarks, formatting, types,
-unused-code checks, dependency audits, a disposable registry, and automated
-Electron/VS Code/USB/WebContainer checks. It requires network access for image,
-package, fixture, and real WebContainer downloads. A failed or blocked stage
-makes the command fail; logs and summaries are saved under `.cache/verification/`.
-This complements the operating-system CI matrix.
+This orchestrates the existing `package.json` scripts **natively** for the
+fixture setup, the production test build and complete Vitest suite (`verify:prod`), one production
+Test262 run, the publishable build and installed-package tests, benchmarks,
+lint, typechecking, Knip, a dependency audit, and a disposable Verdaccio registry.
+Only the Electron/VS Code/USB/WebContainer host checks use Docker. The command
+requires network access for fixture and host dependencies. CI tests other Node
+versions and operating systems. A failed or blocked stage fails verification;
+logs and summaries are saved under `dist/verification/`. Nothing publishes to npm.
 
 - [Maintainer guide and focused commands](docs/MAINTAINER_GUIDE.md)
 - [CI selection and caches](docs/ci.md)

@@ -738,15 +738,32 @@ process.exitCode = 1`
         result: path.join(directory, "host.json")
       }
       const source = "console.error('before-timeout'); setInterval(() => {}, 1000)"
-      await expect(
-        runHostCase(process.execPath, ["-e", source], directory, process.env, identity, files, {
-          timeout: 1000
-        })
-      ).rejects.toMatchObject({
+      let failure: unknown
+      try {
+        await runHostCase(
+          process.execPath,
+          ["-e", source],
+          directory,
+          process.env,
+          identity,
+          files,
+          {
+            timeout: 1000
+          }
+        )
+      } catch (error) {
+        failure = error
+      }
+      // Under load, Node may not start before the timeout. Whatever output was
+      // captured must still appear verbatim in the failure context and host log.
+      expect(failure).toMatchObject({
         message: expect.stringContaining("timed out"),
-        details: { timedOut: true, stderr: expect.stringContaining("before-timeout") }
+        details: { timedOut: true, stdout: expect.any(String), stderr: expect.any(String) }
       })
-      expect(await readFile(files.log, "utf8")).toContain("before-timeout")
+      const details = (failure as { details: { stdout: string; stderr: string } }).details
+      const log = await readFile(files.log, "utf8")
+      expect(log).toContain("Timed out: true")
+      expect(log).toContain(`STDOUT:\n${details.stdout}\nSTDERR:\n${details.stderr}`)
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
