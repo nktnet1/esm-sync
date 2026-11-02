@@ -6,14 +6,14 @@ This fork includes:
 
 - Updates from [@httptoolkit/esm](https://github.com/httptoolkit/esm) and the
   [esm-wallaby fork](https://www.npmjs.com/package/esm-wallaby), plus modern
-  JavaScript syntax, `node:` imports, and Node 22/24/26 compatibility tests.
+  JavaScript syntax, `node:` imports, and compatibility with recent Node.js versions.
 - Support for modules that declare their own `require`, including
   `const require = createRequire(import.meta.url)`.
 - Modern package `exports` and private `imports` maps, conditional resolution,
   dynamic imports, and Node-compatible `import.meta` helpers.
 - Synchronous ESM graphs with top-level `await`, async iteration, and resource
-  disposal. Timer- and I/O-settled awaits require an optional native bridge on
-  Node 22+.
+  disposal. Timer- and I/O-settled awaits require an optional native bridge
+  on supported Node.js runtimes.
 - Deferred imports, source-phase imports, and text/bytes import attributes
   (with runtime requirements for immutable bytes).
 - Faster cached imports and large re-export graphs, improved live bindings,
@@ -23,6 +23,8 @@ This fork includes:
 This package is maintained for use in the [import-sync](https://github.com/nktnet1/import-sync) project.
 
 You may also be interested in [jiti](https://github.com/unjs/jiti), another loader supporting synchronous imports.
+
+See the [release notes](docs/releases/) for recent changes.
 
 ## Install
 
@@ -67,7 +69,6 @@ CommonJS interoperability is enabled by default for `.js` modules. Strict `.mjs`
 
 Out of the box `esm-sync` just works, no configuration necessary, and supports:
 
-- [Test262](https://github.com/tc39/test262) conformance coverage
 - [`import`](https://ponyfoo.com/articles/es6-modules-in-depth#import)/[`export`](https://ponyfoo.com/articles/es6-modules-in-depth#export),
   including string-named exports, star re-exports, cyclic graphs, and
   [live bindings](https://ponyfoo.com/articles/es6-modules-in-depth#bindings-not-values)
@@ -81,9 +82,12 @@ Out of the box `esm-sync` just works, no configuration necessary, and supports:
 - File URLs, symlink-aware module identity, and persistent compiled-code/V8 bytecode caching
 - Node `stdin`, [`--eval`](https://nodejs.org/api/cli.html#cli_e_eval_script),
   [`--print`](https://nodejs.org/api/cli.html#cli_p_print_script), and
-  [`--check`](https://nodejs.org/api/cli.html#cli_c_check) _(Node 10+)_
-- Integration with Node REPLs, including programmatic REPLs, and regression
-  coverage for Jest, coverage tools, Electron, VS Code, and WebContainer
+  [`--check`](https://nodejs.org/api/cli.html#cli_c_check)
+- Compatibility with Node REPLs (including programmatic REPLs), Jest, coverage
+  tools, Electron, VS Code, and WebContainer environments
+
+JavaScript semantics are also tested against selected
+[Test262](https://github.com/tc39/test262) conformance cases.
 
 ### Synchronous top-level await
 
@@ -102,10 +106,10 @@ console.log(load("./status.mjs").status) // ready
 ```
 
 Microtask-settled awaits work without a native addon. Awaits requiring timers
-or I/O need the optional Node 22+ native bridge and must run during initial
-CommonJS startup. Synchronous re-entry from an active callback or Promise
-reaction is restricted. If an await cannot complete, the loader reports a
-pending, re-entry, or timeout error rather than partial exports. Configure the
+or I/O need the optional native bridge on supported runtimes and must run
+during initial CommonJS startup. Synchronous re-entry from an active callback
+or Promise reaction is restricted. If an await cannot complete, the loader
+reports a pending, re-entry, or timeout error rather than partial exports. Configure the
 polling deadline with `ESM_SYNC_AWAIT_TIMEOUT_MS` (default `5000` milliseconds).
 
 See [synchronous async-module loading](docs/async-module-loading.md) for
@@ -146,9 +150,9 @@ See [interoperability and migration](docs/interop-and-migration.md) for the
 precise default-export rules, Mocha setup, package resolution, and mocking
 behaviour.
 
-Ordinary loading retains the declared Node.js `>=6` engine range, but newer
-syntax, runtime APIs, and the native bridge have additional host requirements.
-The CI matrix covers Node 22, 24, and 26 on Linux, macOS, and Windows.
+The supported Node.js engine range is declared in [package.json](package.json).
+Newer syntax, runtime APIs, and the optional native bridge have additional
+host requirements described in the linked feature documentation.
 
 ## Options
 
@@ -273,7 +277,7 @@ Specify options with one of the following:
 <tr>
   <td valign="top"><code>"wasm":false</code></td>
   <td>
-    <p>A boolean for <a href="https://nodejs.org/api/globals.html#globals_webassembly">WebAssembly</a> module support. <em>(Node 8+)</em></p>
+    <p>A boolean for <a href="https://nodejs.org/api/globals.html#globals_webassembly">WebAssembly</a> module support, when available in the host runtime.</p>
   </td>
 </tr>
 <tr>
@@ -361,7 +365,7 @@ runtime semantics.
   [`ava`](https://github.com/avajs/ava/blob/master/docs/recipes/es-modules.md),
   [`nodemon`](https://nodemon.io/),
   [`nyc`](https://github.com/istanbuljs/nyc#require-additional-modules),
-  [`qunit`](https://github.com/qunitjs/qunit/releases/tag/2.6.0),
+  [`qunit`](https://qunitjs.com/),
   [`tape`](https://github.com/substack/tape#preloading-modules), and
   [`webpack`](https://webpack.js.org/api/cli/#config-options).
 
@@ -370,16 +374,3 @@ runtime semantics.
 
 - For Mocha, preload with Node's `--require esm-sync` rather than Mocha's own
   `--require esm-sync` option. See [Mocha setup and interoperability](docs/interop-and-migration.md).
-
-## Development
-
-See the [v3.4.0](docs/releases/v3.4.0.md) and
-[v3.5.0](docs/releases/v3.5.0.md) release notes for recent changes, and the
-[host integration guide](docs/host-integrations.md) for the scope of Electron,
-VS Code, native-addon, and WebContainer testing.
-
-On macOS or Linux with Node.js 22.18+, pnpm, and installed development
-dependencies, run `pnpm verify:all` for local release verification. It uses your
-active Node version and runs production checks natively; Docker is needed only
-for host integration tests. See the [maintainer guide](docs/MAINTAINER_GUIDE.md)
-for requirements and focused test commands.
