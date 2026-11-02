@@ -717,7 +717,19 @@ class Entry {
 
     this._changed = false
 
-    runGetters(this, names)
+    // When a non-cyclic ESM module is only linked, its exports cannot yet be
+    // observed through the completed module namespace. Re-evaluating all of
+    // its getters after each child finishes is quadratic for large export-star
+    // barrels. The module's first execution performs the full refresh.
+    if (
+      this.type !== TYPE_ESM ||
+      this.circular ||
+      this.state >= STATE_EXECUTION_STARTED ||
+      this._loaded === LOAD_COMPLETED ||
+      updateType !== UPDATE_TYPE_LIVE
+    ) {
+      runGetters(this, names)
+    }
     runSetters(
       this,
       names,
