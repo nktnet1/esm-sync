@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type Entry from "../../entry.js"
 import ENTRY from "../../constant/entry.js"
 import ENV from "../../constant/env.js"
@@ -27,15 +28,16 @@ function loader(entry: Entry, filename: string, parentEntry: Entry | null) {
   const parentExt = parentEntry.extname
   const parentType = parentEntry.type
   const parentIsCJS = parentType === TYPE_CJS
-  const parentIsMJS = parentExt === ".mjs"
+  const parentIsMJS = isStrictESMExtension(parentExt)
   const parentIsPseudo = parentType === TYPE_PSEUDO
 
   if (
-    (ENV.NYC && ext === ".mjs") ||
+    (ENV.NYC && isStrictESMExtension(ext)) ||
     parentIsCJS ||
     parentIsPseudo ||
     ext === ".js" ||
-    ((ext === ".cjs" || parentEntry.package.options.cjs.extensions) && !parentIsMJS)
+    ((ext === ".cjs" || ext === ".cts" || parentEntry.package.options.cjs.extensions) &&
+      !parentIsMJS)
   ) {
     extensions = Module._extensions
   }
@@ -52,7 +54,7 @@ function loader(entry: Entry, filename: string, parentEntry: Entry | null) {
     if (
       parentIsCJS ||
       parentIsPseudo ||
-      (entry.package.options.cjs.paths && !parentIsMJS && ext !== ".mjs")
+      (entry.package.options.cjs.paths && !parentIsMJS && !isStrictESMExtension(ext))
     ) {
       mod.paths = Module._nodeModulePaths(entry.dirname!)
     } else {
@@ -66,6 +68,9 @@ function loader(entry: Entry, filename: string, parentEntry: Entry | null) {
     foundExt !== ".js" &&
     foundExt !== ".json" &&
     foundExt !== ".mjs" &&
+    foundExt !== ".ts" &&
+    foundExt !== ".mts" &&
+    foundExt !== ".cts" &&
     foundExt !== ".wasm"
   ) {
     entry.state = STATE_PARSING_COMPLETED

@@ -13,6 +13,10 @@ extensions[".js"] = function (mod: ModuleRecord, filename: string) {
   mod._compile(stripBOM(readFileSync(filename, "utf8")), filename)
 }
 
+extensions[".ts"] = extensions[".js"]
+extensions[".mts"] = extensions[".js"]
+extensions[".cts"] = extensions[".js"]
+
 extensions[".json"] = function (mod: ModuleRecord, filename: string) {
   const content = readFileSync(filename, "utf8")
 

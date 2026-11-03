@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type { ModuleRecord } from "../../types/runtime.js"
 // Based on `Module._resolveFilename()`.
 // Copyright Node.js contributors. Released under MIT license:
@@ -158,7 +159,7 @@ const resolveFilename = maskFunction(function (
       maskOptions.filename = parentEntry.filename
 
       maskOptions.inModule =
-        (!parentEntry.package.options.cjs.paths || parentEntry.extname === ".mjs") &&
+        (!parentEntry.package.options.cjs.paths || isStrictESMExtension(parentEntry.extname)) &&
         parentType !== TYPE_CJS &&
         parentType !== TYPE_PSEUDO
     }
