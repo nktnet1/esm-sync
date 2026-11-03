@@ -31,9 +31,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      # Follow Pipeline until its lockfile refresh is committed.
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Prepare vendor fixtures
         uses: ./.github/actions/prepare-fixtures

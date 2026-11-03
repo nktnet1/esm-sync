@@ -80,10 +80,8 @@ jobs:
         with:
           arch: x64
 
-      # Refresh the lockfile before re-enabling frozen installs; lockfile
-      # changes are kept out of incremental patches.
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Prepare vendor fixtures
         uses: ./.github/actions/prepare-fixtures
@@ -156,7 +154,7 @@ jobs:
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Audit production dependencies
         if: needs.changes.outputs.audit == 'true'
