@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type Entry from "../../entry.js"
 import ENTRY from "../../constant/entry.js"
 
@@ -83,7 +84,7 @@ function init() {
   }
 
   function validate(entry: Entry, parentEntry: Entry) {
-    const parentIsMJS = parentEntry.extname === ".mjs"
+    const parentIsMJS = isStrictESMExtension(parentEntry.extname)
 
     const parentNamedExports = parentEntry.package.options.cjs.namedExports && !parentIsMJS
 

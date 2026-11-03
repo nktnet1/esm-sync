@@ -1,3 +1,4 @@
+import isStrictESMExtension from "./path/is-strict-esm-extension.js"
 import type Entry from "./entry.js"
 import type { Getter, Setter, Namespace } from "./types/runtime.js"
 import type {
@@ -249,7 +250,7 @@ const Runtime: RuntimeMethods & {
         if (
           getter !== void 0 &&
           getter === childGetter &&
-          (childEntry.type === TYPE_ESM || entry.extname !== ".mjs")
+          (childEntry.type === TYPE_ESM || !isStrictESMExtension(entry.extname))
         ) {
           // Re-exporting the same getter needs no rebinding. Retain the
           // CJS-to-.mjs wrapper for namespace interoperability.
@@ -296,7 +297,7 @@ const Runtime: RuntimeMethods & {
 
     const { entry } = this
     const { cjs } = entry.package.options
-    const isMJS = entry.extname === ".mjs"
+    const isMJS = isStrictESMExtension(entry.extname)
 
     const cjsVars = cjs.vars && !isMJS
 
@@ -329,7 +330,7 @@ const Runtime: RuntimeMethods & {
 
     const { entry } = this
     const { cjs } = entry.package.options
-    const isMJS = entry.extname === ".mjs"
+    const isMJS = isStrictESMExtension(entry.extname)
     const { runtimeName } = entry
 
     const cjsVars = cjs.vars && !isMJS
@@ -653,7 +654,7 @@ const Runtime: RuntimeMethods & {
         } catch (e) {
           if (!Loader.state.package.default!.options.debug && isStackTraceMaskable(e)) {
             maskStackTrace(e, {
-              inModule: !entry.package.options.cjs.paths || entry.extname === ".mjs"
+              inModule: !entry.package.options.cjs.paths || isStrictESMExtension(entry.extname)
             })
           } else {
             toExternalError(e)
@@ -807,7 +808,7 @@ function runESM(entry: Entry, moduleWrapper: ModuleWrapper): unknown {
 
   mod.exports = exported
 
-  if (entry.package.options.cjs.vars && entry.extname !== ".mjs") {
+  if (entry.package.options.cjs.vars && !isStrictESMExtension(entry.extname)) {
     return Reflect.apply(moduleWrapper, exported, [exported, makeRequireFunction(mod)])
   }
 

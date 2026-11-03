@@ -36,6 +36,7 @@ export const runtimeTests = [
   "test262-fixture-loading",
   "test262-instantiation",
   "top-level-await",
+  "typescript-modules",
   "upstream-regressions",
   "upstream-dynamic-import",
   "value-imports",

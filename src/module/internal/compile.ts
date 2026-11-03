@@ -1,3 +1,5 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
+import stripTypeScript from "./strip-typescript.js"
 import moduleGenerator from "./module-generator.js"
 import readProperty from "../../util/read-property.js"
 type WasmImports = Record<string, string | WebAssembly.ModuleImports>
@@ -91,12 +93,14 @@ function compile(
   let isWASM = false
   let sourceType = SOURCE_TYPE_SCRIPT
 
-  if (ext === ".cjs") {
+  if (content !== null) content = stripTypeScript(content, ext, filename)
+
+  if (ext === ".cjs" || ext === ".cts") {
     hint = SOURCE_TYPE_SCRIPT
   } else if (ext === ".json") {
     hint = SOURCE_TYPE_JSON
     isJSON = true
-  } else if (ext === ".mjs") {
+  } else if (isStrictESMExtension(ext)) {
     hint = SOURCE_TYPE_MODULE
   } else if (ext === ".wasm") {
     hint = SOURCE_TYPE_WASM
@@ -111,7 +115,7 @@ function compile(
 
   const defaultPkg = Loader.state.package.default
   const isDefaultPkg = pkg === defaultPkg
-  const isMJS = entry.extname === ".mjs"
+  const isMJS = isStrictESMExtension(entry.extname)
 
   let { compileData } = entry
 
@@ -350,7 +354,7 @@ function tryRun(
     { type } = entry
   const isESM = type === TYPE_ESM
   const isJSON = type === TYPE_JSON
-  const isMJS = entry.extname === ".mjs"
+  const isMJS = isStrictESMExtension(entry.extname)
   const isWASM = type === TYPE_WASM
 
   let { runtime } = entry
@@ -532,7 +536,7 @@ function useAsync(entry: Entry) {
   return (
     entry.package.options.await &&
     shared.support.await &&
-    entry.extname !== ".mjs" &&
+    !isStrictESMExtension(entry.extname) &&
     entry.compileData!.firstAwaitOutsideFunction !== null
   )
 }
@@ -577,7 +581,7 @@ function jsonParse(
     useFallback =
       parentEntry !== null &&
       parentEntry.package.options.cjs.extensions &&
-      parentEntry.extname !== ".mjs"
+      !isStrictESMExtension(parentEntry.extname)
   }
 
   const content = useFallback ? null : stripBOM(readFile(filename, "utf8"))

@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type { ModuleRecord } from "../../types/runtime.js"
 import Reflect from "../../reflection.js"
 // Based on `Module._load()`.
@@ -68,7 +69,7 @@ const load = maskFunction(function (
     loaderCalled = true
     cache[filename] = entry.module
 
-    if (parentIsStrict || entry.extname === ".mjs") {
+    if (parentIsStrict || isStrictESMExtension(entry.extname)) {
       entry._passthruCompile = true
     }
 

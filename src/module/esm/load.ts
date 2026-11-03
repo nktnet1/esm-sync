@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type { ModuleRecord } from "../../types/runtime.js"
 import Reflect from "../../reflection.js"
 import ENTRY from "../../constant/entry.js"
@@ -38,7 +39,7 @@ function load(
   const { parsing } = shared.moduleState
   const parentEntry = Entry.get(parent)
   const parentCJS = parentEntry === null ? null : parentEntry.package.options.cjs
-  const parentIsMJS = parentEntry === null ? false : parentEntry.extname === ".mjs"
+  const parentIsMJS = parentEntry === null ? false : isStrictESMExtension(parentEntry.extname)
   const parentType = parentEntry === null ? -1 : parentEntry.type
 
   // Private names are package-map keys, not URL fragments. Resolve them

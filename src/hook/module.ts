@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../path/is-strict-esm-extension.js"
 import type { ModuleRecord, ModuleConstructor } from "../types/runtime.js"
 type ExtensionCompiler = (this: unknown, mod: ModuleRecord, filename: string) => unknown
 import Reflect from "../reflection.js"
@@ -42,7 +43,7 @@ const { MODE_ALL, MODE_AUTO, RANGE_ALL } = PACKAGE
 
 const { ERR_REQUIRE_ESM } = errors
 
-const exts = [".js", ".json", ".mjs", ".cjs", ".wasm"]
+const exts = [".js", ".json", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".wasm"]
 const importExportRegExp = /^.*?\b(?:im|ex)port\b/
 const realExtsJS = RealModule._extensions[".js"]!
 
@@ -142,7 +143,7 @@ function hook(Mod: ModuleConstructor, parent?: unknown) {
       setPrototypeOf(mod, Module.prototype)
     }
 
-    if (entry._passthruCompile || (shouldOverwrite && ext === ".mjs")) {
+    if (entry._passthruCompile || (shouldOverwrite && isStrictESMExtension(ext))) {
       entry._passthruCompile = false
       return compileFallback()
     }
@@ -210,6 +211,9 @@ function hook(Mod: ModuleConstructor, parent?: unknown) {
     // their zero-transform load to Node's extension handler can execute them
     // as CommonJS (or execute their bodies during the linking pass).
     if (
+      // Give preinstalled TypeScript hooks (ts-node, Babel, NYC) first chance
+      // to compile. Only bypass native .js, which cannot parse type syntax.
+      ((ext !== ".ts" && ext !== ".mts" && ext !== ".cts") || func !== realExtsJS) &&
       !(ext === ".js" && pkg.options.mode === MODE_ALL) &&
       (compileData === null || compileData.transforms === 0) &&
       passthruMap.get(func)
@@ -236,7 +240,7 @@ function hook(Mod: ModuleConstructor, parent?: unknown) {
   }
 
   for (const ext of exts) {
-    const extIsMJS = ext === ".mjs"
+    const extIsMJS = isStrictESMExtension(ext)
 
     if (extIsMJS && !has(_extensions, ext)) {
       _extensions[ext] = maskFunction(mjsCompiler, realExtsJS)

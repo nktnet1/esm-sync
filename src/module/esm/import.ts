@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type { ModuleRecord } from "../../types/runtime.js"
 import type { SetterArgs } from "../../types/runtime-state.js"
 import ENTRY from "../../constant/entry.js"
@@ -150,10 +151,12 @@ function esmImport(
 
   if (
     !privateImport &&
-    parentEntry.extname === ".mjs" &&
+    isStrictESMExtension(parentEntry.extname) &&
     entry !== null &&
     entry.type === TYPE_ESM &&
-    entry.extname !== ".mjs" &&
+    !isStrictESMExtension(entry.extname) &&
+    // TypeScript .ts modules are valid ESM dependencies of strict ESM on modern Node.
+    entry.extname !== ".ts" &&
     !isPackageExportsRequest(
       request,
       parentEntry.dirname!,
@@ -235,7 +238,7 @@ function tryLoad(
 
   if (isPackageExportsError(error)) throw error
 
-  if (parentEntry.extname === ".mjs" || !isError(error)) {
+  if (isStrictESMExtension(parentEntry.extname) || !isError(error)) {
     throw error
   }
 

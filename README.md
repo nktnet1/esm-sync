@@ -89,6 +89,31 @@ Out of the box `esm-sync` just works, no configuration necessary, and supports:
 JavaScript semantics are also tested against selected
 [Test262](https://github.com/tc39/test262) conformance cases.
 
+### Erasable TypeScript on modern Node.js
+
+When Node provides native `module.stripTypeScriptTypes()` (Node.js 22.18+),
+`esm-sync` can synchronously load `.ts`, `.mts`, and `.cts` with erasable type
+annotations. Type-only imports and declarations are removed before parsing.
+`.mts` has strict ESM semantics and `.cts` has CommonJS semantics. Existing
+TypeScript hooks such as `ts-node` retain precedence for files they compile.
+
+```ts
+// feature.mts
+export const answer: number = 42
+```
+
+```js
+// consumer.cjs
+const load = require("esm-sync")(module)
+console.log(load("./feature.mts").answer) // 42
+```
+
+This uses Node's **type stripping**, not the TypeScript compiler. Features
+requiring code generation, such as `enum` declarations and parameter properties,
+need a separate compilation step. On older Node versions, JavaScript-syntax
+modules with these extensions can still be loaded, but TypeScript annotations
+must be compiled away beforehand.
+
 ### Synchronous top-level await
 
 The CommonJS factory can load a module and its asynchronous dependencies

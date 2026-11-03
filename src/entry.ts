@@ -1,3 +1,4 @@
+import isStrictESMExtension from "./path/is-strict-esm-extension.js"
 import moduleGenerator from "./module/internal/module-generator.js"
 import type { NullableProxyHandler } from "./own/proxy.js"
 import type esmLoad from "./module/esm/load.js"
@@ -264,7 +265,7 @@ class Entry {
 
     let otherGetter: Getter | undefined = otherGetters[importedName]
 
-    if (otherEntry.type !== TYPE_ESM && this.extname === ".mjs") {
+    if (otherEntry.type !== TYPE_ESM && isStrictESMExtension(this.extname)) {
       otherGetter = () => otherEntry.partialNamespace[importedName]
       otherGetter.owner = otherEntry
     }
@@ -604,7 +605,7 @@ class Entry {
         // CommonJS receives the explicit interop value; ESM imports continue
         // to use this entry's getters and complete namespace.
         mod.exports = this.getters["module.exports"]!()
-      } else if (this.extname === ".mjs") {
+      } else if (isStrictESMExtension(this.extname)) {
         mod.exports = createImmutableExportsProxy(this, this.exportsObject)
       } else {
         const names = getExportsObjectKeys(this)
@@ -690,7 +691,7 @@ class Entry {
 
   hasRequireInterception() {
     return (
-      this.extname !== ".mjs" &&
+      !isStrictESMExtension(this.extname) &&
       (Module._load !== staticLoad ||
         (has(this.module, "require") && this.module.require !== Module.prototype.require))
     )
@@ -1169,7 +1170,7 @@ function createMutableNamespaceProxy(entry: Entry, namespace: Namespace) {
 }
 
 function getExportByName(entry: Entry, name: string, parentEntry: Entry) {
-  const parentIsMJS = parentEntry.extname === ".mjs"
+  const parentIsMJS = isStrictESMExtension(parentEntry.extname)
   const { type } = entry
 
   if (name !== "*") {
@@ -1192,7 +1193,7 @@ function getExportByName(entry: Entry, name: string, parentEntry: Entry) {
 
   const parentMutableNamespace = parentCJS.mutableNamespace && !parentIsMJS
 
-  const useImmutableNamespace = !parentMutableNamespace || entry.extname === ".mjs"
+  const useImmutableNamespace = !parentMutableNamespace || isStrictESMExtension(entry.extname)
 
   const usePartialNamespace = !parentNamedExports && type !== TYPE_ESM
 
@@ -1211,9 +1212,9 @@ function getExportByNameFast(entry: Entry, name: string, parentEntry: Entry) {
   }
 
   const parentMutableNamespace =
-    parentEntry.package.options.cjs.mutableNamespace && parentEntry.extname !== ".mjs"
+    parentEntry.package.options.cjs.mutableNamespace && !isStrictESMExtension(parentEntry.extname)
 
-  const useImmutableNamespace = !parentMutableNamespace || entry.extname === ".mjs"
+  const useImmutableNamespace = !parentMutableNamespace || isStrictESMExtension(entry.extname)
 
   return useImmutableNamespace ? entry.completeNamespace : entry.completeMutableNamespace
 }

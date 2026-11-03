@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type { ModuleRecord, ModuleConstructor } from "../../types/runtime.js"
 import { dirname, extname } from "../../safe/path.js"
 
@@ -55,7 +56,7 @@ const {
 const localhostRegExp = /^\/\/localhost\b/
 const queryHashRegExp = /[?#]/
 
-const strictExts = [".mjs", ".js", ".cjs", ".json", ".node"]
+const strictExts = [".mjs", ".js", ".cjs", ".json", ".node", ".ts", ".mts", ".cts"]
 const strictFields = ["main"]
 const strictExtsLookup = new Set(strictExts)
 
@@ -152,7 +153,7 @@ function resolveFilename(
   let cjsPaths = pkgOptions.cjs.paths
   let fields = pkgOptions.mainFields
 
-  if (parentEntry !== null && parentEntry.extname === ".mjs") {
+  if (parentEntry !== null && isStrictESMExtension(parentEntry.extname)) {
     cjsPaths = false
     fields = strictFields
   }
@@ -310,7 +311,7 @@ function maybeMaskStackTrace(error: unknown, parentEntry: Entry | null) {
       maskOptions.filename = parentEntry.filename
 
       maskOptions.inModule =
-        (!parentEntry.package.options.cjs.paths || parentEntry.extname === ".mjs") &&
+        (!parentEntry.package.options.cjs.paths || isStrictESMExtension(parentEntry.extname)) &&
         parentType !== TYPE_CJS &&
         parentType !== TYPE_PSEUDO
     }

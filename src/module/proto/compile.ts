@@ -1,3 +1,4 @@
+import isStrictESMExtension from "../../path/is-strict-esm-extension.js"
 import type { ModuleRecord } from "../../types/runtime.js"
 import Reflect from "../../reflection.js"
 // Based on `Module#_compile()`.
@@ -76,7 +77,7 @@ const compile = maskFunction(function (
 
   if (
     entry.package.options.mode !== MODE_STRICT &&
-    entry.extname !== ".mjs" &&
+    !isStrictESMExtension(entry.extname) &&
     (isInitial || state === STATE_PARSING_COMPLETED)
   ) {
     if (contentPackage === void 0) {
